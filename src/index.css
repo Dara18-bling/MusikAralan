@@ -1,0 +1,229 @@
+@import url('https://fonts.googleapis.com/css2?family=Marcellus&family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Noto+Music&display=swap');
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Marcellus', serif;
+  --font-sans: 'Figtree', system-ui, sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --color-ink: #1d2340;
+  --color-mute: #646a87;
+  --color-line: color-mix(in oklab, #1d2340 10%, transparent);
+  --color-p1: var(--p1);
+  --color-p2: var(--p2);
+  --color-p1-soft: var(--p1-soft);
+  --color-p2-soft: var(--p2-soft);
+}
+
+:root {
+  --p1: #1f6fe0; --p2: #e8608c; --p1-soft: #e6effd; --p2-soft: #fde9f0;
+}
+[data-theme='marian'] { --p1: #1f6fe0; --p2: #e8608c; --p1-soft: #e6effd; --p2-soft: #fde9f0; }
+[data-theme='advent'] { --p1: #5b3fb8; --p2: #c24f9a; --p1-soft: #eeeafb; --p2-soft: #fbe8f3; }
+[data-theme='ordinary'] { --p1: #13806d; --p2: #2f6fd1; --p1-soft: #e3f4f0; --p2-soft: #e6eefb; }
+[data-theme='gaudete'] { --p1: #c2416e; --p2: #e59a3b; --p1-soft: #fbe7ee; --p2-soft: #fdf1e1; }
+
+@layer base {
+  body {
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  background: var(--app-bg);
+}
+  ::selection { background: var(--p2-soft); color: var(--p1); }
+  * { scrollbar-width: none; }
+}
+
+.grad { background-image: linear-gradient(120deg, var(--p1), var(--p2)); }
+.grad-text { background-image: linear-gradient(100deg, var(--p1), var(--p2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.canvas {
+  background:
+    radial-gradient(60rem 40rem at 100% -10%, var(--p2-soft), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 10%, var(--p1-soft), transparent 60%),
+    var(--app-bg);
+}
+.staff { background-image: repeating-linear-gradient(to bottom, transparent 0 9px, color-mix(in oklab, var(--p1) 14%, transparent) 9px 10px); }
+
+
+
+/* ===== GLOBAL LIGHT AND DARK MODE ===== */
+
+:root {
+  color-scheme: light;
+  --app-bg: #fbfbfe;
+  --surface: #ffffff;
+  --surface-secondary: #f1f5f9;
+  --text-main: #1d2340;
+  --text-muted: #646a87;
+  --border-color: #e2e4ec;
+  --input-bg: #ffffff;
+}
+
+html.dark {
+  color-scheme: dark;
+  --app-bg: #0f172a;
+  --surface: #1e293b;
+  --surface-secondary: #273449;
+  --text-main: #f1f5f9;
+  --text-muted: #cbd5e1;
+  --border-color: #475569;
+  --input-bg: #1e293b;
+  /* Keep accent surfaces distinct from the dark page while preserving each
+     liturgical theme's accent colors. */
+  --p1-soft: color-mix(in srgb, var(--p1) 24%, #1e293b);
+  --p2-soft: color-mix(in srgb, var(--p2) 22%, #1e293b);
+}
+
+/* Whole page */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  color: var(--text-main);
+  background: var(--app-bg);
+}
+
+/* Dashboard background */
+html.dark .canvas {
+  background:
+    radial-gradient(
+      60rem 40rem at 100% -10%,
+      color-mix(in srgb, var(--p2) 12%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      50rem 40rem at -10% 10%,
+      color-mix(in srgb, var(--p1) 12%, transparent),
+      transparent 60%
+    ),
+    var(--app-bg);
+  color: var(--text-main);
+}
+
+/* White surfaces, including opacity variants */
+html.dark .bg-white,
+html.dark .bg-white\/95,
+html.dark .bg-white\/90,
+html.dark .bg-white\/85,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark .bg-white\/60 {
+  background-color: var(--surface);
+}
+
+html.dark .bg-gray-800,
+html.dark .bg-gray-800\/70,
+html.dark .bg-gray-900 {
+  background-color: var(--surface);
+}
+
+/* Gray and slate surfaces */
+html.dark .bg-gray-50,
+html.dark .bg-gray-100,
+html.dark .bg-slate-50,
+html.dark .bg-slate-100,
+html.dark .bg-gray-200,
+html.dark .bg-slate-200,
+html.dark .bg-slate-300,
+html.dark .bg-gray-300 {
+  background-color: var(--surface-secondary);
+}
+
+/* Accent and tinted surfaces used by profiles, dashboards, and chat bubbles. */
+html.dark .bg-p1-soft,
+html.dark .bg-p2-soft,
+html.dark .bg-p1-soft\/50,
+html.dark .bg-p1-soft\/40 {
+  background-color: var(--surface-secondary);
+}
+html.dark .text-p1 { color: color-mix(in srgb, var(--p1) 55%, white); }
+html.dark .text-p2 { color: color-mix(in srgb, var(--p2) 55%, white); }
+
+/* Common dark text colors */
+html.dark .text-ink,
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: var(--text-main);
+}
+html.dark .text-gray-400,
+html.dark .text-slate-400 { color: #94a3b8; }
+
+/* Muted text */
+html.dark .text-mute,
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: var(--text-muted);
+}
+
+/* Borders */
+html.dark .border-line,
+html.dark .border-gray-200,
+html.dark .border-gray-300,
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: var(--border-color);
+}
+html.dark .border-red-200,
+html.dark .border-orange-200,
+html.dark .border-p2\/30 { border-color: color-mix(in srgb, currentColor 45%, var(--border-color)); }
+
+/* Inputs */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: var(--input-bg);
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Tables */
+html.dark table,
+html.dark th,
+html.dark td {
+  border-color: var(--border-color);
+}
+
+/* Hover backgrounds */
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-gray-50:hover {
+  background-color: var(--surface-secondary);
+}
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-red-50:hover,
+html.dark .hover\:bg-orange-50:hover {
+  background-color: var(--surface-secondary);
+}
+
+/* Piano keys keep their familiar keyboard colors in either theme. */
+html.dark .piano-white-key,
+html.dark .piano-white-key:hover {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+html.dark .piano-black-key,
+html.dark .piano-black-key:hover {
+  background-color: #111827 !important;
+  color: #ffffff;
+}
+html.dark .piano-white-key .text-slate-400 { color: #94a3b8; }
+html.dark .piano-black-key .text-gray-400 { color: #9ca3af; }
+html.dark .piano-solfege-label { color: #ff78bb; }
+
+/* Native controls and browser-rendered widgets follow the selected mode. */
+html.dark option { background: var(--surface); color: var(--text-main); }
+html.dark hr { border-color: var(--border-color); }
