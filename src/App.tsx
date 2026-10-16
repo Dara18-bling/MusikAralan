@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
+  LogOut,
   Megaphone,
   Menu,
   Piano,
@@ -59,6 +60,16 @@ import { auth, db } from "./firebase";
 import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "./chatbotResponses";
 
 export type Role = "student" | "teacher" | "admin";
+
+const LITURGICAL_PALETTES = [
+  { name: "Advent · Violet", primary: "#6842a6", secondary: "#a855a0" },
+  { name: "Christmas · White and gold", primary: "#d3a332", secondary: "#f0d88a" },
+  { name: "Lent · Violet", primary: "#513b8f", secondary: "#8064bd" },
+  { name: "Easter · White and gold", primary: "#c28b22", secondary: "#f2d477" },
+  { name: "Ordinary Time · Green", primary: "#287653", secondary: "#79a94b" },
+  { name: "Feasts · Red", primary: "#a8323b", secondary: "#e16c48" },
+  { name: "Marian · Blue", primary: "#2874b8", secondary: "#72b7dc" },
+];
 
 export const NAV: Record<Role, [string, LucideIcon, string][]> = {
   student: [
@@ -116,10 +127,12 @@ function ProfileView({
   role,
   name,
   primaryColor,
+  secondaryColor,
 }: {
   role: string;
   name: string;
   primaryColor: string;
+  secondaryColor: string;
 }) {
   const [user, setUser] = useState(auth.currentUser);
   const [fullName, setFullName] = useState(name);
@@ -135,12 +148,12 @@ function ProfileView({
   const [otpSending, setOtpSending] = useState(false);
   const [otpChecking, setOtpChecking] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
-  const [selectedColor, setSelectedColor] = useState(primaryColor);
+  const [selectedPalette, setSelectedPalette] = useState(() => LITURGICAL_PALETTES.find((palette) => palette.primary === primaryColor) ?? LITURGICAL_PALETTES[0]);
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
-    setSelectedColor(primaryColor);
-  }, [primaryColor]);
+    setSelectedPalette(LITURGICAL_PALETTES.find((palette) => palette.primary === primaryColor && palette.secondary === secondaryColor) ?? LITURGICAL_PALETTES[0]);
+  }, [primaryColor, secondaryColor]);
 
   useEffect(() => onAuthStateChanged(auth, setUser), []);
 
@@ -254,7 +267,7 @@ function ProfileView({
     if (role !== "admin") return;
     setColorSaving(true);
     try {
-      await setDoc(doc(db, "settings", "appearance"), { primaryColor: selectedColor }, { merge: true });
+      await setDoc(doc(db, "settings", "appearance"), { primaryColor: selectedPalette.primary, secondaryColor: selectedPalette.secondary, paletteName: selectedPalette.name }, { merge: true });
       alert("System interface color saved for all users.");
     } catch (error) {
       console.error(error);
@@ -306,10 +319,15 @@ function ProfileView({
                 </div>
               )}
               <div className="border-t border-line pt-4">
-                <Label>System interface color for all users</Label>
+                <Label>Liturgical color palette for all users</Label>
+                <p className="mt-1 text-xs text-mute">Choose a season or feast palette. It updates the login and signup background and system gradients.</p>
+                <div className="mt-3 flex flex-wrap gap-3" role="radiogroup" aria-label="Liturgical color palette">
+                  {LITURGICAL_PALETTES.map((palette) => (
+                    <button key={palette.name} type="button" role="radio" aria-checked={selectedPalette.name === palette.name} aria-label={palette.name} title={palette.name} onClick={() => setSelectedPalette(palette)} className={`h-11 w-11 rounded-full bg-gradient-to-br ring-offset-2 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p1 ${selectedPalette.name === palette.name ? "ring-2 ring-p1" : "ring-1 ring-black/10"}`} style={{ backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})` }} />
+                  ))}
+                </div>
                 <div className="mt-2 flex items-center gap-3">
-                  <input aria-label="System primary color" type="color" value={selectedColor} onChange={(event) => setSelectedColor(event.target.value)} className="h-11 w-14 cursor-pointer rounded border border-line bg-transparent p-1" />
-                  <span className="font-mono text-sm uppercase">{selectedColor}</span>
+                  <span className="text-sm font-medium">{selectedPalette.name}</span>
                   <button type="button" onClick={saveSystemColor} disabled={colorSaving} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{colorSaving ? "Saving..." : "Save system color"}</button>
                 </div>
               </div>
@@ -341,21 +359,24 @@ function ProfileView({
 
 function useSystemAppearance(darkMode: boolean) {
   const [primaryColor, setPrimaryColor] = useState("#1f6fe0");
+  const [secondaryColor, setSecondaryColor] = useState("#e8608c");
 
   useEffect(() => onSnapshot(doc(db, "settings", "appearance"), (snapshot) => {
     const color = snapshot.data()?.primaryColor;
     if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) setPrimaryColor(color);
+    const secondary = snapshot.data()?.secondaryColor;
+    if (typeof secondary === "string" && /^#[0-9a-f]{6}$/i.test(secondary)) setSecondaryColor(secondary);
   }, (error) => console.error("Could not load system appearance:", error)), []);
 
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--p1", primaryColor);
-    root.style.setProperty("--p2", primaryColor);
+    root.style.setProperty("--p2", secondaryColor);
     root.style.setProperty("--p1-soft", `color-mix(in srgb, ${primaryColor} ${darkMode ? "28%" : "12%"}, ${darkMode ? "#1e293b" : "white"})`);
-    root.style.setProperty("--p2-soft", `color-mix(in srgb, ${primaryColor} ${darkMode ? "25%" : "10%"}, ${darkMode ? "#1e293b" : "white"})`);
-  }, [primaryColor, darkMode]);
+    root.style.setProperty("--p2-soft", `color-mix(in srgb, ${secondaryColor} ${darkMode ? "25%" : "10%"}, ${darkMode ? "#1e293b" : "white"})`);
+  }, [primaryColor, secondaryColor, darkMode]);
 
-  return primaryColor;
+  return { primaryColor, secondaryColor };
 }
 
 function Login() {
@@ -492,14 +513,18 @@ function Login() {
         className="absolute inset-0"
         style={{
           background:
-            "linear-gradient(125deg, rgba(232, 96, 140, 0.85), rgba(209, 56, 106, 0.85))",
+            "linear-gradient(125deg, color-mix(in srgb, var(--p1) 88%, transparent), color-mix(in srgb, var(--p2) 88%, transparent))",
         }}
       />
       <div className="relative hidden flex-col justify-between overflow-hidden p-12 lg:flex">
         <img
           src={logo}
           alt="OLSHP"
-          className="mx-auto h-[62vh] w-auto object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.35)]"
+          className="mx-auto h-[62vh] w-auto object-contain"
+          style={{
+            filter:
+              "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 52px rgba(125,211,252,0.38)) drop-shadow(0 20px 40px rgba(0,0,0,0.38))",
+          }}
         />
         <div className="text-white">
           <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-white/90">
@@ -507,12 +532,12 @@ function Login() {
           </p>
           <p className="mt-2 max-w-md font-display text-3xl leading-tight [text-shadow:0_2px_12px_rgba(0,0,0,0.25)]">
             "He who sings, prays twice."{"   "}
-            <span className="text-white/85">— St. Augustine</span>
+            <span className="mt-1 block text-white/85">— St. Augustine</span>
           </p>
         </div>
       </div>
       <div className="relative grid place-items-center p-6 h-screen overflow-y-auto">
-        <div className="relative my-auto w-full max-w-md rounded-3xl border border-line bg-white/95 p-8 shadow-2xl shadow-black/25 backdrop-blur">
+        <div className="relative my-auto w-full max-w-md rounded-3xl border border-line bg-white/95 p-8 text-ink shadow-2xl shadow-black/25 backdrop-blur [&_input]:font-medium [&_input]:placeholder:text-slate-500 [&_label>span]:font-bold [&_label>span]:text-slate-800 [&_p]:font-medium">
           <button
             type="button"
             onClick={() => setDarkMode((enabled) => !enabled)}
@@ -522,12 +547,15 @@ function Login() {
           >
             {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <img src={logo} alt="" className="mx-auto mb-4 h-28 lg:hidden" />
+          <img src={logo} alt="" className="mx-auto mb-4 h-28 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)] lg:hidden" />
+          <p className="mx-auto mb-4 max-w-xs text-center font-display text-sm italic leading-relaxed text-slate-600 lg:hidden">
+            “He who sings, prays twice.” <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">— St. Augustine</span>
+          </p>
           <div className="text-center">
             <div className="block">
               <Label>Ministry of Music in the Liturgy</Label>
             </div>
-            <h1 className="mt-1 font-display text-3xl grad-text">
+            <h1 className="mt-1 font-display text-3xl font-semibold grad-text">
               MusikAralan
             </h1>
           </div>
@@ -894,7 +922,7 @@ function Dashboard() {
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("darkMode") === "true",
   );
-  const primaryColor = useSystemAppearance(darkMode);
+  const { primaryColor, secondaryColor } = useSystemAppearance(darkMode);
   const [menu, setMenu] = useState(false);
 
   useEffect(() => {
@@ -934,12 +962,12 @@ function Dashboard() {
       className={`canvas min-h-screen lg:grid lg:grid-cols-[17rem_1fr] ${darkMode ? "bg-gray-900 text-white" : ""}`}
     >
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col overflow-y-auto border-r border-line ${darkMode ? "bg-gray-800" : "bg-white/95"} p-5 backdrop-blur transition lg:static lg:h-auto lg:w-auto lg:translate-x-0 lg:overflow-visible ${menu ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col overflow-y-auto border-r border-line ${darkMode ? "bg-gray-800" : "bg-white/95"} p-5 backdrop-blur transition lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:self-start lg:translate-x-0 ${menu ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div
           className={`sticky top-0 z-10 -mx-5 -mt-5 flex items-center gap-3 px-5 pt-5 pb-3 backdrop-blur ${darkMode ? "bg-gray-800" : "bg-white/95"}`}
         >
-          <img src={logo} alt="MML logo" className="h-14 w-auto" />
+          <img src={logo} alt="MML logo" className="h-14 w-auto drop-shadow-[0_0_10px_rgba(56,189,248,0.42)]" />
           <div>
             <p className="font-display text-lg leading-tight">MusikAralan</p>
             <p className="font-mono text-[10px] uppercase tracking-widest text-mute">
@@ -963,12 +991,15 @@ function Dashboard() {
             <Gospel />
           </div>
         )}
-        <div className="mt-auto space-y-4 pt-6 pb-6">
+        <div className={`sticky bottom-0 mt-auto -mx-5 border-t border-line px-5 pt-4 pb-2 ${darkMode ? "bg-gray-800" : "bg-white/95"}`}>
           <button
             onClick={handleSignOut}
-            className="text-sm font-semibold text-red-500 hover:text-red-700 block w-full text-left"
+            className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${darkMode ? "border-red-400/20 text-red-300 hover:border-red-300/40 hover:bg-red-400/10 hover:text-red-200" : "border-red-100 bg-red-50/60 text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"}`}
           >
-            Sign out
+            <span className={`grid h-8 w-8 place-items-center rounded-lg transition ${darkMode ? "bg-red-400/10 group-hover:bg-red-400/20" : "bg-white/80 group-hover:bg-white"}`}>
+              <LogOut className="h-4 w-4" strokeWidth={2} />
+            </span>
+            <span>Sign out</span>
           </button>
         </div>
       </aside>
@@ -1022,7 +1053,7 @@ function Dashboard() {
 
         <main className="mx-auto max-w-6xl px-5 py-8 md:px-10">
           {view === "profile" ? (
-            <ProfileView role={role} name={userName} primaryColor={primaryColor} />
+            <ProfileView role={role} name={userName} primaryColor={primaryColor} secondaryColor={secondaryColor} />
           ) : (
             <>
               {role === "student" && (
