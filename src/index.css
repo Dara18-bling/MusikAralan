@@ -28,6 +28,19 @@
   color: var(--text-main);
   background: var(--app-bg);
 }
+  button:not(:disabled),
+  a[href],
+  [role='button'],
+  [role='link'],
+  input[type='button'],
+  input[type='submit'] {
+    cursor: pointer;
+  }
+  button:disabled,
+  input[type='button']:disabled,
+  input[type='submit']:disabled {
+    cursor: not-allowed;
+  }
   ::selection { background: var(--p2-soft); color: var(--p1); }
   * { scrollbar-width: none; }
 }

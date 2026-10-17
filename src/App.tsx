@@ -24,7 +24,6 @@ import {
   LogOut,
   Megaphone,
   Menu,
-  Piano,
   Upload,
   Users,
   Video,
@@ -39,6 +38,7 @@ import church from "./assets/church.jpg";
 import Student, { Gospel, type StudentView } from "./Student";
 import Teacher, { type TeacherView } from "./Teacher";
 import Admin, { type AdminView } from "./Admin";
+import PhoneLogin from "./PhoneLogin";
 import { Btn, Input, Label, Card, Title } from "./ui";
 import {
   linkWithCredential,
@@ -62,42 +62,39 @@ import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "./chatbotRespon
 export type Role = "student" | "teacher" | "admin";
 
 const LITURGICAL_PALETTES = [
-  { name: "Advent · Violet", primary: "#6842a6", secondary: "#a855a0" },
-  { name: "Christmas · White and gold", primary: "#d3a332", secondary: "#f0d88a" },
-  { name: "Lent · Violet", primary: "#513b8f", secondary: "#8064bd" },
-  { name: "Easter · White and gold", primary: "#c28b22", secondary: "#f2d477" },
+  { name: "Advent & Lent · Violet", primary: "#6842a6", secondary: "#a855a0" },
+  { name: "Easter & Christmas · White and gold", primary: "#c28b22", secondary: "#f2d477" },
   { name: "Ordinary Time · Green", primary: "#287653", secondary: "#79a94b" },
   { name: "Feasts · Red", primary: "#a8323b", secondary: "#e16c48" },
-  { name: "Marian · Blue", primary: "#2874b8", secondary: "#72b7dc" },
+  { name: "Marian · Blue and pink", primary: "#2874b8", secondary: "#e58aae" },
 ];
 
 export const NAV: Record<Role, [string, LucideIcon, string][]> = {
   student: [
+    ["profile", User, "My Profile"],
     ["home", Home, "Dashboard"],
     ["materials", BookOpen, "Classes"],
     ["notes", Music, "Solfeggio (Note Reading)"],
     ["live", Video, "Live Classes"],
     ["exams", Award, "Assessments"],
-    ["store", Piano, "Available Classes"],
     ["alerts", Bell, "Notifications"],
     ["help", LifeBuoy, "Help Guides"],
-    ["profile", User, "My Profile"],
   ],
   teacher: [
+    ["profile", User, "My Profile"],
     ["dash", LayoutDashboard, "Dashboard"],
     ["students", Users, "My Students"],
     ["upload", Upload, "Upload Content"],
     ["quiz", ListChecks, "Assessment Builder"],
     ["meet", Video, "Live Sessions"],
-    ["profile", User, "My Profile"],
   ],
   admin: [
+    ["profile", User, "Admin Profile"],
     ["dash", LayoutDashboard, "Dashboard"],
     ["accounts", Users, "Accounts"],
     ["news", Megaphone, "Announcements"],
     ["classes", BookOpen, "Manage Classes"],
     ["bot", MessageCircle, "Chatbot Replies"],
-    ["profile", User, "Admin Profile"],
   ],
 };
 
@@ -283,8 +280,8 @@ function ProfileView({
         title="My Profile"
         sub="Edit information and manage verifications."
       />
-      <Card className="mt-5 max-w-xl">
-        <div className="grid gap-4">
+      <Card className={`mt-5 w-full ${role === "admin" ? "max-w-none [&_button]:text-base [&_input]:text-base [&_label>span]:text-base [&_p]:text-base" : "max-w-xl"}`}>
+        <div className={`grid gap-4 ${role === "admin" ? "lg:grid-cols-2" : ""}`}>
           <Field label="Full Name">
             <Input value={fullName} onChange={(event) => setFullName(event.target.value)} />
           </Field>
@@ -292,13 +289,13 @@ function ProfileView({
             <Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
           </Field>
           {role === "admin" && (
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-p1-soft p-3 text-sm">
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-p1-soft p-4 text-base lg:col-span-2">
               <p><span className="font-semibold">Account role:</span> Administrator</p>
               <p><span className="font-semibold">Account status:</span> {accountStatus}</p>
             </div>
           )}
           {role === "admin" && (
-            <button type="button" onClick={sendEmailConfirmation} disabled={emailSending} className="w-fit rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-60">
+            <button type="button" onClick={sendEmailConfirmation} disabled={emailSending} className="w-fit rounded-full border border-line px-4 py-2 font-semibold disabled:opacity-60 lg:col-span-2">
               {emailSending ? "Sending confirmation..." : email.trim().toLowerCase() !== user?.email?.toLowerCase() ? "Confirm email change" : emailVerified ? "Resend Gmail verification" : "Send Gmail confirmation"}
             </button>
           )}
@@ -307,20 +304,20 @@ function ProfileView({
               <Field label="Phone Number (international format)">
                 <Input type="tel" value={phone} onChange={(event) => { setPhone(event.target.value); setPhoneVerified(false); }} placeholder="+639171234567" />
               </Field>
-              <p className="text-sm text-mute">{phoneVerified ? "SMS verification is linked to this account." : "Verify this number with an SMS one-time code."}</p>
-              <div id="admin-phone-recaptcha" />
-              <button type="button" onClick={sendPhoneOtp} disabled={otpSending} className="w-fit rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-60">
+              <p className="text-mute lg:self-center">{phoneVerified ? "SMS verification is linked to this account." : "Verify this number with an SMS one-time code."}</p>
+              <div id="admin-phone-recaptcha" className="lg:col-span-2" />
+              <button type="button" onClick={sendPhoneOtp} disabled={otpSending} className="w-fit rounded-full border border-line px-4 py-2 font-semibold disabled:opacity-60">
                 {otpSending ? "Sending code..." : "Send SMS OTP"}
               </button>
               {verificationId && (
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 lg:col-span-2">
                   <Input inputMode="numeric" value={otp} onChange={(event) => setOtp(event.target.value)} placeholder="6-digit SMS code" />
                   <button type="button" onClick={confirmPhoneOtp} disabled={otpChecking} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">{otpChecking ? "Verifying..." : "Verify phone"}</button>
                 </div>
               )}
-              <div className="border-t border-line pt-4">
+              <div className="border-t border-line pt-4 lg:col-span-2">
                 <Label>Liturgical color palette for all users</Label>
-                <p className="mt-1 text-xs text-mute">Choose a season or feast palette. It updates the login and signup background and system gradients.</p>
+                <p className="mt-1 text-sm text-mute">Choose a season or feast palette. It updates the login and signup background and system gradients.</p>
                 <div className="mt-3 flex flex-wrap gap-3" role="radiogroup" aria-label="Liturgical color palette">
                   {LITURGICAL_PALETTES.map((palette) => (
                     <button key={palette.name} type="button" role="radio" aria-checked={selectedPalette.name === palette.name} aria-label={palette.name} title={palette.name} onClick={() => setSelectedPalette(palette)} className={`h-11 w-11 rounded-full bg-gradient-to-br ring-offset-2 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p1 ${selectedPalette.name === palette.name ? "ring-2 ring-p1" : "ring-1 ring-black/10"}`} style={{ backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})` }} />
@@ -338,10 +335,10 @@ function ProfileView({
               <Input type="number" defaultValue="2005" />
             </Field>
           )}
-          <div className="pt-4 border-t border-line">
+          <div className={`pt-4 border-t border-line ${role === "admin" ? "lg:col-span-2" : ""}`}>
             <Label>Verification Status</Label>
             {role === "admin" ? (
-              <div className="mt-2 grid gap-2 text-sm">
+              <div className="mt-2 grid gap-2">
                 <p className={`flex w-fit items-center gap-2 rounded-lg p-2 font-semibold ${emailVerified ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}><CircleCheck className="h-4 w-4" /> Email {emailVerified ? "verified" : "not verified"}</p>
                 <p className={`flex w-fit items-center gap-2 rounded-lg p-2 font-semibold ${phoneVerified ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}><CircleCheck className="h-4 w-4" /> Phone {phoneVerified ? "verified" : "not verified"}</p>
                 <button type="button" onClick={refreshVerificationStatus} className="w-fit font-semibold text-p1 hover:underline">Refresh verification status</button>
@@ -350,7 +347,7 @@ function ProfileView({
               <p className="flex items-center gap-2 text-sm text-green-600 mt-2 bg-green-50 p-2 rounded-lg w-fit font-semibold"><CircleCheck className="w-4 h-4" /> Account Verified</p>
             )}
           </div>
-          <Btn className="mt-4" onClick={saveProfile}>{profileSaving ? "Saving..." : "Save Changes"}</Btn>
+          <Btn className={`mt-4 w-fit ${role === "admin" ? "lg:col-span-2" : ""}`} onClick={saveProfile}>{profileSaving ? "Saving..." : "Save Changes"}</Btn>
         </div>
       </Card>
     </>
@@ -389,12 +386,22 @@ function Login() {
   const [reqEmail, setReqEmail] = useState("");
   const [reqPass, setReqPass] = useState("");
   const [reqConfirm, setReqConfirm] = useState("");
-  const [birthYear, setBirthYear] = useState("");
+  const [reqBirthday, setReqBirthday] = useState("");
+  const [reqPhone, setReqPhone] = useState("");
+  const [reqMessenger, setReqMessenger] = useState("");
+  const [showReqPass, setShowReqPass] = useState(false);
+  const [showReqConfirm, setShowReqConfirm] = useState(false);
+  const [signupError, setSignupError] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("darkMode") === "true",
   );
+  const today = new Date();
+  const toDateInputValue = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const maxBirthday = toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
+  const minBirthday = toDateInputValue(new Date(today.getFullYear() - 120, today.getMonth(), today.getDate()));
   useSystemAppearance(darkMode);
 
   useEffect(() => {
@@ -461,10 +468,27 @@ function Login() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (reqPass !== reqConfirm) return alert("Passwords do not match.");
-    if (reqPass.length < 8)
-      return alert("Password must be at least 8 characters.");
-    if (!birthYear) return alert("Please enter your birth year.");
+    setSignupError("");
+    if (!/^[\p{L}\p{M} .'-]+$/u.test(reqName.trim())) {
+      setSignupError("Enter a complete name using letters only (spaces, periods, apostrophes, and hyphens are allowed).");
+      return;
+    }
+    if (!reqBirthday || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
+      setSignupError("Enter a valid birthday between 120 years ago and yesterday. Today's date and dates in the future aren't allowed.");
+      return;
+    }
+    if (!/^\d+$/.test(reqPhone)) {
+      setSignupError("Phone number can contain numbers only.");
+      return;
+    }
+    if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,}$/.test(reqPass)) {
+      setSignupError("Password must be at least 8 characters and include a letter, a number, and a special character.");
+      return;
+    }
+    if (reqPass !== reqConfirm) {
+      setSignupError("Passwords do not match. Check both fields and try again.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -477,7 +501,10 @@ function Login() {
         uid: cred.user.uid,
         name: reqName,
         email: reqEmail,
-        birthYear: birthYear,
+        birthday: reqBirthday,
+        birthYear: reqBirthday.slice(0, 4),
+        phoneNumber: reqPhone,
+        messengerLink: reqMessenger.trim(),
         role: "student",
         status: "pending",
         dateRequested: new Date().toISOString(),
@@ -523,7 +550,7 @@ function Login() {
           className="mx-auto h-[62vh] w-auto object-contain"
           style={{
             filter:
-              "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 52px rgba(125,211,252,0.38)) drop-shadow(0 20px 40px rgba(0,0,0,0.38))",
+              `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : "52px rgba(125,211,252,0.38)"}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
           }}
         />
         <div className="text-white">
@@ -537,7 +564,7 @@ function Login() {
         </div>
       </div>
       <div className="relative grid place-items-center p-6 h-screen overflow-y-auto">
-        <div className="relative my-auto w-full max-w-md rounded-3xl border border-line bg-white/95 p-8 text-ink shadow-2xl shadow-black/25 backdrop-blur [&_input]:font-medium [&_input]:placeholder:text-slate-500 [&_label>span]:font-bold [&_label>span]:text-slate-800 [&_p]:font-medium">
+        <div className={`relative my-auto w-full max-w-md rounded-3xl border border-line bg-white/95 p-8 text-ink shadow-2xl shadow-black/25 backdrop-blur [&_input]:font-medium [&_label>span]:font-bold [&_p]:font-medium ${darkMode ? "[&_label>span]:text-slate-100" : "[&_label>span]:text-slate-800"}`}>
           <button
             type="button"
             onClick={() => setDarkMode((enabled) => !enabled)}
@@ -547,7 +574,12 @@ function Login() {
           >
             {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          <img src={logo} alt="" className="mx-auto mb-4 h-28 drop-shadow-[0_0_10px_rgba(255,255,255,0.2)] lg:hidden" />
+          <img
+            src={logo}
+            alt=""
+            className="mx-auto mb-4 h-28 lg:hidden"
+            style={{ filter: darkMode ? "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(255,255,255,0.65)) drop-shadow(0 0 28px rgba(125,211,252,0.55))" : "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 10px rgba(255,255,255,0.3))" }}
+          />
           <p className="mx-auto mb-4 max-w-xs text-center font-display text-sm italic leading-relaxed text-slate-600 lg:hidden">
             “He who sings, prays twice.” <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">— St. Augustine</span>
           </p>
@@ -569,9 +601,10 @@ function Login() {
                 <Field label="Email Address">
                   <Input
                     type="email"
-                    placeholder="you@email.com"
+                    placeholder="example@gmail.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="placeholder:text-slate-400"
                   />
                 </Field>
                 <Field label="Password">
@@ -581,7 +614,7 @@ function Login() {
                       placeholder="Password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pr-11"
+                      className="pr-11 placeholder:text-slate-400"
                     />
                     <button
                       type="button"
@@ -649,16 +682,18 @@ function Login() {
               </Btn>
             </div>
           ) : (
-            <form className="mt-6 grid gap-3" onSubmit={handleSignup}>
-              <p className="-mt-4 mb-1 text-center text-mute">
+            <form className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2" onSubmit={handleSignup}>
+              <p className="-mt-4 mb-1 text-center text-mute lg:col-span-2">
                 Request access as a member or aspirant.
               </p>
               <Field label="Full Name">
                 <Input
                   required
                   value={reqName}
-                  onChange={(e) => setReqName(e.target.value)}
-                  placeholder="Juan Dela Cruz"
+                  onChange={(e) => setReqName(e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ""))}
+                  autoComplete="name"
+                  placeholder="Sandara L. Torres"
+                  className="placeholder:text-slate-400"
                 />
               </Field>
               <Field label="Email Address">
@@ -667,37 +702,90 @@ function Login() {
                   type="email"
                   value={reqEmail}
                   onChange={(e) => setReqEmail(e.target.value)}
-                  placeholder="you@email.com"
+                  autoComplete="email"
+                  placeholder="example@gmail.com"
+                  className="placeholder:text-slate-400"
                 />
               </Field>
-              <Field label="Birth Year">
+              <Field label="Birthday">
                 <Input
                   required
-                  type="number"
-                  value={birthYear}
-                  onChange={(e) => setBirthYear(e.target.value)}
-                  placeholder="e.g. 2005"
+                  type="date"
+                  value={reqBirthday}
+                  onChange={(e) => setReqBirthday(e.target.value)}
+                  min={minBirthday}
+                  max={maxBirthday}
+                  placeholder="MM/DD/YYYY"
+                  className={`placeholder:text-slate-400 ${reqBirthday ? "text-slate-800" : "text-slate-400"}`}
+                />
+              </Field>
+              <Field label="Phone Number">
+                <Input
+                  required
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  value={reqPhone}
+                  onChange={(e) => setReqPhone(e.target.value.replace(/\D/g, ""))}
+                  placeholder="09171234567"
+                  className="placeholder:text-slate-400"
+                />
+              </Field>
+              <Field label="Messenger Link (optional)">
+                <Input
+                  type="url"
+                  value={reqMessenger}
+                  onChange={(e) => setReqMessenger(e.target.value)}
+                  placeholder="https://m.me/your.name"
+                  className="placeholder:text-slate-400"
                 />
               </Field>
               <Field label="Password">
-                <Input
-                  required
-                  type="password"
-                  value={reqPass}
-                  onChange={(e) => setReqPass(e.target.value)}
-                  placeholder="At least 8 characters"
-                />
+                <div className="relative">
+                  <Input
+                    required
+                    type={showReqPass ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={reqPass}
+                    onChange={(e) => setReqPass(e.target.value)}
+                    placeholder="8+ characters, letter, number & symbol"
+                    className="pr-11 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowReqPass((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
+                    aria-label={showReqPass ? "Hide password" : "Show password"}
+                  >
+                    {showReqPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </Field>
               <Field label="Confirm Password">
-                <Input
-                  required
-                  type="password"
-                  value={reqConfirm}
-                  onChange={(e) => setReqConfirm(e.target.value)}
-                  placeholder="Re-enter password"
-                />
+                <div className="relative">
+                  <Input
+                    required
+                    type={showReqConfirm ? "text" : "password"}
+                    autoComplete="new-password"
+                    value={reqConfirm}
+                    onChange={(e) => setReqConfirm(e.target.value)}
+                    placeholder="Re-enter your password"
+                    className="pr-11 placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowReqConfirm((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
+                    aria-label={showReqConfirm ? "Hide confirmation password" : "Show confirmation password"}
+                  >
+                    {showReqConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </Field>
-              <p className="flex items-center justify-center gap-2 rounded-xl bg-p2-soft px-3 py-2 text-xs text-p2">
+              {signupError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 lg:col-span-2">{signupError}</p>}
+              <p className="flex items-center justify-center gap-2 rounded-xl bg-p2-soft px-3 py-2 text-xs text-p2 lg:col-span-2">
                 <ShieldCheck className="h-4 w-4 shrink-0" /> Accounts require
                 Admin approval.
               </p>
@@ -705,12 +793,12 @@ function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-full bg-[var(--p1)] py-3 text-base font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="w-full rounded-full bg-[var(--p1)] py-3 text-base font-semibold text-white transition hover:opacity-90 disabled:opacity-50 lg:col-span-2"
               >
                 {loading ? "Submitting..." : "Submit Request"}
               </button>
 
-              <p className="text-center text-sm text-mute">
+              <p className="text-center text-sm text-mute lg:col-span-2">
                 Already a member?{" "}
                 <button
                   type="button"
@@ -942,6 +1030,8 @@ function Dashboard() {
 
   if (pathRole !== role)
     return <Navigate to={`/${role}/${NAV[role][0][0]}`} replace />;
+  if (role === "student" && view === "store")
+    return <Navigate to="/student/materials" replace />;
 
   const go = (v: string) => {
     navigate(`/${role}/${v}`);
@@ -962,36 +1052,45 @@ function Dashboard() {
       className={`canvas min-h-screen lg:grid lg:grid-cols-[17rem_1fr] ${darkMode ? "bg-gray-900 text-white" : ""}`}
     >
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col overflow-y-auto border-r border-line ${darkMode ? "bg-gray-800" : "bg-white/95"} p-5 backdrop-blur transition lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:self-start lg:translate-x-0 ${menu ? "translate-x-0" : "-translate-x-full"}`}
+        className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col overflow-y-auto border-r border-line ${darkMode ? "bg-gray-800" : "bg-white/95"} p-5 backdrop-blur transition lg:static lg:top-auto lg:h-auto lg:min-h-screen lg:w-auto lg:self-stretch lg:overflow-visible lg:translate-x-0 ${menu ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div
-          className={`sticky top-0 z-10 -mx-5 -mt-5 flex items-center gap-3 px-5 pt-5 pb-3 backdrop-blur ${darkMode ? "bg-gray-800" : "bg-white/95"}`}
+          className={`relative z-10 -mx-5 -mt-5 flex shrink-0 items-center gap-3 px-5 pt-5 pb-3 backdrop-blur ${darkMode ? "bg-gray-800" : "bg-white/95"}`}
         >
-          <img src={logo} alt="MML logo" className="h-14 w-auto drop-shadow-[0_0_10px_rgba(56,189,248,0.42)]" />
-          <div>
+          <img
+            src={logo}
+            alt="MML logo"
+            className="h-14 w-auto"
+            style={{
+              filter: `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : "52px rgba(125,211,252,0.38)"}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
+            }}
+          />
+          <div className="ml-1 min-w-0 translate-y-0.5">
             <p className="font-display text-lg leading-tight">MusikAralan</p>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-mute">
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-mute">
               OLSHP · MML
             </p>
           </div>
         </div>
-        <nav className="mt-8 grid gap-1">
-          {NAV[role].map(([k, I, n]) => (
-            <button
-              key={k}
-              onClick={() => go(k)}
-              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left font-medium transition ${view === k ? "bg-p1-soft text-p1" : "text-mute hover:bg-slate-50 hover:text-ink"}`}
-            >
-              <I className="h-5 w-5" strokeWidth={1.75} /> {n}
-            </button>
-          ))}
-        </nav>
-        {role === "student" && (
-          <div className="mt-6 hidden xl:block">
-            <Gospel />
-          </div>
-        )}
-        <div className={`sticky bottom-0 mt-auto -mx-5 border-t border-line px-5 pt-4 pb-2 ${darkMode ? "bg-gray-800" : "bg-white/95"}`}>
+        <div className="min-h-0 flex-1 overflow-y-auto lg:flex-none lg:overflow-visible">
+          <nav className="mt-8 grid gap-1">
+            {NAV[role].map(([k, I, n]) => (
+              <button
+                key={k}
+                onClick={() => go(k)}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left font-medium transition ${view === k ? "bg-p1-soft text-p1" : "text-mute hover:bg-slate-50 hover:text-ink"}`}
+              >
+                <I className="h-5 w-5" strokeWidth={1.75} /> {n}
+              </button>
+            ))}
+          </nav>
+          {role === "student" && (
+            <div className="mt-6 hidden xl:block">
+              <Gospel />
+            </div>
+          )}
+        </div>
+        <div className={`sticky bottom-0 z-20 mt-auto -mx-5 -mb-5 shrink-0 border-t border-line px-5 pt-4 pb-7 ${darkMode ? "bg-gray-800" : "bg-white/95"}`}>
           <button
             onClick={handleSignOut}
             className={`group flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition ${darkMode ? "border-red-400/20 text-red-300 hover:border-red-300/40 hover:bg-red-400/10 hover:text-red-200" : "border-red-100 bg-red-50/60 text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"}`}
@@ -1062,6 +1161,7 @@ function Dashboard() {
                   go={go}
                   age={computedAgeMode}
                   userName={userName}
+                  userId={localStorage.getItem("uid") || ""}
                 />
               )}
               {role === "teacher" && <Teacher view={view as TeacherView} />}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CircleCheck,
   Download,
@@ -19,6 +19,9 @@ import {
 import { jsPDF } from "jspdf";
 import { Btn, Card, Input, Label, Pill, Title } from "./ui";
 import PianoQuiz from "./PianoQuiz";
+import { arrayUnion, collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { db } from "./firebase";
+import type { ClassCatalogItem } from "./classCatalog";
 
 export type StudentView =
   | "notes"
@@ -26,7 +29,6 @@ export type StudentView =
   | "materials"
   | "live"
   | "exams"
-  | "store"
   | "help"
   | "alerts";
 
@@ -222,29 +224,75 @@ const materials = [
   },
 ];
 
-function Materials() {
+function Materials({ userId, age }: { userId: string; age: string }) {
+  const [section, setSection] = useState<"lessons" | "enrolled" | "available">("lessons");
   const [tab, setTab] = useState<"active" | "completed">("active");
   const [open, setOpen] = useState<number | null>(0);
+  const [classCatalog, setClassCatalog] = useState<ClassCatalogItem[]>([]);
+
+  useEffect(() => onSnapshot(collection(db, "classes"), (snapshot) => {
+    setClassCatalog(snapshot.docs.map((classDoc) => {
+      const data = classDoc.data();
+      return {
+        id: classDoc.id,
+        name: data.name ?? "Unnamed class",
+        teacher: data.teacher ?? "Unassigned",
+        age: data.age ?? "all",
+        description: data.description ?? "",
+        availableForEnrollment: data.availableForEnrollment === true,
+        enrolledStudentIds: Array.isArray(data.enrolledStudentIds) ? data.enrolledStudentIds : [],
+      } as ClassCatalogItem;
+    }));
+  }, (error) => console.error("Could not load classes:", error)), []);
+
+  const enrolledClasses = classCatalog.filter((item) => userId && item.enrolledStudentIds?.includes(userId));
+  const availableClasses = classCatalog.filter((item) =>
+    item.availableForEnrollment && !item.enrolledStudentIds?.includes(userId),
+  );
+  const canEnroll = (item: ClassCatalogItem) => item.age === "all" || item.age === age || (item.age === "adults" && age === "adult");
+  const joinClass = async (item: ClassCatalogItem) => {
+    if (!userId || !canEnroll(item)) return;
+    try {
+      await updateDoc(doc(db, "classes", item.id), { enrolledStudentIds: arrayUnion(userId) });
+    } catch (error) {
+      console.error("Could not enroll in class:", error);
+      alert("Could not enroll in this class. Please try again.");
+    }
+  };
+
   return (
     <>
       <Title
-        kicker="My Classes"
-        title="Enrolled Classes & Activities"
-        sub="View lessons, download files, and answer activities for your classes."
+        kicker="Learning & Enrollment"
+        title="Classes"
+        sub="View lessons, see your teachers, and enroll in available classes."
         right={
           <div className="flex rounded-full border border-line bg-white p-1 text-sm">
-            {(["active", "completed"] as const).map((t) => (
+            {([
+              ["lessons", "Lessons"],
+              ["enrolled", "My Classes"],
+              ["available", "Available"],
+            ] as const).map(([key, label]) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`rounded-full px-4 py-1.5 font-semibold capitalize cursor-pointer ${tab === t ? "grad text-white" : "text-mute"}`}
+                key={key}
+                onClick={() => setSection(key)}
+                className={`rounded-full px-4 py-1.5 font-semibold cursor-pointer ${section === key ? "grad text-white" : "text-mute"}`}
               >
-                {t}
+                {label}
               </button>
             ))}
           </div>
         }
       />
+      {section === "lessons" ? (
+      <>
+      <div className="mb-4 flex w-fit rounded-full border border-line bg-white p-1 text-sm">
+        {(["active", "completed"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-4 py-1.5 font-semibold capitalize ${tab === t ? "grad text-white" : "text-mute"}`}>
+            {t === "active" ? "Active lessons" : "Completed"}
+          </button>
+        ))}
+      </div>
       {tab === "active" ? (
         <div className="grid gap-5 lg:grid-cols-[1fr_1.3fr]">
           <div className="grid content-start gap-3">
@@ -328,6 +376,37 @@ function Materials() {
           </div>
         </Card>
       )}
+      </>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {(section === "enrolled" ? enrolledClasses : availableClasses).map((item) => {
+            const ageEligible = canEnroll(item);
+            return (
+              <Card key={item.id} className="flex flex-col">
+                <div className="grad grid h-28 place-items-center rounded-xl text-white">
+                  <Music className="h-12 w-12" strokeWidth={1.4} />
+                </div>
+                <h2 className="mt-4 font-display text-xl">{item.name}</h2>
+                <p className="mt-2"><span className="font-semibold">Teacher:</span> {item.teacher}</p>
+                <p className="text-sm text-mute">Age group: {item.age === "all" ? "All ages" : item.age === "adults" ? "Adults (26+)" : item.age === "kids" ? "Kids (5–12)" : "Youth (13–25)"}</p>
+                {item.description && <p className="mt-2 text-sm text-mute">{item.description}</p>}
+                {section === "available" && (
+                  <button type="button" onClick={() => void joinClass(item)} disabled={enrolled || !ageEligible || !userId} className="mt-auto w-full pt-4 disabled:cursor-not-allowed disabled:opacity-50">
+                    <span className="block w-full rounded-full bg-[var(--p1)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90">
+                      {!ageEligible ? "Not in your age group" : "Enroll"}
+                    </span>
+                  </button>
+                )}
+              </Card>
+            );
+          })}
+          {(section === "enrolled" ? enrolledClasses : availableClasses).length === 0 && (
+            <Card className="text-center text-mute md:col-span-2 xl:col-span-3">
+              {section === "enrolled" ? "You haven't enrolled in any classes yet." : "No classes are currently open for enrollment."}
+            </Card>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -392,45 +471,6 @@ function Exams({ userName }: { userName: string }) {
       <Card>
         <p>Assessment module placeholder.</p>
       </Card>
-    </>
-  );
-}
-
-const availableClasses = [
-  { t: "Basic Keyboard Lessons", d: "8 weeks · 16 lessons", e: Piano },
-  { t: "Psalmody Masterclass", d: "6 weeks · live coaching", e: Feather },
-  { t: "Advanced Choir Repertoire", d: "For tenors and sopranos", e: Music },
-];
-function Store({ userName }: { userName: string }) {
-  const [enrolled, setEnrolled] = useState<number[]>([]);
-  return (
-    <>
-      <Title
-        kicker="Available Classes"
-        title="Enroll in New Classes"
-        sub="Browse and join classes to expand your learning."
-      />
-      <div className="grid gap-5 md:grid-cols-3">
-        {availableClasses.map((c, i) => (
-          <Card key={c.t}>
-            <div className="grad grid h-36 place-items-center rounded-xl text-white">
-              <c.e className="h-14 w-14" strokeWidth={1.25} />
-            </div>
-            <p className="mt-4 font-display text-xl leading-tight">{c.t}</p>
-            <p className="text-mute mt-1 text-sm">{c.d}</p>
-            <div className="mt-4 flex items-center justify-between">
-              {/* Fixed disabled prop issue by using native button */}
-              <button
-                onClick={() => setEnrolled([...enrolled, i])}
-                disabled={enrolled.includes(i)}
-                className="w-full rounded-full bg-[var(--p1)] py-2 px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50 cursor-pointer"
-              >
-                {enrolled.includes(i) ? "Enrolled" : "Join Class"}
-              </button>
-            </div>
-          </Card>
-        ))}
-      </div>
     </>
   );
 }
@@ -554,17 +594,18 @@ export default function Student({
   go,
   age,
   userName,
+  userId,
 }: {
   view: StudentView;
   go: (v: StudentView) => void;
   age: string;
   userName: string;
+  userId: string;
 }) {
   if (view === "notes") return <PianoQuiz />;
-  if (view === "materials") return <Materials />;
+  if (view === "materials") return <Materials userId={userId} age={age} />;
   if (view === "live") return <Live />;
   if (view === "exams") return <Exams userName={userName} />;
-  if (view === "store") return <Store userName={userName} />;
   if (view === "help") return <Help />;
   if (view === "alerts") return <Alerts />;
   return <Home go={go} age={age} userName={userName} />;

@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "./chatbotResponses";
+import { DEFAULT_CLASSES, type ClassCatalogItem } from "./classCatalog";
 
 export type AdminView = "dash" | "accounts" | "news" | "classes" | "bot";
 type UserStatus = "pending" | "approved" | "rejected" | "inactive";
@@ -25,6 +26,13 @@ export default function Admin({ view }: { view: AdminView }) {
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<UserStatus>("pending");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [managedClasses, setManagedClasses] = useState<ClassCatalogItem[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
+  const [savingClassId, setSavingClassId] = useState<string | null>(null);
+  const [showCreateClass, setShowCreateClass] = useState(false);
+  const [newClassName, setNewClassName] = useState("");
+  const [newClassTeacher, setNewClassTeacher] = useState("Unassigned");
+  const [newClassAge, setNewClassAge] = useState<ClassCatalogItem["age"]>("all");
 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [newsTitle, setNewsTitle] = useState("");
@@ -60,6 +68,47 @@ export default function Admin({ view }: { view: AdminView }) {
   };
   const handleDateChange = (id: string, date: string) => {
     setAccessDates((prev) => ({ ...prev, [id]: date }));
+  };
+
+  const updateManagedClass = (id: string, changes: Partial<ClassCatalogItem>) => {
+    setManagedClasses((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
+  };
+
+  const saveManagedClass = async (item: ClassCatalogItem) => {
+    setSavingClassId(item.id);
+    try {
+      const { id, enrolledStudentIds: _enrolledStudentIds, ...classData } = item;
+      await setDoc(doc(db, "classes", id), classData, { merge: true });
+      alert(`${item.name} saved.`);
+    } catch (error) {
+      console.error(error);
+      alert("Could not save this class.");
+    }
+    setSavingClassId(null);
+  };
+
+  const createManagedClass = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newClassName.trim()) return;
+    const newClass: Omit<ClassCatalogItem, "id"> = {
+      name: newClassName.trim(),
+      teacher: newClassTeacher,
+      age: newClassAge,
+      description: "New class",
+      availableForEnrollment: false,
+      enrolledStudentIds: [],
+    };
+    try {
+      const created = await addDoc(collection(db, "classes"), newClass);
+      setManagedClasses((current) => [...current, { id: created.id, ...newClass }]);
+      setNewClassName("");
+      setNewClassTeacher("Unassigned");
+      setNewClassAge("all");
+      setShowCreateClass(false);
+    } catch (error) {
+      console.error(error);
+      alert("Could not create the class.");
+    }
   };
 
   const updateAccountStatus = async (
@@ -236,6 +285,33 @@ export default function Admin({ view }: { view: AdminView }) {
     if (view === "accounts") fetchUsers();
     if (view === "news") fetchNews();
     if (view === "bot") fetchChatbotReplies();
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== "classes") return;
+    let active = true;
+    const loadClasses = async () => {
+      setClassesLoading(true);
+      try {
+        const snapshot = await getDocs(collection(db, "classes"));
+        if (snapshot.empty) {
+          await Promise.all(DEFAULT_CLASSES.map(({ id, ...data }) => setDoc(doc(db, "classes", id), data)));
+          if (active) setManagedClasses(DEFAULT_CLASSES);
+        } else if (active) {
+          setManagedClasses(snapshot.docs.map((classDoc) => ({
+            ...DEFAULT_CLASSES.find((item) => item.id === classDoc.id),
+            ...classDoc.data(),
+            id: classDoc.id,
+          }) as ClassCatalogItem));
+        }
+      } catch (error) {
+        console.error("Could not load classes:", error);
+        if (active) setManagedClasses(DEFAULT_CLASSES);
+      }
+      if (active) setClassesLoading(false);
+    };
+    void loadClasses();
+    return () => { active = false; };
   }, [view]);
 
   const filteredUsers = allUsers.filter((u) => u.status === activeTab);
@@ -509,12 +585,32 @@ export default function Admin({ view }: { view: AdminView }) {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="w-full max-w-md">
               <h3 className="text-xl font-bold mb-4">User Details</h3>
+              <div className="grid gap-2 break-words">
               <p>
                 <strong>Name:</strong> {selectedUser.name}
               </p>
               <p>
                 <strong>Email:</strong> {selectedUser.email}
               </p>
+              <p>
+                <strong>Birthday:</strong> {selectedUser.birthday
+                  ? (() => {
+                      const [year, month, day] = selectedUser.birthday.split("-");
+                      return `${month}/${day}/${year}`;
+                    })()
+                  : selectedUser.birthYear || "Not provided"}
+              </p>
+              <p>
+                <strong>Phone Number:</strong> {selectedUser.phoneNumber || "Not provided"}
+              </p>
+              <p>
+                <strong>Messenger Link:</strong> {selectedUser.messengerLink || "Not provided"}
+              </p>
+              {selectedUser.dateRequested && (
+                <p>
+                  <strong>Request Date:</strong> {new Date(selectedUser.dateRequested).toLocaleString()}
+                </p>
+              )}
               <p>
                 <strong>Role:</strong> {selectedUser.role || "N/A"}
               </p>
@@ -526,6 +622,7 @@ export default function Admin({ view }: { view: AdminView }) {
                   <strong>Access Until:</strong> {selectedUser.accessUntil}
                 </p>
               )}
+              </div>
               <button
                 onClick={() => setSelectedUser(null)}
                 className="mt-5 w-full rounded-full bg-gray-200 py-2 font-semibold"
@@ -662,46 +759,51 @@ export default function Admin({ view }: { view: AdminView }) {
         <Title
           kicker="Class Management"
           title="Manage Classes & Teachers"
-          sub="Assign instructors and set age restrictions per class."
+          sub="Assign teachers, set age groups, and choose which classes students can enroll in."
         />
         <Card className="mt-5">
-          <div className="flex justify-between items-center mb-4">
-            <Label>Active Classes</Label>
-            <Btn variant="soft">+ Create New Class</Btn>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <Label>Class Catalog</Label>
+            <Btn variant="soft" onClick={() => setShowCreateClass((show) => !show)}>
+              {showCreateClass ? "Cancel" : "+ Create New Class"}
+            </Btn>
           </div>
+          {showCreateClass && (
+            <form onSubmit={createManagedClass} className="mb-5 grid gap-3 rounded-xl border border-line bg-p1-soft/40 p-4 md:grid-cols-4">
+              <input required value={newClassName} onChange={(event) => setNewClassName(event.target.value)} placeholder="Class name" className="rounded-lg border border-line bg-white px-3 py-2" />
+              <select value={newClassTeacher} onChange={(event) => setNewClassTeacher(event.target.value)} className="rounded-lg border border-line bg-white px-3 py-2">
+                <option>Unassigned</option><option>Sis. Ethyl</option><option>Bro. Jet</option><option>Mr. Rafael Santos</option>
+              </select>
+              <select value={newClassAge} onChange={(event) => setNewClassAge(event.target.value as ClassCatalogItem["age"])} className="rounded-lg border border-line bg-white px-3 py-2">
+                <option value="all">All Ages</option><option value="kids">Kids (5-12)</option><option value="youth">Youth (13-25)</option><option value="adults">Adults (26+)</option>
+              </select>
+              <button type="submit" className="grad rounded-full px-4 py-2 font-semibold text-white">Create Class</button>
+            </form>
+          )}
+          {classesLoading ? (
+            <p className="py-8 text-center text-mute">Loading classes…</p>
+          ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-[48rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-line text-mute">
                   <th className="pb-3 font-medium">Class Name</th>
                   <th className="pb-3 font-medium">Assigned Teacher</th>
                   <th className="pb-3 font-medium">Age Group Allowed</th>
+                  <th className="pb-3 font-medium">Enrollment</th>
                   <th className="pb-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {[
-                  {
-                    name: "Basic Keyboard Lessons",
-                    teacher: "Bro. Jet",
-                    age: "all",
-                  },
-                  {
-                    name: "Solfeggio (Kids)",
-                    teacher: "Sis. Ethyl",
-                    age: "kids",
-                  },
-                  {
-                    name: "Psalmody Masterclass",
-                    teacher: "Mr. Rafael Santos",
-                    age: "adults",
-                  },
-                ].map((c, i) => (
-                  <tr key={i}>
-                    <td className="py-4 font-semibold">{c.name}</td>
+                {managedClasses.map((c) => (
+                  <tr key={c.id}>
+                    <td className="py-3 pr-3">
+                      <input value={c.name} onChange={(event) => updateManagedClass(c.id, { name: event.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-semibold" />
+                    </td>
                     <td className="py-4">
                       <select
-                        defaultValue={c.teacher}
+                        value={c.teacher}
+                        onChange={(event) => updateManagedClass(c.id, { teacher: event.target.value })}
                         className="border border-line rounded px-2 py-1 text-sm bg-white"
                       >
                         <option>Sis. Ethyl</option>
@@ -712,7 +814,8 @@ export default function Admin({ view }: { view: AdminView }) {
                     </td>
                     <td className="py-4">
                       <select
-                        defaultValue={c.age}
+                        value={c.age}
+                        onChange={(event) => updateManagedClass(c.id, { age: event.target.value as ClassCatalogItem["age"] })}
                         className="border border-line rounded px-2 py-1 text-sm bg-white"
                       >
                         <option value="all">All Ages</option>
@@ -721,16 +824,24 @@ export default function Admin({ view }: { view: AdminView }) {
                         <option value="adults">Adults (26+)</option>
                       </select>
                     </td>
+                    <td className="py-4">
+                      <select value={c.availableForEnrollment ? "open" : "closed"} onChange={(event) => updateManagedClass(c.id, { availableForEnrollment: event.target.value === "open" })} className="border border-line rounded px-2 py-1 text-sm bg-white">
+                        <option value="open">Open for enrollment</option>
+                        <option value="closed">Not available</option>
+                      </select>
+                    </td>
                     <td className="py-4 text-right">
-                      <button className="text-p1 font-semibold hover:underline text-sm">
-                        Save
+                      <button type="button" onClick={() => void saveManagedClass(c)} disabled={savingClassId === c.id} className="text-p1 font-semibold hover:underline text-sm disabled:opacity-50">
+                        {savingClassId === c.id ? "Saving…" : "Save"}
                       </button>
                     </td>
                   </tr>
                 ))}
+                {managedClasses.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-mute">No classes have been created yet.</td></tr>}
               </tbody>
             </table>
           </div>
+          )}
         </Card>
       </>
     );
