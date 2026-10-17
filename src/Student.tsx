@@ -379,8 +379,11 @@ function Materials({ userId, age }: { userId: string; age: string }) {
       </>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {(section === "enrolled" ? enrolledClasses : availableClasses).map((item) => {
-            const ageEligible = canEnroll(item);
+          
+      {(section === "enrolled" ? enrolledClasses : availableClasses).map((item) => {
+        const ageEligible = canEnroll(item);
+        const enrolled = item.enrolledStudentIds?.includes(userId) ?? false;
+
             return (
               <Card key={item.id} className="flex flex-col">
                 <div className="grad grid h-28 place-items-center rounded-xl text-white">
