@@ -22,6 +22,8 @@ type AccountFilter = "all" | "student" | "teacher" | "admin" | "pending" | "acti
 export default function Admin({ view }: { view: AdminView }) {
   const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [newRequestNotice, setNewRequestNotice] = useState("");
+  const [accountListenerError, setAccountListenerError] = useState("");
   const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>(
     {},
   );
@@ -295,14 +297,34 @@ export default function Admin({ view }: { view: AdminView }) {
 
   useEffect(() => {
     setLoading(true);
+    let initialSnapshot = true;
+    let noticeTimer: number | undefined;
     const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
       setAllUsers(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
+      setAccountListenerError("");
+      if (!initialSnapshot) {
+        const newRequests = snapshot.docChanges()
+          .filter((change) => change.type === "added" && change.doc.data().status === "pending")
+          .map((change) => change.doc.data().name || change.doc.data().email || "A user");
+        if (newRequests.length > 0) {
+          setNewRequestNotice(newRequests.length === 1
+            ? `New access request from ${newRequests[0]}.`
+            : `${newRequests.length} new access requests received.`);
+          window.clearTimeout(noticeTimer);
+          noticeTimer = window.setTimeout(() => setNewRequestNotice(""), 8000);
+        }
+      }
+      initialSnapshot = false;
       setLoading(false);
     }, (error) => {
       console.error("Could not listen for account requests:", error);
+      setAccountListenerError(error.message || "Could not receive live account requests.");
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      window.clearTimeout(noticeTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -471,6 +493,8 @@ export default function Admin({ view }: { view: AdminView }) {
           title="System Dashboard"
           sub="Welcome to the admin panel."
         />
+        {newRequestNotice && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{newRequestNotice}</div>}
+        {accountListenerError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Live access requests unavailable: {accountListenerError}</div>}
         <div className="mt-5 grid grid-cols-3 gap-5">
           <Card>
             <Label>Pending Approvals</Label>
@@ -499,6 +523,8 @@ export default function Admin({ view }: { view: AdminView }) {
           title="All Accounts"
           sub="Browse system accounts by role or account status."
         />
+        {newRequestNotice && <div role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">{newRequestNotice}</div>}
+        {accountListenerError && <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Live access requests unavailable: {accountListenerError}</div>}
         <Card className="mt-5">
           <input
             type="search"

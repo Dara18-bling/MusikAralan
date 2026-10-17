@@ -404,7 +404,7 @@ function Login() {
     () => localStorage.getItem("darkMode") === "true",
   );
   const maxBirthday = "2021-12-31";
-  const minBirthday = "2021-01-01";
+  const minBirthday = "1920-01-01";
   const { primaryColor: themePrimaryColor } = useSystemAppearance(darkMode);
 
   useEffect(() => {
@@ -476,8 +476,8 @@ function Login() {
       setSignupError("Enter a complete name using letters only (spaces, periods, apostrophes, and hyphens are allowed).");
       return;
     }
-    if (!reqBirthday || reqBirthday.slice(0, 4) !== "2021" || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
-      setSignupError("Enter a valid birthday in 2021.");
+    if (!reqBirthday || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
+      setSignupError("Enter a birthday between January 1920 and December 2021.");
       return;
     }
     if (!/^\d{11}$/.test(reqPhone)) {
@@ -553,7 +553,7 @@ function Login() {
           className="mx-auto h-[62vh] w-auto object-contain"
           style={{
             filter:
-              `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : `52px color-mix(in srgb, ${themePrimaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
+              `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? `64px color-mix(in srgb, ${themePrimaryColor} 58%, transparent)` : `52px color-mix(in srgb, ${themePrimaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
           }}
         />
         <div className="text-white">
@@ -581,7 +581,7 @@ function Login() {
             src={logo}
             alt=""
             className="mx-auto mb-4 h-28 lg:hidden"
-            style={{ filter: darkMode ? "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(255,255,255,0.65)) drop-shadow(0 0 28px rgba(125,211,252,0.55))" : `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 10px color-mix(in srgb, ${themePrimaryColor} 38%, transparent))` }}
+            style={{ filter: darkMode ? `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(255,255,255,0.65)) drop-shadow(0 0 28px color-mix(in srgb, ${themePrimaryColor} 55%, transparent))` : `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 10px color-mix(in srgb, ${themePrimaryColor} 38%, transparent))` }}
           />
           <p className="mx-auto mb-4 max-w-xs text-center font-display text-sm italic leading-relaxed text-slate-600 lg:hidden">
             “He who sings, prays twice.” <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">— St. Augustine</span>
@@ -1113,7 +1113,7 @@ function Dashboard() {
             alt="MML logo"
             className="h-14 w-auto"
             style={{
-              filter: `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : `52px color-mix(in srgb, ${primaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
+              filter: `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? `64px color-mix(in srgb, ${primaryColor} 58%, transparent)` : `52px color-mix(in srgb, ${primaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
             }}
           />
           <div className="ml-1 min-w-0 translate-y-0.5">
