@@ -103,7 +103,7 @@ function Dashboard() {
   );
 }
 
-function StudentList() {
+function StudentList({ className }: { className?: string }) {
   const students = [
     { name: "Juan Dela Cruz", age: 14, status: "Active" },
     { name: "Maria Clara", age: 12, status: "Active" },
@@ -114,7 +114,7 @@ function StudentList() {
       <Title
         kicker="Class Roster"
         title="My Students"
-        sub="List of students assigned to your class."
+        sub={className ? `Students enrolled in ${className}.` : "List of students assigned to your class."}
       />
       <Card className="mt-5">
         <table className="w-full text-left text-sm">
@@ -146,7 +146,7 @@ function StudentList() {
   );
 }
 
-function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem[]; onChooseAction: (classId: string, view: "upload" | "quiz") => void }) {
+function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem[]; onChooseAction: (classId: string, view: "upload" | "quiz" | "students") => void }) {
   return (
     <>
       <Title kicker="Class Management" title="My Classes" sub="All classes assigned to your teacher account." />
@@ -170,6 +170,7 @@ function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem
               <div className="mt-5 flex flex-wrap gap-2">
                 <button type="button" onClick={() => onChooseAction(item.id, "upload")} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white">Upload Content</button>
                 <button type="button" onClick={() => onChooseAction(item.id, "quiz")} className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white">Assessment Builder</button>
+                <button type="button" onClick={() => onChooseAction(item.id, "students")} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-gray-50">My Students</button>
               </div>
             </Card>
           ))}
@@ -534,8 +535,8 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
 
   return (
     <>
-      {view === "dash" && <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />}
-      <Card className="mb-5 flex flex-wrap items-center gap-3">
+      {(view === "dash" || view === "classes") && <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />}
+      {view !== "classes" && <Card className="mb-5 flex flex-wrap items-center gap-3">
         <label htmlFor="teacher-class-selector" className="text-sm font-semibold">Accessing class</label>
         <select
           id="teacher-class-selector"
@@ -551,7 +552,16 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
           ))}
         </select>
         {selectedClass && <span className="text-sm text-mute">{selectedClass.description}</span>}
-      </Card>
+      </Card>}
+      {(view === "upload" || view === "quiz" || view === "students") && (
+        <button
+          type="button"
+          onClick={() => go("classes")}
+          className="mb-4 rounded-full border border-line px-4 py-2 text-sm font-semibold text-p1 hover:bg-p1-soft"
+        >
+          ← Back to Classes
+        </button>
+      )}
       {view === "dash" ? (
         <Dashboard />
       ) : view === "classes" ? (
@@ -560,7 +570,7 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
           go(nextView);
         }} />
       ) : view === "students" ? (
-        <StudentList />
+        <StudentList className={selectedClass?.name} />
       ) : view === "quiz" ? (
         <Quiz className={selectedClass?.name} />
       ) : view === "meet" ? (
