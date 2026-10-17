@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   BrowserRouter,
   Routes,
@@ -267,8 +268,9 @@ function ProfileView({
       await setDoc(doc(db, "settings", "appearance"), { primaryColor: selectedPalette.primary, secondaryColor: selectedPalette.secondary, paletteName: selectedPalette.name }, { merge: true });
       alert("System interface color saved for all users.");
     } catch (error) {
-      console.error(error);
-      alert("Could not save the system color. Check access to the settings collection.");
+      console.error("Could not save system appearance:", error);
+      const details = error as { code?: string; message?: string };
+      alert(`Could not save the system color${details.code ? ` (${details.code})` : ""}: ${details.message || "Check Firestore access to settings/appearance."}`);
     }
     setColorSaving(false);
   };
@@ -388,6 +390,10 @@ function Login() {
   const [reqConfirm, setReqConfirm] = useState("");
   const [reqBirthday, setReqBirthday] = useState("");
   const [reqPhone, setReqPhone] = useState("");
+  const [nameInputWarning, setNameInputWarning] = useState("");
+  const [phoneInputWarning, setPhoneInputWarning] = useState("");
+  const [nameWarningPosition, setNameWarningPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [phoneWarningPosition, setPhoneWarningPosition] = useState<{ left: number; top: number; width: number } | null>(null);
   const [reqMessenger, setReqMessenger] = useState("");
   const [showReqPass, setShowReqPass] = useState(false);
   const [showReqConfirm, setShowReqConfirm] = useState(false);
@@ -397,12 +403,9 @@ function Login() {
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("darkMode") === "true",
   );
-  const today = new Date();
-  const toDateInputValue = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const maxBirthday = toDateInputValue(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1));
-  const minBirthday = toDateInputValue(new Date(today.getFullYear() - 120, today.getMonth(), today.getDate()));
-  useSystemAppearance(darkMode);
+  const maxBirthday = "2021-12-31";
+  const minBirthday = "2021-01-01";
+  const { primaryColor: themePrimaryColor } = useSystemAppearance(darkMode);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -473,12 +476,12 @@ function Login() {
       setSignupError("Enter a complete name using letters only (spaces, periods, apostrophes, and hyphens are allowed).");
       return;
     }
-    if (!reqBirthday || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
-      setSignupError("Enter a valid birthday between 120 years ago and yesterday. Today's date and dates in the future aren't allowed.");
+    if (!reqBirthday || reqBirthday.slice(0, 4) !== "2021" || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
+      setSignupError("Enter a valid birthday in 2021.");
       return;
     }
-    if (!/^\d+$/.test(reqPhone)) {
-      setSignupError("Phone number can contain numbers only.");
+    if (!/^\d{11}$/.test(reqPhone)) {
+      setSignupError("Phone number must be exactly 11 digits.");
       return;
     }
     if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,}$/.test(reqPass)) {
@@ -550,7 +553,7 @@ function Login() {
           className="mx-auto h-[62vh] w-auto object-contain"
           style={{
             filter:
-              `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : "52px rgba(125,211,252,0.38)"}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
+              `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : `52px color-mix(in srgb, ${themePrimaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
           }}
         />
         <div className="text-white">
@@ -578,7 +581,7 @@ function Login() {
             src={logo}
             alt=""
             className="mx-auto mb-4 h-28 lg:hidden"
-            style={{ filter: darkMode ? "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(255,255,255,0.65)) drop-shadow(0 0 28px rgba(125,211,252,0.55))" : "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 10px rgba(255,255,255,0.3))" }}
+            style={{ filter: darkMode ? "drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 12px rgba(255,255,255,0.65)) drop-shadow(0 0 28px rgba(125,211,252,0.55))" : `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 10px color-mix(in srgb, ${themePrimaryColor} 38%, transparent))` }}
           />
           <p className="mx-auto mb-4 max-w-xs text-center font-display text-sm italic leading-relaxed text-slate-600 lg:hidden">
             “He who sings, prays twice.” <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">— St. Augustine</span>
@@ -686,16 +689,29 @@ function Login() {
               <p className="-mt-4 mb-1 text-center text-mute lg:col-span-2">
                 Request access as a member or aspirant.
               </p>
+              <div>
               <Field label="Full Name">
                 <Input
                   required
                   value={reqName}
-                  onChange={(e) => setReqName(e.target.value.replace(/[^\p{L}\p{M} .'-]/gu, ""))}
+                  onBlur={() => {
+                    setNameInputWarning("");
+                    setNameWarningPosition(null);
+                  }}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const hasInvalidCharacters = /[^\p{L}\p{M} .'-]/u.test(value);
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setNameInputWarning(hasInvalidCharacters ? "Letters and spaces only. Digits are not allowed." : "");
+                    setNameWarningPosition(hasInvalidCharacters ? { left: rect.left, top: rect.top - 8, width: rect.width } : null);
+                    setReqName(value.replace(/[^\p{L}\p{M} .'-]/gu, ""));
+                  }}
                   autoComplete="name"
-                  placeholder="Sandara L. Torres"
+                  placeholder="Ex.Sandara Torres"
                   className="placeholder:text-slate-400"
                 />
               </Field>
+              </div>
               <Field label="Email Address">
                 <Input
                   required
@@ -719,18 +735,33 @@ function Login() {
                   className={`placeholder:text-slate-400 ${reqBirthday ? "text-slate-800" : "text-slate-400"}`}
                 />
               </Field>
+              <div>
               <Field label="Phone Number">
                 <Input
                   required
                   type="tel"
                   inputMode="numeric"
+                  minLength={11}
+                  maxLength={11}
                   autoComplete="tel"
                   value={reqPhone}
-                  onChange={(e) => setReqPhone(e.target.value.replace(/\D/g, ""))}
-                  placeholder="09171234567"
+                  onBlur={() => {
+                    setPhoneInputWarning("");
+                    setPhoneWarningPosition(null);
+                  }}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const hasInvalidCharacters = /\D/.test(value);
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setPhoneInputWarning(hasInvalidCharacters ? "Digits only. Letters are not allowed." : "");
+                    setPhoneWarningPosition(hasInvalidCharacters ? { left: rect.left, top: rect.top - 8, width: rect.width } : null);
+                    setReqPhone(value.replace(/\D/g, ""));
+                  }}
+                  placeholder="Ex.09171234567"
                   className="placeholder:text-slate-400"
                 />
               </Field>
+              </div>
               <Field label="Messenger Link (optional)">
                 <Input
                   type="url"
@@ -812,6 +843,26 @@ function Login() {
           )}
         </div>
       </div>
+      {nameInputWarning && nameWarningPosition && createPortal(
+        <p
+          role="alert"
+          style={{ position: "fixed", left: nameWarningPosition.left, top: nameWarningPosition.top, width: nameWarningPosition.width, transform: "translateY(-100%)", zIndex: 2147483647 }}
+          className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
+        >
+          {nameInputWarning}
+        </p>,
+        document.body,
+      )}
+      {phoneInputWarning && phoneWarningPosition && createPortal(
+        <p
+          role="alert"
+          style={{ position: "fixed", left: phoneWarningPosition.left, top: phoneWarningPosition.top, width: phoneWarningPosition.width, transform: "translateY(-100%)", zIndex: 2147483647 }}
+          className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
+        >
+          {phoneInputWarning}
+        </p>,
+        document.body,
+      )}
     </div>
   );
 }
@@ -1062,7 +1113,7 @@ function Dashboard() {
             alt="MML logo"
             className="h-14 w-auto"
             style={{
-              filter: `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : "52px rgba(125,211,252,0.38)"}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
+              filter: `drop-shadow(1px 0 0 rgba(255,255,255,0.95)) drop-shadow(-1px 0 0 rgba(255,255,255,0.95)) drop-shadow(0 1px 0 rgba(255,255,255,0.95)) drop-shadow(0 -1px 0 rgba(255,255,255,0.95)) drop-shadow(0 0 8px rgba(255,255,255,0.85)) drop-shadow(0 0 26px rgba(255,255,255,0.58)) drop-shadow(0 0 ${darkMode ? "64px rgba(125,211,252,0.58)" : `52px color-mix(in srgb, ${primaryColor} 38%, transparent)`}) drop-shadow(0 20px 40px rgba(0,0,0,0.38))`,
             }}
           />
           <div className="ml-1 min-w-0 translate-y-0.5">
