@@ -233,9 +233,39 @@ html.dark .piano-black-key:hover {
   background-color: #111827 !important;
   color: #ffffff;
 }
+html.dark .piano-white-key.is-active,
+html.dark .piano-white-key.is-active:hover {
+  background-color: var(--p1) !important;
+  border-color: var(--p1) !important;
+  color: #ffffff !important;
+}
+html.dark .piano-black-key.is-active,
+html.dark .piano-black-key.is-active:hover {
+  background-color: var(--p2) !important;
+  color: #ffffff !important;
+}
+.piano-white-key.is-active,
+.piano-white-key.is-active:hover {
+  background-color: var(--p1) !important;
+  border-color: var(--p1) !important;
+  color: #ffffff !important;
+}
+.piano-black-key.is-active,
+.piano-black-key.is-active:hover {
+  background-color: var(--p2) !important;
+  color: #ffffff !important;
+}
+.piano-white-key.is-active .text-slate-400,
+.piano-black-key.is-active .text-gray-400,
+.piano-white-key.is-active .piano-solfege-label {
+  color: #ffffff !important;
+}
 html.dark .piano-white-key .text-slate-400 { color: #94a3b8; }
 html.dark .piano-black-key .text-gray-400 { color: #9ca3af; }
 html.dark .piano-solfege-label { color: #ff78bb; }
+html.dark .piano-white-key.is-active .text-slate-400,
+html.dark .piano-black-key.is-active .text-gray-400,
+html.dark .piano-white-key.is-active .piano-solfege-label { color: #ffffff !important; }
 
 /* Native controls and browser-rendered widgets follow the selected mode. */
 html.dark option { background: var(--surface); color: var(--text-main); }

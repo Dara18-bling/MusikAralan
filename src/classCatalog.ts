@@ -7,6 +7,8 @@ export type ClassCatalogItem = {
   availableForEnrollment: boolean;
   enrolledStudentIds?: string[];
   deleted?: boolean;
+  createdAt?: unknown;
+  enrollmentUpdatedAt?: unknown;
 };
 
 export const DEFAULT_CLASSES: ClassCatalogItem[] = [

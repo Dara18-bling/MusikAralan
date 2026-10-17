@@ -22,6 +22,7 @@ import PianoQuiz from "./PianoQuiz";
 import { arrayUnion, collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ClassCatalogItem } from "./classCatalog";
+import Notifications from "./Notifications";
 
 export type StudentView =
   | "notes"
@@ -156,17 +157,6 @@ function Home({
           </Card>
         </div>
         <div className="grid content-start gap-5">
-          <Card className="border-p2/30">
-            <Label>Live now · Google Meet</Label>
-            <p className="mt-2 font-display text-xl">Note Reading Class</p>
-            <p className="text-sm text-mute">Sis. Ethyl · started 4 min ago</p>
-            <Btn
-              className="mt-4 w-full py-3 text-base cursor-pointer"
-              onClick={() => go("live")}
-            >
-              <Video className="h-5 w-5" /> Join class
-            </Btn>
-          </Card>
           <Card>
             <div className="flex items-center justify-between">
               <Label>Badges</Label>
@@ -225,7 +215,7 @@ const materials = [
 ];
 
 function Materials({ userId, age }: { userId: string; age: string }) {
-  const [section, setSection] = useState<"lessons" | "enrolled" | "available">("lessons");
+  const [section, setSection] = useState<"lessons" | "enrolled" | "available">("enrolled");
   const [tab, setTab] = useState<"active" | "completed">("active");
   const [open, setOpen] = useState<number | null>(0);
   const [classCatalog, setClassCatalog] = useState<ClassCatalogItem[]>([]);
@@ -246,11 +236,14 @@ function Materials({ userId, age }: { userId: string; age: string }) {
     }));
   }, (error) => console.error("Could not load classes:", error)), []);
 
+  const canEnroll = (item: ClassCatalogItem) => item.age === "all" || item.age === age || (item.age === "adults" && age === "adult");
   const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && item.enrolledStudentIds?.includes(userId));
   const availableClasses = classCatalog.filter((item) =>
-    !item.deleted && item.availableForEnrollment && !item.enrolledStudentIds?.includes(userId),
+    !item.deleted
+    && item.availableForEnrollment
+    && canEnroll(item)
+    && !item.enrolledStudentIds?.includes(userId),
   );
-  const canEnroll = (item: ClassCatalogItem) => item.age === "all" || item.age === age || (item.age === "adults" && age === "adult");
   const joinClass = async (item: ClassCatalogItem) => {
     if (!userId || !canEnroll(item)) return;
     try {
@@ -266,11 +259,10 @@ function Materials({ userId, age }: { userId: string; age: string }) {
       <Title
         kicker="Learning & Enrollment"
         title="Classes"
-        sub="View lessons, see your teachers, and enroll in available classes."
+        sub="View your classes or enroll in classes available for your age group."
         right={
           <div className="flex rounded-full border border-line bg-white p-1 text-sm">
             {([
-              ["lessons", "Lessons"],
               ["enrolled", "My Classes"],
               ["available", "Available"],
             ] as const).map(([key, label]) => (
@@ -611,6 +603,6 @@ export default function Student({
   if (view === "live") return <Live />;
   if (view === "exams") return <Exams userName={userName} />;
   if (view === "help") return <Help />;
-  if (view === "alerts") return <Alerts />;
+  if (view === "alerts") return <Notifications role="student" age={age} />;
   return <Home go={go} age={age} userName={userName} />;
 }

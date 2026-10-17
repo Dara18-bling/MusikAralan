@@ -51,6 +51,7 @@ export default function Admin({ view }: { view: AdminView }) {
   const [newsContent, setNewsContent] = useState("");
   const [isPreview, setIsPreview] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<any | null>(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [chatbotReplies, setChatbotReplies] = useState<ChatbotResponse[]>([]);
   const [chatbotLoading, setChatbotLoading] = useState(false);
@@ -90,6 +91,10 @@ export default function Admin({ view }: { view: AdminView }) {
     setSavingClassId(item.id);
     try {
       const { id, enrolledStudentIds: _enrolledStudentIds, ...classData } = item;
+      const existingClass = managedClasses.find((existing) => existing.id === id);
+      if (existingClass && existingClass.availableForEnrollment !== item.availableForEnrollment) {
+        classData.enrollmentUpdatedAt = new Date();
+      }
       await setDoc(doc(db, "classes", id), classData, { merge: true });
       setManagedClasses((current) => current.map((existing) => existing.id === id
         ? { ...item, enrolledStudentIds: existing.enrolledStudentIds }
@@ -136,6 +141,7 @@ export default function Admin({ view }: { view: AdminView }) {
       description: newClassDescription.trim(),
       availableForEnrollment: newClassAvailable,
       enrolledStudentIds: [],
+      createdAt: new Date(),
     };
     try {
       const created = await addDoc(collection(db, "classes"), newClass);
@@ -926,6 +932,12 @@ export default function Admin({ view }: { view: AdminView }) {
                     </div>
                     <div className="flex flex-col gap-2 ml-4">
                       <button
+                        onClick={() => setPreviewAnnouncement(a)}
+                        className="text-p1 hover:underline text-sm font-semibold"
+                      >
+                        Preview
+                      </button>
+                      <button
                         onClick={() => handleEditClick(a)}
                         className="text-blue-500 hover:underline text-sm font-semibold"
                       >
@@ -944,6 +956,23 @@ export default function Admin({ view }: { view: AdminView }) {
             </div>
           </Card>
         </div>
+        {previewAnnouncement && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setPreviewAnnouncement(null);
+            }}
+          >
+            <section role="dialog" aria-modal="true" aria-labelledby="announcement-preview-title" className="w-full max-w-xl rounded-2xl border border-line bg-white p-6 shadow-2xl">
+              <Label>Announcement preview</Label>
+              <h2 id="announcement-preview-title" className="mt-2 font-display text-2xl font-bold">{previewAnnouncement.title}</h2>
+              <p className="mt-4 whitespace-pre-wrap text-ink">{previewAnnouncement.content}</p>
+              <div className="mt-6 flex justify-end">
+                <Btn variant="ghost" onClick={() => setPreviewAnnouncement(null)}>Close</Btn>
+              </div>
+            </section>
+          </div>
+        )}
       </>
     );
   }

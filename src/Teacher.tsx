@@ -5,8 +5,9 @@ import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ClassCatalogItem } from "./classCatalog";
 import * as XLSX from "xlsx";
+import Notifications from "./Notifications";
 
-export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students";
+export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students" | "alerts";
 
 export function ExpiryBanner({
   teacherName = "Teacher",
@@ -926,6 +927,8 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
         <Quiz className={selectedClass?.name} />
       ) : view === "meet" ? (
         <Meet />
+      ) : view === "alerts" ? (
+        <Notifications role="teacher" />
       ) : (
         <Upload className={selectedClass?.name} />
       )}
