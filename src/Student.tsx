@@ -214,11 +214,12 @@ const materials = [
   },
 ];
 
-function Materials({ userId, age }: { userId: string; age: string }) {
+function Materials({ userId }: { userId: string }) {
   const [section, setSection] = useState<"lessons" | "enrolled" | "available">("enrolled");
   const [tab, setTab] = useState<"active" | "completed">("active");
   const [open, setOpen] = useState<number | null>(0);
   const [classCatalog, setClassCatalog] = useState<ClassCatalogItem[]>([]);
+  const [openClass, setOpenClass] = useState<ClassCatalogItem | null>(null);
 
   useEffect(() => onSnapshot(collection(db, "classes"), (snapshot) => {
     setClassCatalog(snapshot.docs.map((classDoc) => {
@@ -236,21 +237,23 @@ function Materials({ userId, age }: { userId: string; age: string }) {
     }));
   }, (error) => console.error("Could not load classes:", error)), []);
 
-  const canEnroll = (item: ClassCatalogItem) => item.age === "all" || item.age === age || (item.age === "adults" && age === "adult");
   const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && item.enrolledStudentIds?.includes(userId));
   const availableClasses = classCatalog.filter((item) =>
     !item.deleted
     && item.availableForEnrollment
-    && canEnroll(item)
     && !item.enrolledStudentIds?.includes(userId),
   );
   const joinClass = async (item: ClassCatalogItem) => {
-    if (!userId || !canEnroll(item)) return;
+    if (!userId || item.deleted || !item.availableForEnrollment) return;
     try {
       await updateDoc(doc(db, "classes", item.id), { enrolledStudentIds: arrayUnion(userId) });
     } catch (error) {
       console.error("Could not enroll in class:", error);
-      alert("Could not enroll in this class. Please try again.");
+      const firestoreError = error as { code?: string; message?: string };
+      const reason = firestoreError.code === "permission-denied"
+        ? "Firestore security rules are blocking student enrollment."
+        : firestoreError.message || "Please check your connection and try again.";
+      alert(`Could not enroll in this class${firestoreError.code ? ` (${firestoreError.code})` : ""}: ${reason}`);
     }
   };
 
@@ -374,9 +377,6 @@ function Materials({ userId, age }: { userId: string; age: string }) {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           
       {(section === "enrolled" ? enrolledClasses : availableClasses).map((item) => {
-        const ageEligible = canEnroll(item);
-        const enrolled = item.enrolledStudentIds?.includes(userId) ?? false;
-
             return (
               <Card key={item.id} className="flex flex-col">
                 <div className="grad grid h-28 place-items-center rounded-xl text-white">
@@ -386,13 +386,21 @@ function Materials({ userId, age }: { userId: string; age: string }) {
                 <p className="mt-2"><span className="font-semibold">Teacher:</span> {item.teacher}</p>
                 <p className="text-sm text-mute">Age group: {item.age === "all" ? "All ages" : item.age === "adults" ? "Adults (26+)" : item.age === "kids" ? "Kids (5–12)" : "Youth (13–25)"}</p>
                 {item.description && <p className="mt-2 text-sm text-mute">{item.description}</p>}
-                {section === "available" && (
-                  <button type="button" onClick={() => void joinClass(item)} disabled={enrolled || !ageEligible || !userId} className="mt-auto w-full pt-4 disabled:cursor-not-allowed disabled:opacity-50">
-                    <span className="block w-full rounded-full bg-[var(--p1)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90">
-                      {!ageEligible ? "Not in your age group" : "Enroll"}
-                    </span>
-                  </button>
-                )}
+                <div className="mt-auto flex gap-2 pt-4">
+                  {section === "available" && (
+                    <button type="button" onClick={() => void joinClass(item)} disabled={!userId} className="flex-1 disabled:cursor-not-allowed disabled:opacity-50">
+                      <span className="block w-full rounded-full bg-[var(--p1)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90">
+                        Enroll
+                      </span>
+                    </button>
+                  )}
+                  {section === "enrolled" && (
+                    <>
+                      <span className="flex-1 rounded-full bg-emerald-100 px-4 py-2 text-center text-sm font-semibold text-emerald-800">Enrolled</span>
+                      <button type="button" onClick={() => setOpenClass(item)} className="flex-1 rounded-full border border-[var(--p1)] px-4 py-2 text-sm font-semibold text-p1 transition hover:bg-p1-soft">Open</button>
+                    </>
+                  )}
+                </div>
               </Card>
             );
           })}
@@ -401,6 +409,20 @@ function Materials({ userId, age }: { userId: string; age: string }) {
               {section === "enrolled" ? "You haven't enrolled in any classes yet." : "No classes are currently open for enrollment."}
             </Card>
           )}
+        </div>
+      )}
+      {openClass && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setOpenClass(null);
+        }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="open-class-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
+            <h2 id="open-class-title" className="font-display text-2xl font-bold">{openClass.name}</h2>
+            <p className="mt-3 text-sm"><span className="font-semibold">Teacher:</span> {openClass.teacher}</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm text-mute">{openClass.description || "No class description provided."}</p>
+            <div className="mt-6 flex justify-end">
+              <button type="button" onClick={() => setOpenClass(null)} className="rounded-full bg-p1 px-5 py-2 text-sm font-semibold text-white">Close</button>
+            </div>
+          </section>
         </div>
       )}
     </>
@@ -599,7 +621,7 @@ export default function Student({
   userId: string;
 }) {
   if (view === "notes") return <PianoQuiz />;
-  if (view === "materials") return <Materials userId={userId} age={age} />;
+  if (view === "materials") return <Materials userId={userId} />;
   if (view === "live") return <Live />;
   if (view === "exams") return <Exams userName={userName} />;
   if (view === "help") return <Help />;

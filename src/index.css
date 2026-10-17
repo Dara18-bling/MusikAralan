@@ -15,9 +15,9 @@
 }
 
 :root {
-  --p1: #1f6fe0; --p2: #e8608c; --p1-soft: #e6effd; --p2-soft: #fde9f0;
+  --p1: #e88faf; --p2: #7ea9d2; --p1-soft: #fbedf2; --p2-soft: #edf4fb;
 }
-[data-theme='marian'] { --p1: #1f6fe0; --p2: #e8608c; --p1-soft: #e6effd; --p2-soft: #fde9f0; }
+[data-theme='marian'] { --p1: #e88faf; --p2: #7ea9d2; --p1-soft: #fbedf2; --p2-soft: #edf4fb; }
 [data-theme='advent'] { --p1: #5b3fb8; --p2: #c24f9a; --p1-soft: #eeeafb; --p2-soft: #fbe8f3; }
 [data-theme='ordinary'] { --p1: #13806d; --p2: #2f6fd1; --p1-soft: #e3f4f0; --p2-soft: #e6eefb; }
 [data-theme='gaudete'] { --p1: #c2416e; --p2: #e59a3b; --p1-soft: #fbe7ee; --p2-soft: #fdf1e1; }

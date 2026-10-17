@@ -105,12 +105,16 @@ function Dashboard() {
   );
 }
 
-function StudentList({ className }: { className?: string }) {
-  const students = [
-    { name: "Juan Dela Cruz", age: 14, status: "Active" },
-    { name: "Maria Clara", age: 12, status: "Active" },
-    { name: "Pedro Penduko", age: 26, status: "Inactive" },
-  ];
+function StudentList({ className, studentIds = [] }: { className?: string; studentIds?: string[] }) {
+  const [students, setStudents] = useState<any[]>([]);
+
+  useEffect(() => onSnapshot(collection(db, "users"), (snapshot) => {
+    const enrolledIds = new Set(studentIds);
+    setStudents(snapshot.docs
+      .filter((studentDoc) => enrolledIds.has(studentDoc.id))
+      .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() })));
+  }, (error) => console.error("Could not load enrolled students:", error)), [studentIds.join("|")]);
+
   return (
     <>
       <Title
@@ -128,19 +132,24 @@ function StudentList({ className }: { className?: string }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {students.map((s, i) => (
-              <tr key={i}>
-                <td className="py-4 font-semibold">{s.name}</td>
+                {students.map((s) => {
+                  const birthYear = Number(s.birthYear || s.birthday?.slice(0, 4));
+                  const age = birthYear > 0 ? new Date().getFullYear() - birthYear : null;
+                  const ageGroup = age === null ? "Not provided" : age <= 12 ? "Kids" : age <= 25 ? "Youth" : "Adults";
+                  return (
+              <tr key={s.id}>
+                <td className="py-4 font-semibold">{s.name || s.email || "Student"}</td>
                 <td className="py-4">
-                  {s.age <= 12 ? "Kids" : s.age <= 25 ? "Youth" : "Adults"}
+                  {ageGroup}
                 </td>
                 <td className="py-4 text-right">
-                  <Pill tone={s.status === "Active" ? "p1" : "p2"}>
-                    {s.status}
+                  <Pill tone={s.status === "approved" ? "p1" : "p2"}>
+                    {s.status === "approved" ? "Active" : s.status || "Unknown"}
                   </Pill>
                 </td>
               </tr>
-            ))}
+                );})}
+                {students.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-mute">No students are enrolled in this class yet.</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -922,7 +931,7 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
           go(nextView);
         }} />
       ) : view === "students" ? (
-        <StudentList className={selectedClass?.name} />
+        <StudentList className={selectedClass?.name} studentIds={selectedClass?.enrolledStudentIds || []} />
       ) : view === "quiz" ? (
         <Quiz className={selectedClass?.name} />
       ) : view === "meet" ? (
