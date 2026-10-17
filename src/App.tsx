@@ -1150,7 +1150,7 @@ function Dashboard() {
           </div>
         </div>
 
-        <main className="mx-auto max-w-6xl px-5 py-8 md:px-10">
+        <main className={`mx-auto max-w-6xl px-5 py-8 md:px-10 ${(role === "student" || role === "admin") ? "pb-32" : ""}`}>
           {view === "profile" ? (
             <ProfileView role={role} name={userName} primaryColor={primaryColor} secondaryColor={secondaryColor} />
           ) : (

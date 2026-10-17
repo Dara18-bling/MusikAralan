@@ -9,6 +9,7 @@ import {
   addDoc,
   deleteDoc,
   setDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "./chatbotResponses";
@@ -16,6 +17,7 @@ import { DEFAULT_CLASSES, type ClassCatalogItem } from "./classCatalog";
 
 export type AdminView = "dash" | "accounts" | "news" | "classes" | "bot";
 type UserStatus = "pending" | "approved" | "rejected" | "inactive";
+type AccountFilter = "all" | "student" | "teacher" | "admin" | "pending" | "activated" | "deactivated";
 
 export default function Admin({ view }: { view: AdminView }) {
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -24,8 +26,10 @@ export default function Admin({ view }: { view: AdminView }) {
     {},
   );
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<UserStatus>("pending");
+  const [activeFilter, setActiveFilter] = useState<AccountFilter>("pending");
+  const [accountSearch, setAccountSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(null);
   const [managedClasses, setManagedClasses] = useState<ClassCatalogItem[]>([]);
   const [classesLoading, setClassesLoading] = useState(false);
   const [savingClassId, setSavingClassId] = useState<string | null>(null);
@@ -116,6 +120,12 @@ export default function Admin({ view }: { view: AdminView }) {
     newStatus: UserStatus,
     roleToAssign?: string,
   ) => {
+    const isPendingRequest = allUsers.some((user) => user.id === uid && user.status === "pending");
+    if (isPendingRequest && newStatus === "approved" && roleToAssign === "teacher" && !accessDates[uid]) {
+      setTeacherDateUserId(uid);
+      alert("Set an access end date before approving a teacher account.");
+      return;
+    }
     try {
       const updateData: any = { status: newStatus };
       if (newStatus === "approved" && roleToAssign) {
@@ -130,7 +140,9 @@ export default function Admin({ view }: { view: AdminView }) {
       );
       alert(`Account ${newStatus} successfully!`);
     } catch (err) {
-      alert("Error updating account.");
+      console.error("Could not update account approval:", err);
+      const error = err as { code?: string; message?: string };
+      alert(`Could not update account${error.code ? ` (${error.code})` : ""}: ${error.message || "Check your Firestore permissions and try again."}`);
     }
   };
 
@@ -282,7 +294,18 @@ export default function Admin({ view }: { view: AdminView }) {
   };
 
   useEffect(() => {
-    if (view === "accounts") fetchUsers();
+    setLoading(true);
+    const unsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+      setAllUsers(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
+      setLoading(false);
+    }, (error) => {
+      console.error("Could not listen for account requests:", error);
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
     if (view === "news") fetchNews();
     if (view === "bot") fetchChatbotReplies();
   }, [view]);
@@ -314,7 +337,26 @@ export default function Admin({ view }: { view: AdminView }) {
     return () => { active = false; };
   }, [view]);
 
-  const filteredUsers = allUsers.filter((u) => u.status === activeTab);
+  const filteredUsers = allUsers.filter((user) => {
+    const matchesFilter = activeFilter === "all"
+      || (activeFilter === "pending" && user.status === "pending")
+      || (activeFilter === "activated" && user.status === "approved")
+      || (activeFilter === "deactivated" && (user.status === "inactive" || user.status === "rejected"))
+      || (user.role === activeFilter && user.status !== "pending");
+    if (!matchesFilter) return false;
+
+    const terms = accountSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return true;
+    const searchableText = [
+      user.name,
+      user.email,
+      user.role,
+      user.status,
+      user.status === "approved" ? "activated active" : "",
+      user.status === "inactive" || user.status === "rejected" ? "deactivated inactive rejected" : "",
+    ].filter(Boolean).join(" ").toLowerCase();
+    return terms.every((term) => searchableText.includes(term));
+  });
   const filteredChatbotReplies = chatbotReplies.filter((reply) =>
     reply.id === editingReplyId || `${reply.keywords} ${reply.response}`.toLowerCase().includes(chatbotSearch.trim().toLowerCase()),
   );
@@ -454,23 +496,37 @@ export default function Admin({ view }: { view: AdminView }) {
       <>
         <Title
           kicker="User Management"
-          title="Account Approvals"
-          sub="Review requests and assign roles."
+          title="All Accounts"
+          sub="Browse system accounts by role or account status."
         />
         <Card className="mt-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex gap-2">
-              {(["pending", "approved", "inactive"] as UserStatus[]).map(
-                (tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-4 py-1.5 rounded-full text-sm font-semibold capitalize transition ${activeTab === tab ? "bg-p1 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
-                  >
-                    {tab}
-                  </button>
-                ),
-              )}
+          <input
+            type="search"
+            value={accountSearch}
+            onChange={(event) => setAccountSearch(event.target.value)}
+            placeholder="Search name, email, account type, or status..."
+            aria-label="Search accounts by name, email, account type, or status"
+            className="mb-4 w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-p1"
+          />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["all", "All Accounts"],
+                ["student", "Students"],
+                ["teacher", "Teachers"],
+                ["admin", "Admins"],
+                ["pending", "Pending"],
+                ["activated", "Activated"],
+                ["deactivated", "Deactivated"],
+              ] as [AccountFilter, string][]).map(([filter, label]) => (
+                <button
+                  key={filter}
+                  onClick={() => setActiveFilter(filter)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${activeFilter === filter ? "bg-p1 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
             <Btn variant="ghost" onClick={fetchUsers}>
               {loading ? "Refreshing..." : "Refresh List"}
@@ -478,7 +534,7 @@ export default function Admin({ view }: { view: AdminView }) {
           </div>
           {filteredUsers.length === 0 ? (
             <div className="text-center py-10 text-mute">
-              No {activeTab} users right now.
+              No {activeFilter} accounts right now.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -487,52 +543,59 @@ export default function Admin({ view }: { view: AdminView }) {
                   <tr className="border-b border-line text-mute">
                     <th className="pb-3 font-medium">Name</th>
                     <th className="pb-3 font-medium">Email</th>
-                    {activeTab === "pending" && (
-                      <th className="pb-3 font-medium">Role & Access Limit</th>
-                    )}
-                    <th className="pb-3 font-medium text-right">Actions</th>
+                    {activeFilter !== "pending" && <th className="pb-3 font-medium">Account type</th>}
+                    <th className="pb-3 font-medium">Status</th>
+                    <th className="pb-3 font-medium">Requested</th>
+                    {activeFilter === "pending" && <th className="pb-3 font-medium">User type</th>}
+                    <th className="pb-3 text-center font-medium">Details</th>
+                    <th className="pb-3 text-center font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   {filteredUsers.map((u) => {
-                    const currentRole = rolesToAssign[u.id] || "student";
+                    const currentRole = rolesToAssign[u.id] || u.role || "student";
                     return (
                       <tr key={u.id}>
                         <td className="py-4 font-semibold">{u.name}</td>
                         <td className="py-4">{u.email}</td>
-                        {activeTab === "pending" && (
-                          <td className="py-4 flex gap-2 items-center">
-                            <select
-                              value={currentRole}
-                              onChange={(e) =>
-                                handleRoleChange(u.id, e.target.value)
-                              }
-                              className="rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-semibold"
-                            >
-                              <option value="student">Student</option>
-                              <option value="teacher">Teacher</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                            {currentRole === "teacher" && (
-                              <input
-                                type="date"
-                                title="Access Until"
-                                onChange={(e) =>
-                                  handleDateChange(u.id, e.target.value)
-                                }
-                                className="rounded-lg border border-line bg-white px-3 py-1.5 text-sm"
-                              />
-                            )}
+                        {activeFilter !== "pending" && (
+                          <td className="py-4 capitalize">{activeFilter === "all" && u.status === "pending" ? "Pending" : u.role || "—"}</td>
+                        )}
+                        <td className="py-4 capitalize">{u.status || "—"}</td>
+                        <td className="py-4">{u.dateRequested ? new Date(u.dateRequested).toLocaleDateString() : "—"}</td>
+                        {activeFilter === "pending" && (
+                          <td className="py-4">
+                          {u.status === "pending" && (
+                            <>
+                              <select
+                                aria-label={`Role for ${u.name}`}
+                                value={currentRole}
+                                onChange={(e) => {
+                                  const role = e.target.value;
+                                  handleRoleChange(u.id, role);
+                                  if (role === "teacher") setTeacherDateUserId(u.id);
+                                }}
+                                className="rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-semibold"
+                              >
+                                <option value="student">Student</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </>
+                          )}
                           </td>
                         )}
-                        <td className="py-4 text-right flex justify-end gap-2">
+                        <td className="py-4 text-center">
                           <button
                             onClick={() => setSelectedUser(u)}
                             className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-200"
                           >
-                            Details
+                            View
                           </button>
-                          {activeTab === "pending" ? (
+                        </td>
+                        <td className="py-4">
+                          <div className="flex justify-center gap-2">
+                          {u.status === "pending" ? (
                             <>
                               <button
                                 onClick={() =>
@@ -557,21 +620,17 @@ export default function Admin({ view }: { view: AdminView }) {
                             </>
                           ) : (
                             <button
-                              onClick={() =>
-                                updateAccountStatus(
-                                  u.id,
-                                  activeTab === "inactive"
-                                    ? "approved"
-                                    : "inactive",
-                                )
-                              }
+                              onClick={() => updateAccountStatus(
+                                u.id,
+                                u.status === "approved" ? "inactive" : "approved",
+                                u.role || "student",
+                              )}
                               className="rounded-full border border-orange-200 text-orange-500 px-4 py-1.5 font-semibold hover:bg-orange-50"
                             >
-                              {activeTab === "inactive"
-                                ? "Reactivate"
-                                : "Deactivate"}
+                              {u.status === "approved" ? "Deactivate" : "Activate"}
                             </button>
                           )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -629,6 +688,51 @@ export default function Admin({ view }: { view: AdminView }) {
               >
                 Close
               </button>
+            </Card>
+          </div>
+        )}
+        {teacherDateUserId && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+            <Card className="w-full max-w-md">
+              <h3 className="text-xl font-bold">Set teacher access limit</h3>
+              <p className="mt-2 text-sm text-mute">
+                Choose the last date this teacher account can access the system.
+              </p>
+              <label className="mt-4 grid gap-1.5 text-sm font-semibold">
+                Access until
+                <input
+                  type="date"
+                  required
+                  value={accessDates[teacherDateUserId] || ""}
+                  onChange={(event) => handleDateChange(teacherDateUserId, event.target.value)}
+                  className="w-full rounded-lg border border-line bg-white px-3 py-2"
+                />
+              </label>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleRoleChange(teacherDateUserId, "student");
+                    setAccessDates((current) => {
+                      const next = { ...current };
+                      delete next[teacherDateUserId];
+                      return next;
+                    });
+                    setTeacherDateUserId(null);
+                  }}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!accessDates[teacherDateUserId]}
+                  onClick={() => setTeacherDateUserId(null)}
+                  className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Save date
+                </button>
+              </div>
             </Card>
           </div>
         )}
