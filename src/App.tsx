@@ -1131,11 +1131,9 @@ function Dashboard() {
               </button>
             ))}
           </nav>
-          {role === "student" && (
-            <div className="mt-6 hidden xl:block">
-              <Gospel />
-            </div>
-          )}
+          <div className="mt-6 pb-8">
+            <Gospel />
+          </div>
         </div>
         <div className={`sticky bottom-0 z-20 mt-auto -mx-5 -mb-5 shrink-0 border-t border-line px-5 pt-4 pb-7 ${darkMode ? "bg-gray-800" : "bg-white/95"}`}>
           <button
@@ -1214,11 +1212,6 @@ function Dashboard() {
               {role === "teacher" && <Teacher view={view as TeacherView} userId={localStorage.getItem("uid") || ""} go={go} />}
               {role === "admin" && <Admin view={view as AdminView} />}
             </>
-          )}
-          {role === "student" && (
-            <div className="mt-8 xl:hidden">
-              <Gospel />
-            </div>
           )}
         </main>
       </div>

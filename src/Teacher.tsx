@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { UploadCloud, FileText, Video, Edit2 } from "lucide-react";
+﻿import { useEffect, useState } from "react";
+import { UploadCloud, FileText, FileSpreadsheet, Image as ImageIcon, Music2, Presentation, Video, Edit2, Trash2, Check } from "lucide-react";
 import { Btn, Card, Input, Label, Pill, Title } from "./ui";
 import { collection, doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ClassCatalogItem } from "./classCatalog";
+import * as XLSX from "xlsx";
 
 export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students";
 
@@ -181,19 +182,184 @@ function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem
 }
 
 function Upload({ className }: { className?: string }) {
+  type AttachedLink = { url: string; previewUrl: string };
   const [kind, setKind] = useState("Module");
-  const [yt, setYt] = useState("https://youtu.be/kt5Yh3ucEdA");
-  const [title, setTitle] = useState(
-    "Psalm 95 — Kung marinig n'yo ang Kanyang tinig",
-  );
-  const [recent, setRecent] = useState([
+  const [filesByKind, setFilesByKind] = useState<Record<string, File[]>>({});
+  const [previewIndexByKind, setPreviewIndexByKind] = useState<Record<string, number | null>>({});
+  const [fileErrorsByKind, setFileErrorsByKind] = useState<Record<string, string>>({});
+  const selectedFiles = filesByKind[kind] || [];
+  const previewFileIndex = previewIndexByKind[kind] ?? null;
+  const fileError = fileErrorsByKind[kind] || "";
+  const setSelectedFiles = (update: File[] | ((current: File[]) => File[])) => {
+    setFilesByKind((current) => ({
+      ...current,
+      [kind]: typeof update === "function" ? update(current[kind] || []) : update,
+    }));
+  };
+  const setPreviewFileIndex = (index: number | null) => {
+    setPreviewIndexByKind((current) => ({ ...current, [kind]: index }));
+    if (index !== null) setSelectedLinkIndexByKind((current) => ({ ...current, [kind]: null }));
+  };
+  const setFileError = (error: string) => {
+    setFileErrorsByKind((current) => ({ ...current, [kind]: error }));
+  };
+  const [googleLink, setGoogleLink] = useState("");
+  const [youtubeLink, setYoutubeLink] = useState("");
+  const [attachedLinksByKind, setAttachedLinksByKind] = useState<Record<string, AttachedLink[]>>({});
+  const [selectedLinkIndexByKind, setSelectedLinkIndexByKind] = useState<Record<string, number | null>>({});
+  const attachedLinks = attachedLinksByKind[kind] || [];
+  const selectedLinkIndex = selectedLinkIndexByKind[kind] ?? null;
+  const selectedLink = selectedLinkIndex === null ? undefined : attachedLinks[selectedLinkIndex];
+  const addAttachedLink = (url: string, previewUrl: string) => {
+    const alreadyAttached = attachedLinks.some((link) => link.url === url);
+    if (alreadyAttached) {
+      alert("This link is already attached.");
+      return;
+    }
+    setAttachedLinksByKind((current) => ({ ...current, [kind]: [...(current[kind] || []), { url, previewUrl }] }));
+    setPreviewFileIndex(null);
+  };
+  const removeAttachedLink = (index: number) => {
+    setAttachedLinksByKind((current) => ({ ...current, [kind]: (current[kind] || []).filter((_, linkIndex) => linkIndex !== index) }));
+    setSelectedLinkIndexByKind((current) => {
+      const selected = current[kind] ?? null;
+      return { ...current, [kind]: selected === index ? null : selected !== null && selected > index ? selected - 1 : selected };
+    });
+  };
+  const [filePreviewUrls, setFilePreviewUrls] = useState<string[]>([]);
+  const [spreadsheetPreview, setSpreadsheetPreview] = useState<{ file: File; sheets: { name: string; rows: unknown[][] }[] } | null>(null);
+  const [spreadsheetLoading, setSpreadsheetLoading] = useState(false);
+  const [activeSpreadsheetSheet, setActiveSpreadsheetSheet] = useState("");
+  const [titlesByKind, setTitlesByKind] = useState<Record<string, string>>({
+    Module: "Psalm 95 â€” Kung marinig n'yo ang Kanyang tinig",
+  });
+  const [descriptionsByKind, setDescriptionsByKind] = useState<Record<string, string>>({});
+  const title = titlesByKind[kind] || "";
+  const description = descriptionsByKind[kind] || "";
+  const setTitle = (value: string) => setTitlesByKind((current) => ({ ...current, [kind]: value }));
+  const setDescription = (value: string) => setDescriptionsByKind((current) => ({ ...current, [kind]: value }));  const [recent, setRecent] = useState([
     { id: 1, title: "Ledger Lines Worksheet", kind: "PDF", date: "Yesterday" },
   ]);
 
-  const id = yt.match(/(?:youtu\.be\/|v=)([\w-]{11})/)?.[1];
+  useEffect(() => {
+    const urls = selectedFiles.map((file) => URL.createObjectURL(file));
+    setFilePreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [selectedFiles]);
+
+  const googlePreviewUrl = kind === "Others" ? selectedLink?.previewUrl || "" : "";
+  const youtubePreviewUrl = kind === "Video Guide" ? selectedLink?.previewUrl || "" : "";
+
+  const selectedFile = previewFileIndex === null ? undefined : selectedFiles[previewFileIndex];
+  const filePreviewUrl = previewFileIndex === null ? "" : filePreviewUrls[previewFileIndex] || "";
+  const isImageFile = selectedFile?.type.startsWith("image/") || false;
+  const isPdfFile = selectedFile?.type === "application/pdf" || selectedFile?.name.toLowerCase().endsWith(".pdf");
+  const isVideoFile = selectedFile?.type.startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|avi|mkv)$/i.test(selectedFile?.name || "");
+  const isAudioFile = selectedFile?.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|wma)$/i.test(selectedFile?.name || "");
+  const isExcelFile = kind === "Others" && /\.xlsx?$/i.test(selectedFile?.name || "");
+  const acceptedFileTypes = kind === "Module"
+    ? ".doc,.docx,.ppt,.pptx,.pdf,image/*"
+    : kind === "Others"
+      ? ".xls,.xlsx,.csv,.ods"
+      : kind === "Vocal Guide"
+        ? "audio/*,.mp3,.wav,.m4a,.aac,.ogg,.oga,.opus,.flac,.wma"
+        : "video/*,.mp4,.m4v,.mov,.webm,.ogv,.avi,.mkv";
+
+  useEffect(() => {
+    if (!selectedFile || !isExcelFile) {
+      setSpreadsheetPreview(null);
+      setSpreadsheetLoading(false);
+      setActiveSpreadsheetSheet("");
+      return;
+    }
+    let active = true;
+    setSpreadsheetLoading(true);
+    void selectedFile.arrayBuffer().then((buffer) => {
+      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+      const sheets = workbook.SheetNames.map((name) => ({
+        name,
+        rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: "" }),
+      }));
+      if (active) {
+        setSpreadsheetPreview({ file: selectedFile, sheets });
+        setActiveSpreadsheetSheet(sheets[0]?.name || "");
+      }
+    }).catch((error) => {
+      console.error("Could not preview spreadsheet:", error);
+      if (active) setSpreadsheetPreview({ file: selectedFile, sheets: [] });
+    }).finally(() => {
+      if (active) setSpreadsheetLoading(false);
+    });
+    return () => { active = false; };
+  }, [selectedFile, isExcelFile]);
+
+  const getFileIcon = (file: File) => {
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (file.type.startsWith("image/")) return ImageIcon;
+    if (file.type.startsWith("video/")) return Video;
+    if (file.type.startsWith("audio/")) return Music2;
+    if (extension === "xls" || extension === "xlsx" || extension === "csv" || extension === "ods") return FileSpreadsheet;
+    if (extension === "ppt" || extension === "pptx") return Presentation;
+    return FileText;
+  };
+
+  const chooseFiles = (files: FileList | File[], append = false) => {
+    const incomingFiles = Array.from(files);
+    if (incomingFiles.length === 0) return;
+    const allowedFiles = incomingFiles.filter((file) => {
+      const name = file.name.toLowerCase();
+      if (kind === "Module") return /\.(docx?|pptx?|pdf)$/i.test(name) || file.type.startsWith("image/");
+      if (kind === "Others") return /\.(xlsx?|csv|ods)$/i.test(name);
+      if (kind === "Vocal Guide") return file.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|wma)$/i.test(name);
+      if (kind === "Video Guide") return (file.type.startsWith("video/") || /\.(mp4|m4v|mov|webm|ogv|avi|mkv)$/i.test(name)) && file.size <= 1024 * 1024 * 1024;
+      return true;
+    });
+    if (allowedFiles.length !== incomingFiles.length) {
+      const errorMessages: Record<string, string> = {
+        Module: "Choose a Word, PowerPoint, PDF, or image file for a Module.",
+        Others: "Choose an Excel, CSV, or OpenDocument spreadsheet file for Others.",
+        "Vocal Guide": "Choose audio files only for Vocal Guide.",
+        "Video Guide": "Choose video files only, up to 1 GB each, for Video Guide. You can also add a YouTube link.",
+      };
+      setFileError(errorMessages[kind] || "One or more files are not supported.");
+    } else {
+      setFileError("");
+    }
+    if (allowedFiles.length > 0) {
+      const existingFiles = append ? selectedFiles : [];
+      const seenFileKeys = new Set(existingFiles.map((file) => `${file.name}:${file.size}:${file.lastModified}`));
+      const uniqueFiles = allowedFiles.filter((file) => {
+        const key = `${file.name}:${file.size}:${file.lastModified}`;
+        if (seenFileKeys.has(key)) return false;
+        seenFileKeys.add(key);
+        return true;
+      });
+      const duplicateCount = allowedFiles.length - uniqueFiles.length;
+      if (duplicateCount > 0) {
+        alert(duplicateCount === 1 ? "This file is already attached." : "One or more files are already attached.");
+      }
+      if (uniqueFiles.length > 0) {
+        setSelectedFiles((current) => append ? [...current, ...uniqueFiles] : uniqueFiles);
+      }
+      if (!append) setPreviewFileIndex(null);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
+    setPreviewFileIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
+  };
 
   const handlePublish = () => {
-    if (!title) return;
+    if (!title.trim() || !description.trim()) {
+      alert("Enter a title and description before publishing.");
+      return;
+    }
+    const hasLinkAttachment = attachedLinks.length > 0;
+    if (selectedFiles.length === 0 && !hasLinkAttachment) {
+      alert("Attach at least one file or add a valid supported link before publishing.");
+      return;
+    }
     setRecent([{ id: Date.now(), title, kind, date: "Just now" }, ...recent]);
     alert("Material successfully uploaded and synced to your assigned class!");
     setTitle("");
@@ -213,7 +379,7 @@ function Upload({ className }: { className?: string }) {
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <Card>
           <div className="flex flex-wrap gap-2">
-            {["Module", "Vocal guide", "PDF", "Video File", "YouTube"].map(
+            {["Module", "Vocal Guide", "Video Guide", "Others"].map(
               (k) => (
                 <button
                   key={k}
@@ -226,61 +392,248 @@ function Upload({ className }: { className?: string }) {
             )}
           </div>
           <div className="mt-5 grid gap-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title"
-            />
-            <div className="grid grid-cols-1 gap-3">
-              <select className="rounded-xl border border-line bg-white px-3 py-2.5 text-sm">
-                <option>All ages (Auto-assigned computation)</option>
-                <option>Kids 5–12</option>
-                <option>Youth 13–25</option>
-                <option>Adults 26+</option>
-              </select>
-            </div>
-            {kind === "YouTube" ? (
+            <label className="grid gap-1.5 text-sm font-semibold">
+              Title
               <Input
-                value={yt}
-                onChange={(e) => setYt(e.target.value)}
-                placeholder="Paste YouTube link"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Enter a title"
               />
-            ) : (
-              <label className="staff grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-[var(--p1)]/30 bg-p1-soft/40 px-6 py-12 text-center">
-                <input type="file" accept="*/*" className="hidden" />
-                <UploadCloud className="h-10 w-10 text-p1" strokeWidth={1.5} />
-                <span className="mt-2 font-semibold">
-                  Drop files here or browse
-                </span>
-                <span className="text-sm text-mute">
-                  Accepts Documents, Audio, and Video formats (Up to 200 MB)
-                </span>
-              </label>
+            </label>
+            <label className="grid gap-1.5 text-sm font-semibold">
+              Description
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder={`Describe this ${kind.toLowerCase()}`}
+                className="min-h-24 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal"
+              />
+            </label>
+            {kind === "Others" && (
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  value={googleLink}
+                  onChange={(event) => setGoogleLink(event.target.value)}
+                  placeholder="Paste a Google Docs, Drive, Slides, or Sheets link"
+                  aria-label="Google Docs, Drive, Slides, or Sheets link"
+                />
+                <button type="button" onClick={() => {
+                  try {
+                    const url = new URL(googleLink);
+                    const supported = (url.hostname === "docs.google.com" && /\/(document|presentation|spreadsheets)\/d\/[^/]+/.test(url.pathname))
+                      || (url.hostname === "drive.google.com" && Boolean(url.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || url.searchParams.get("id")));
+                    if (!supported) throw new Error("Unsupported link");
+                    const match = url.pathname.match(/^\/(document|presentation|spreadsheets)\/d\/([^/]+)/);
+                    const fileId = url.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || url.searchParams.get("id");
+                    const previewUrl = match
+                      ? match[1] === "presentation"
+                        ? `https://docs.google.com/presentation/d/${match[2]}/embed`
+                        : match[1] === "spreadsheets"
+                          ? `https://docs.google.com/spreadsheets/d/${match[2]}/preview`
+                          : `https://docs.google.com/document/d/${match[2]}/preview`
+                      : `https://drive.google.com/file/d/${fileId}/preview`;
+                    addAttachedLink(googleLink, previewUrl);
+                    setGoogleLink("");
+                  } catch {
+                    alert("Enter a valid Google Docs, Drive, Slides, or Sheets link, then attach it.");
+                  }
+                }} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[var(--p1)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--p1)]">
+                  <Check className="h-4 w-4" />
+                  {attachedLinks.some((link) => link.url === googleLink) ? "Attached" : "Attach link"}
+                </button>
+              </div>
             )}
+            {kind === "Video Guide" && (
+              <div className="flex gap-2">
+                <Input
+                  type="url"
+                  value={youtubeLink}
+                  onChange={(event) => setYoutubeLink(event.target.value)}
+                  placeholder="Paste a YouTube video link"
+                  aria-label="YouTube video link"
+                />
+                <button type="button" onClick={() => {
+                  try {
+                    const url = new URL(youtubeLink);
+                    const videoId = url.hostname === "youtu.be"
+                      ? url.pathname.slice(1).split("/")[0]
+                      : ["youtube.com", "www.youtube.com", "m.youtube.com"].includes(url.hostname)
+                        ? (url.pathname === "/watch" ? url.searchParams.get("v") || "" : url.pathname.match(/^\/(?:embed|shorts)\/([^/?]+)/)?.[1] || "")
+                        : "";
+                    if (!/^[\w-]{11}$/.test(videoId)) throw new Error("Unsupported link");
+                    addAttachedLink(youtubeLink, `https://www.youtube-nocookie.com/embed/${videoId}`);
+                    setYoutubeLink("");
+                  } catch {
+                    alert("Enter a valid YouTube video link, then attach it.");
+                  }
+                }} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[var(--p1)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--p1)]">
+                  <Check className="h-4 w-4" />
+                  {attachedLinks.some((link) => link.url === youtubeLink) ? "Attached" : "Attach link"}
+                </button>
+              </div>
+            )}
+            {attachedLinks.length > 0 && (
+              <ul className="grid gap-2">
+                {attachedLinks.map((link, index) => (
+                  <li key={`${link.url}-${index}`} className={`flex min-w-0 items-center gap-2 rounded-xl border px-3 py-2 ${selectedLinkIndex === index ? "border-p1 bg-white" : "border-line bg-white"}`}>
+                    <button type="button" onClick={() => { setSelectedLinkIndexByKind((current) => ({ ...current, [kind]: index })); setPreviewFileIndex(null); }} onKeyDown={(event) => {
+                      if (event.key === "Backspace" || event.key === "Delete") {
+                        event.preventDefault();
+                        removeAttachedLink(index);
+                      }
+                    }} aria-label={`Preview link ${link.url}. Press Backspace or Delete to remove it.`} aria-pressed={selectedLinkIndex === index} className={`min-w-0 flex-1 self-stretch rounded-lg px-3 py-2 text-left text-sm font-medium underline ${selectedLinkIndex === index ? "bg-blue-800 text-white dark:bg-blue-600" : "text-p1 hover:bg-p1-soft"}`}>
+                      <span className="block w-full break-all">{link.url}</span>
+                    </button>
+                    <button type="button" aria-label="Remove attached link" onClick={() => removeAttachedLink(index)} className="rounded-md p-1 text-red-500 hover:bg-red-50"><Trash2 className="h-4 w-4" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <label
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                chooseFiles(event.dataTransfer.files, selectedFiles.length > 0);
+              }}
+              className="staff grid cursor-pointer place-items-center rounded-2xl border-2 border-dashed border-[var(--p1)]/30 bg-p1-soft/40 px-6 py-4 text-center"
+            >
+              <input
+                type="file"
+                multiple
+                accept={acceptedFileTypes}
+                onChange={(event) => chooseFiles(event.target.files || [], selectedFiles.length > 0)}
+                className="hidden"
+              />
+              <UploadCloud className="h-9 w-9 text-p1" strokeWidth={1.5} />
+              <span className="mt-2 font-semibold">
+                {selectedFiles.length ? "Drop more files here or browse to add to this batch" : "Drop files here or browse"}
+              </span>
+              <span className="text-sm text-mute">
+                {kind === "Module"
+                  ? "Word, PowerPoint, PDF, and image files (up to 200 MB each)"
+                  : kind === "Others"
+                    ? "Excel, CSV, and OpenDocument spreadsheet files"
+                    : kind === "Vocal Guide"
+                      ? "Audio files only"
+                      : "Video files only (up to 1 GB each), or add a YouTube link"}
+              </span>
+            </label>
+            {selectedFiles.length > 0 && (
+              <>
+                <ul className="grid gap-2">
+                  {selectedFiles.map((file, index) => {
+                    const FileIcon = getFileIcon(file);
+                    return (
+                      <li key={`${file.name}-${file.lastModified}-${index}`} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${previewFileIndex === index ? "border-p1 bg-p1-soft/60" : "border-line"}`}>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewFileIndex(index)}
+                          aria-pressed={previewFileIndex === index}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                        >
+                          <FileIcon className="h-5 w-5 shrink-0 text-p1" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium">{file.name}</span>
+                          <span className="text-xs text-mute">{(file.size / (1024 * 1024)).toFixed(1)} MB</span>
+                        </button>
+                        <button type="button" aria-label={`Remove ${file.name}`} onClick={() => removeFile(index)} className="rounded-md p-1 text-red-500 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex flex-wrap gap-2">
+                  <label className="cursor-pointer rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1 hover:bg-p1-soft/70">
+                    Add another
+                    <input
+                      type="file"
+                      multiple
+                      accept={acceptedFileTypes}
+                      onChange={(event) => chooseFiles(event.target.files || [], true)}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </>
+            )}
+            {fileError && <p role="alert" className="text-sm text-red-600">{fileError}</p>}
             <div className="flex gap-2">
               <Btn onClick={handlePublish}>Publish to class</Btn>
-              <Btn variant="ghost">Save draft</Btn>
             </div>
           </div>
         </Card>
         <div className="grid content-start gap-5">
           <Card>
             <Label>Student preview</Label>
-            {kind === "YouTube" && id ? (
-              <div className="mt-3 aspect-video overflow-hidden rounded-xl bg-p1-soft">
-                <iframe
-                  className="h-full w-full"
-                  src={`https://www.youtube.com/embed/${id}`}
-                  title="Preview"
-                />
-              </div>
-            ) : (
-              <div className="mt-3 grid aspect-video place-items-center rounded-xl bg-p1-soft text-mute">
-                Preview appears here
-              </div>
-            )}
+            <div className="mt-3 min-h-56 overflow-hidden rounded-xl bg-p1-soft">
+              {kind === "Video Guide" && selectedLink && youtubePreviewUrl ? (
+                <iframe className="h-80 w-full" src={youtubePreviewUrl} title="YouTube video preview" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
+              ) : kind === "Others" && selectedLink && googlePreviewUrl ? (
+                <iframe className="h-80 w-full" src={googlePreviewUrl} title="Google file preview" allow="autoplay" />
+              ) : filePreviewUrl && isVideoFile ? (
+                <video className="max-h-96 w-full" src={filePreviewUrl} controls />
+              ) : filePreviewUrl && isAudioFile ? (
+                <div className="grid min-h-56 place-items-center p-5">
+                  <audio className="w-full" src={filePreviewUrl} controls />
+                </div>
+              ) : filePreviewUrl && isImageFile ? (
+                <img className="max-h-96 w-full object-contain" src={filePreviewUrl} alt={`Preview of ${selectedFile?.name}`} />
+              ) : filePreviewUrl && isPdfFile ? (
+                <iframe className="h-80 w-full" src={filePreviewUrl} title="PDF preview" />
+              ) : selectedFile && isExcelFile ? (
+                spreadsheetLoading || spreadsheetPreview?.file !== selectedFile ? (
+                  <div className="grid min-h-56 place-items-center p-5 text-mute">Preparing spreadsheet preview…</div>
+                ) : spreadsheetPreview.sheets.length === 0 ? (
+                  <div className="grid min-h-56 place-items-center p-5 text-center text-mute">Could not read this spreadsheet. Try another Excel file.</div>
+                ) : (() => {
+                  const sheet = spreadsheetPreview.sheets.find((item) => item.name === activeSpreadsheetSheet) || spreadsheetPreview.sheets[0];
+                  const rows = sheet.rows.slice(0, 100);
+                  const columnCount = Math.min(30, Math.max(0, ...rows.map((row) => row.length)));
+                  return (
+                    <div className="p-3">
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {spreadsheetPreview.sheets.map((item) => (
+                          <button key={item.name} type="button" onClick={() => setActiveSpreadsheetSheet(item.name)} className={`rounded-full px-3 py-1.5 text-sm font-semibold ${item.name === sheet.name ? "bg-[var(--p1)] text-white" : "bg-white text-p1"}`}>
+                            {item.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="max-h-80 overflow-auto rounded-lg border border-line bg-white">
+                        <table className="min-w-full border-collapse text-left text-xs">
+                          <tbody>
+                            {rows.map((row, rowIndex) => (
+                              <tr key={rowIndex} className={rowIndex === 0 ? "bg-p1-soft font-semibold" : "odd:bg-white even:bg-slate-50"}>
+                                {Array.from({ length: columnCount }, (_, columnIndex) => (
+                                  <td key={columnIndex} className="max-w-64 border-b border-r border-line px-2 py-1.5 align-top">{String(row[columnIndex] ?? "")}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {sheet.rows.length > rows.length && <p className="mt-2 text-xs text-mute">Showing the first 100 rows.</p>}
+                    </div>
+                  );
+                })()
+              ) : selectedFile ? (
+                <div className="grid min-h-56 place-items-center p-5 text-center text-sm text-mute">
+                  <div>
+                    <p className="font-semibold text-ink">{selectedFile.name}</p>
+                    <p className="mt-1">{kind === "Others"
+                      ? "Add a Google Docs, Drive, Slides, or Sheets link above to preview this file here."
+                      : "This file type does not support an inline preview. You can open the attached file to view it."}</p>
+                    {filePreviewUrl && <a href={filePreviewUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block font-semibold text-p1 underline">Open selected file</a>}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid min-h-56 place-items-center p-5 text-center text-mute">
+                  {selectedFiles.length > 0 || attachedLinks.length > 0 ? "Choose an attached file or link above to preview it." : "Preview appears here"}
+                </div>
+              )}
+            </div>
             <p className="mt-3 text-sm text-mute">
-              Files stream inside the platform — learners never leave MML.
+              Files stream inside the platform Ã¢â‚¬â€ learners never leave MML.
             </p>
           </Card>
           <Card>
@@ -293,9 +646,7 @@ function Upload({ className }: { className?: string }) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-p1-soft p-2 text-p1">
-                      {m.kind === "YouTube" ||
-                      m.kind === "Video File" ||
-                      m.kind === "Vocal guide" ? (
+                      {m.kind === "Video Guide" || m.kind === "Vocal Guide" ? (
                         <Video className="h-5 w-5" />
                       ) : (
                         <FileText className="h-5 w-5" />
@@ -304,7 +655,7 @@ function Upload({ className }: { className?: string }) {
                     <div>
                       <p className="font-semibold">{m.title}</p>
                       <p className="text-xs text-mute">
-                        {m.kind} · {m.date}
+                        {m.kind} Ã‚Â· {m.date}
                       </p>
                     </div>
                   </div>
@@ -438,7 +789,7 @@ function Quiz({ className }: { className?: string }) {
 function Meet() {
   const [list, setList] = useState([
     {
-      t: "Virtual Rehearsal — 27th Sunday",
+      t: "Virtual Rehearsal Ã¢â‚¬â€ 27th Sunday",
       w: "2026-10-10T20:00",
       l: "meet.google.com/mml-rhsl-027",
     },
@@ -486,7 +837,7 @@ function Meet() {
                   <b>{x.t}</b>
                   <br />
                   <span className="font-mono text-xs text-mute">
-                    {new Date(x.w).toLocaleString()} · {x.l}
+                    {new Date(x.w).toLocaleString()} Ã‚Â· {x.l}
                   </span>
                 </span>
                 <Btn
@@ -536,7 +887,7 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
   return (
     <>
       {(view === "dash" || view === "classes") && <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />}
-      {view !== "classes" && <Card className="mb-5 flex flex-wrap items-center gap-3">
+      {(view === "dash" || view === "meet") && <Card className="mb-5 flex flex-wrap items-center gap-3">
         <label htmlFor="teacher-class-selector" className="text-sm font-semibold">Accessing class</label>
         <select
           id="teacher-class-selector"
@@ -553,7 +904,7 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
         </select>
         {selectedClass && <span className="text-sm text-mute">{selectedClass.description}</span>}
       </Card>}
-      {(view === "upload" || view === "quiz" || view === "students") && (
+      {view !== "classes" && (
         <button
           type="button"
           onClick={() => go("classes")}
@@ -581,3 +932,4 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
     </>
   );
 }
+
