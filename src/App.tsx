@@ -84,6 +84,7 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
   teacher: [
     ["profile", User, "My Profile"],
     ["dash", LayoutDashboard, "Dashboard"],
+    ["classes", BookOpen, "Classes"],
     ["students", Users, "My Students"],
     ["upload", Upload, "Upload Content"],
     ["quiz", ListChecks, "Assessment Builder"],
@@ -942,7 +943,7 @@ function Chatbot({ isAdmin }: { isAdmin: boolean }) {
         const score = keywords.reduce((total, keyword) => {
           const bestWordScore = inputWords.reduce((best, word) => {
             if (word === keyword) return Math.max(best, 3);
-            if (Math.min(word.length, keyword.length) >= 4 && (word.includes(keyword) || keyword.includes(word))) {
+            if (Math.min(word.length, keyword.length) >= 3 && (word.includes(keyword) || keyword.includes(word))) {
               return Math.max(best, 2);
             }
             if (Math.min(word.length, keyword.length) >= 4 && keywordDistanceIsOne(word, keyword)) {
@@ -1215,7 +1216,7 @@ function Dashboard() {
                   userId={localStorage.getItem("uid") || ""}
                 />
               )}
-              {role === "teacher" && <Teacher view={view as TeacherView} />}
+              {role === "teacher" && <Teacher view={view as TeacherView} userId={localStorage.getItem("uid") || ""} go={go} />}
               {role === "admin" && <Admin view={view as AdminView} />}
             </>
           )}

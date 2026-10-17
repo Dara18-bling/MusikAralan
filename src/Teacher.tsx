@@ -1,26 +1,78 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UploadCloud, FileText, Video, Edit2 } from "lucide-react";
 import { Btn, Card, Input, Label, Pill, Title } from "./ui";
+import { collection, doc, onSnapshot } from "firebase/firestore";
+import { db } from "./firebase";
+import type { ClassCatalogItem } from "./classCatalog";
 
-export type TeacherView = "dash" | "upload" | "quiz" | "meet" | "students";
+export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students";
 
 export function ExpiryBanner({
   teacherName = "Teacher",
+  userId,
 }: {
   teacherName?: string;
+  userId: string;
 }) {
+  const [accessUntil, setAccessUntil] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!userId) return;
+    return onSnapshot(doc(db, "users", userId), (snapshot) => {
+      setAccessUntil(String(snapshot.data()?.accessUntil || ""));
+    }, (error) => console.error("Could not load teacher access end date:", error));
+  }, [userId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const dateParts = accessUntil.split("-").map(Number);
+  const expiryDate = dateParts.length === 3 && dateParts.every(Number.isFinite)
+    ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59)
+    : null;
+  const remainingMs = expiryDate ? expiryDate.getTime() - now : null;
+  const expired = remainingMs !== null && remainingMs <= 0;
+  const remainingMinutes = remainingMs !== null && remainingMs > 0
+    ? Math.ceil(remainingMs / 60_000)
+    : 0;
+  const days = Math.floor(remainingMinutes / (24 * 60));
+  const hours = Math.floor((remainingMinutes % (24 * 60)) / 60);
+  const minutes = remainingMinutes % 60;
+  const expiryLabel = expiryDate?.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const progress = remainingMs === null
+    ? 0
+    : Math.max(0, Math.min(100, (remainingMs / (30 * 24 * 60 * 60 * 1000)) * 100));
+
   return (
     <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-p2/30 bg-p2-soft px-4 py-3 text-sm">
       <span className="font-mono text-xs uppercase tracking-widest text-p2">
         Guest access
       </span>
       <span className="flex-1">
-        {teacherName} · Psalmody instructor — this account expires automatically
-        in <b>1 day 14 h 22 m</b> (Oct 6, 8:00 AM).
+        {expiryDate ? expired
+          ? <>{teacherName}, your guest access expired on <b>{expiryLabel}</b>.</>
+          : <>{teacherName}, your guest access ends in <b>{days} d {hours} h {minutes} m</b> ({expiryLabel}).</>
+          : <>No guest access end date has been set for {teacherName}.</>}
       </span>
-      <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white">
-        <div className="h-full w-[30%] grad" />
-      </div>
+      {expiryDate && !expired && (
+        <div
+          role="progressbar"
+          aria-label="Time remaining before guest access ends"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(progress)}
+          className="h-1.5 w-32 overflow-hidden rounded-full bg-white"
+        >
+          <div className="h-full grad transition-[width] duration-500" style={{ width: `${progress}%` }} />
+        </div>
+      )}
     </div>
   );
 }
@@ -94,7 +146,40 @@ function StudentList() {
   );
 }
 
-function Upload() {
+function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem[]; onChooseAction: (classId: string, view: "upload" | "quiz") => void }) {
+  return (
+    <>
+      <Title kicker="Class Management" title="My Classes" sub="All classes assigned to your teacher account." />
+      {classes.length === 0 ? (
+        <Card className="mt-5 py-8 text-center text-mute">No classes are currently assigned to you.</Card>
+      ) : (
+        <div className="mt-5 grid gap-5 md:grid-cols-2">
+          {classes.map((item) => (
+            <Card key={item.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-xl font-bold">{item.name}</h2>
+                  <p className="mt-1 text-sm text-mute">{item.age === "all" ? "All ages" : `${item.age} age group`}</p>
+                </div>
+                <Pill tone={item.availableForEnrollment ? "p1" : "p2"}>
+                  {item.availableForEnrollment ? "Enrollment open" : "Enrollment closed"}
+                </Pill>
+              </div>
+              <p className="mt-4 whitespace-pre-wrap text-sm text-ink">{item.description || "No class description provided."}</p>
+              <p className="mt-4 text-sm text-mute">{item.enrolledStudentIds?.length || 0} enrolled students</p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <button type="button" onClick={() => onChooseAction(item.id, "upload")} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white">Upload Content</button>
+                <button type="button" onClick={() => onChooseAction(item.id, "quiz")} className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white">Assessment Builder</button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Upload({ className }: { className?: string }) {
   const [kind, setKind] = useState("Module");
   const [yt, setYt] = useState("https://youtu.be/kt5Yh3ucEdA");
   const [title, setTitle] = useState(
@@ -123,7 +208,7 @@ function Upload() {
 
   return (
     <>
-      <Title kicker="Content uploader" title="Add learning material" />
+      <Title kicker="Content uploader" title="Add learning material" sub={className ? `Adding content for ${className}.` : "Choose an assigned class before adding content."} />
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <Card>
           <div className="flex flex-wrap gap-2">
@@ -244,7 +329,7 @@ type Q = {
   a: number;
   type: "multiple" | "truefalse" | "identification";
 };
-function Quiz() {
+function Quiz({ className }: { className?: string }) {
   const [qs, setQs] = useState<Q[]>([
     {
       q: "What is the time signature of a waltz?",
@@ -261,6 +346,7 @@ function Quiz() {
       <Title
         kicker="Assessment builder"
         title="Note Reading Quiz 5"
+        sub={className ? `Creating an assessment for ${className}.` : "Choose an assigned class before creating an assessment."}
         right={
           <div className="flex gap-2">
             <Pill>Auto-graded</Pill>
@@ -419,21 +505,68 @@ function Meet() {
   );
 }
 
-export default function Teacher({ view }: { view: TeacherView }) {
+export default function Teacher({ view, userId, go }: { view: TeacherView; userId: string; go: (view: string) => void }) {
   const loggedInTeacherName = localStorage.getItem("name") || "Teacher User";
+  const [teacherIdentity, setTeacherIdentity] = useState(loggedInTeacherName);
+  const [assignedClasses, setAssignedClasses] = useState<ClassCatalogItem[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+
+  useEffect(() => {
+    if (!userId) return;
+    return onSnapshot(doc(db, "users", userId), (snapshot) => {
+      if (!snapshot.exists()) return;
+      const profile = snapshot.data();
+      setTeacherIdentity(String(profile.name || profile.email || loggedInTeacherName).trim());
+    }, (error) => console.error("Could not load teacher profile:", error));
+  }, [userId, loggedInTeacherName]);
+
+  useEffect(() => onSnapshot(collection(db, "classes"), (snapshot) => {
+    const teacherClasses = snapshot.docs
+      .map((classDoc) => ({ id: classDoc.id, ...classDoc.data() } as ClassCatalogItem))
+      .filter((item) => !item.deleted && String(item.teacher || "").trim().toLowerCase() === teacherIdentity.toLowerCase());
+    setAssignedClasses(teacherClasses);
+    setSelectedClassId((current) => teacherClasses.some((item) => item.id === current)
+      ? current
+      : teacherClasses[0]?.id || "");
+  }, (error) => console.error("Could not load assigned classes:", error)), [teacherIdentity]);
+
+  const selectedClass = assignedClasses.find((item) => item.id === selectedClassId);
+
   return (
     <>
-      <ExpiryBanner teacherName={loggedInTeacherName} />
+      {view === "dash" && <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />}
+      <Card className="mb-5 flex flex-wrap items-center gap-3">
+        <label htmlFor="teacher-class-selector" className="text-sm font-semibold">Accessing class</label>
+        <select
+          id="teacher-class-selector"
+          value={selectedClassId}
+          onChange={(event) => setSelectedClassId(event.target.value)}
+          disabled={assignedClasses.length === 0}
+          className="min-w-56 rounded-lg border border-line bg-white px-3 py-2 text-sm disabled:opacity-60"
+        >
+          {assignedClasses.length === 0 ? (
+            <option value="">No classes assigned</option>
+          ) : assignedClasses.map((item) => (
+            <option key={item.id} value={item.id}>{item.name}</option>
+          ))}
+        </select>
+        {selectedClass && <span className="text-sm text-mute">{selectedClass.description}</span>}
+      </Card>
       {view === "dash" ? (
         <Dashboard />
+      ) : view === "classes" ? (
+        <TeacherClasses classes={assignedClasses} onChooseAction={(classId, nextView) => {
+          setSelectedClassId(classId);
+          go(nextView);
+        }} />
       ) : view === "students" ? (
         <StudentList />
       ) : view === "quiz" ? (
-        <Quiz />
+        <Quiz className={selectedClass?.name} />
       ) : view === "meet" ? (
         <Meet />
       ) : (
-        <Upload />
+        <Upload className={selectedClass?.name} />
       )}
     </>
   );

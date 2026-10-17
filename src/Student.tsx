@@ -240,14 +240,15 @@ function Materials({ userId, age }: { userId: string; age: string }) {
         age: data.age ?? "all",
         description: data.description ?? "",
         availableForEnrollment: data.availableForEnrollment === true,
+        deleted: data.deleted === true,
         enrolledStudentIds: Array.isArray(data.enrolledStudentIds) ? data.enrolledStudentIds : [],
       } as ClassCatalogItem;
     }));
   }, (error) => console.error("Could not load classes:", error)), []);
 
-  const enrolledClasses = classCatalog.filter((item) => userId && item.enrolledStudentIds?.includes(userId));
+  const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && item.enrolledStudentIds?.includes(userId));
   const availableClasses = classCatalog.filter((item) =>
-    item.availableForEnrollment && !item.enrolledStudentIds?.includes(userId),
+    !item.deleted && item.availableForEnrollment && !item.enrolledStudentIds?.includes(userId),
   );
   const canEnroll = (item: ClassCatalogItem) => item.age === "all" || item.age === age || (item.age === "adults" && age === "adult");
   const joinClass = async (item: ClassCatalogItem) => {

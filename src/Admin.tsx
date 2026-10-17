@@ -18,6 +18,7 @@ import { DEFAULT_CLASSES, type ClassCatalogItem } from "./classCatalog";
 export type AdminView = "dash" | "accounts" | "news" | "classes" | "bot";
 type UserStatus = "pending" | "approved" | "rejected" | "inactive";
 type AccountFilter = "all" | "student" | "teacher" | "admin" | "pending" | "activated" | "deactivated";
+type ClassFilter = "all" | "open" | "closed" | "deleted";
 
 export default function Admin({ view }: { view: AdminView }) {
   const [allUsers, setAllUsers] = useState<any[]>([]);
@@ -33,12 +34,17 @@ export default function Admin({ view }: { view: AdminView }) {
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(null);
   const [managedClasses, setManagedClasses] = useState<ClassCatalogItem[]>([]);
+  const [editingClass, setEditingClass] = useState<ClassCatalogItem | null>(null);
+  const [classFilter, setClassFilter] = useState<ClassFilter>("all");
+  const [classSearch, setClassSearch] = useState("");
   const [classesLoading, setClassesLoading] = useState(false);
   const [savingClassId, setSavingClassId] = useState<string | null>(null);
   const [showCreateClass, setShowCreateClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const [newClassTeacher, setNewClassTeacher] = useState("Unassigned");
   const [newClassAge, setNewClassAge] = useState<ClassCatalogItem["age"]>("all");
+  const [newClassDescription, setNewClassDescription] = useState("New class");
+  const [newClassAvailable, setNewClassAvailable] = useState(false);
 
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [newsTitle, setNewsTitle] = useState("");
@@ -76,8 +82,8 @@ export default function Admin({ view }: { view: AdminView }) {
     setAccessDates((prev) => ({ ...prev, [id]: date }));
   };
 
-  const updateManagedClass = (id: string, changes: Partial<ClassCatalogItem>) => {
-    setManagedClasses((current) => current.map((item) => item.id === id ? { ...item, ...changes } : item));
+  const updateEditingClass = (changes: Partial<ClassCatalogItem>) => {
+    setEditingClass((current) => current ? { ...current, ...changes } : current);
   };
 
   const saveManagedClass = async (item: ClassCatalogItem) => {
@@ -85,12 +91,39 @@ export default function Admin({ view }: { view: AdminView }) {
     try {
       const { id, enrolledStudentIds: _enrolledStudentIds, ...classData } = item;
       await setDoc(doc(db, "classes", id), classData, { merge: true });
+      setManagedClasses((current) => current.map((existing) => existing.id === id
+        ? { ...item, enrolledStudentIds: existing.enrolledStudentIds }
+        : existing));
+      setEditingClass(null);
       alert(`${item.name} saved.`);
     } catch (error) {
       console.error(error);
       alert("Could not save this class.");
+    } finally {
+      setSavingClassId(null);
     }
-    setSavingClassId(null);
+  };
+
+  const deleteManagedClass = async (item: ClassCatalogItem) => {
+    if (!window.confirm(`Move "${item.name}" to deleted classes? You can restore it later.`)) return;
+    try {
+      await updateDoc(doc(db, "classes", item.id), { deleted: true });
+      setManagedClasses((current) => current.map((existing) => existing.id === item.id ? { ...existing, deleted: true } : existing));
+      if (editingClass?.id === item.id) setEditingClass(null);
+    } catch (error) {
+      console.error(error);
+      alert("Could not delete this class.");
+    }
+  };
+
+  const restoreManagedClass = async (item: ClassCatalogItem) => {
+    try {
+      await updateDoc(doc(db, "classes", item.id), { deleted: false });
+      setManagedClasses((current) => current.map((existing) => existing.id === item.id ? { ...existing, deleted: false } : existing));
+    } catch (error) {
+      console.error(error);
+      alert("Could not restore this class.");
+    }
   };
 
   const createManagedClass = async (event: React.FormEvent) => {
@@ -100,8 +133,8 @@ export default function Admin({ view }: { view: AdminView }) {
       name: newClassName.trim(),
       teacher: newClassTeacher,
       age: newClassAge,
-      description: "New class",
-      availableForEnrollment: false,
+      description: newClassDescription.trim(),
+      availableForEnrollment: newClassAvailable,
       enrolledStudentIds: [],
     };
     try {
@@ -110,6 +143,8 @@ export default function Admin({ view }: { view: AdminView }) {
       setNewClassName("");
       setNewClassTeacher("Unassigned");
       setNewClassAge("all");
+      setNewClassDescription("New class");
+      setNewClassAvailable(false);
       setShowCreateClass(false);
     } catch (error) {
       console.error(error);
@@ -340,8 +375,7 @@ export default function Admin({ view }: { view: AdminView }) {
       try {
         const snapshot = await getDocs(collection(db, "classes"));
         if (snapshot.empty) {
-          await Promise.all(DEFAULT_CLASSES.map(({ id, ...data }) => setDoc(doc(db, "classes", id), data)));
-          if (active) setManagedClasses(DEFAULT_CLASSES);
+          if (active) setManagedClasses([]);
         } else if (active) {
           setManagedClasses(snapshot.docs.map((classDoc) => ({
             ...DEFAULT_CLASSES.find((item) => item.id === classDoc.id),
@@ -351,7 +385,7 @@ export default function Admin({ view }: { view: AdminView }) {
         }
       } catch (error) {
         console.error("Could not load classes:", error);
-        if (active) setManagedClasses(DEFAULT_CLASSES);
+        if (active) setManagedClasses([]);
       }
       if (active) setClassesLoading(false);
     };
@@ -382,6 +416,20 @@ export default function Admin({ view }: { view: AdminView }) {
   const filteredChatbotReplies = chatbotReplies.filter((reply) =>
     reply.id === editingReplyId || `${reply.keywords} ${reply.response}`.toLowerCase().includes(chatbotSearch.trim().toLowerCase()),
   );
+  const accountTeachers = [...new Set(allUsers
+    .filter((user) => user.role === "teacher" && user.status === "approved")
+    .map((user) => String(user.name || user.email || "").trim())
+    .filter(Boolean))];
+  const filteredClasses = managedClasses.filter((item) => {
+    const matchesDeletedFilter = classFilter === "deleted" ? item.deleted === true : item.deleted !== true;
+    const matchesFilter = matchesDeletedFilter && (classFilter === "all"
+      || (classFilter === "open" && item.availableForEnrollment)
+      || (classFilter === "closed" && !item.availableForEnrollment)
+      || classFilter === "deleted");
+    const terms = classSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const searchableText = `${item.name} ${item.teacher} ${item.age} ${item.description} ${item.availableForEnrollment ? "open available enrollment" : "closed unavailable not available"}`.toLowerCase();
+    return matchesFilter && terms.every((term) => searchableText.includes(term));
+  });
 
   if (view === "bot") {
     return (
@@ -404,7 +452,7 @@ export default function Admin({ view }: { view: AdminView }) {
               <Btn variant="soft" onClick={() => setShowAddReply(true)}>Add response</Btn>
             </div>
           </div>
-          <p className="mb-3 text-sm text-mute">Enter a sample user question or keyword. Replies are chosen by the closest keyword match.</p>
+          <p className="mb-3 text-sm text-mute">A single exact or partial keyword match can trigger a reply, including replies added later.</p>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[42rem] table-fixed text-left text-sm">
               <thead>
@@ -416,34 +464,16 @@ export default function Admin({ view }: { view: AdminView }) {
               </thead>
               <tbody className="divide-y divide-line">
                 {filteredChatbotReplies.map((reply) => {
-                  const editing = editingReplyId === reply.id;
                   return (
                     <tr key={reply.id}>
+                  <td className="py-2 pr-3 align-top"><span className="break-words">{reply.keywords || <span className="text-mute">Default</span>}</span></td>
                       <td className="py-2 pr-3 align-top">
-                        {editing ? (
-                          <input aria-label="User question or keyword" className="w-full rounded-md border border-line bg-white px-2 py-1.5" value={reply.keywords} onChange={(e) => updateChatbotReply(reply.id, "keywords", e.target.value)} placeholder="e.g. How do I join class?" />
-                        ) : <span className="break-words">{reply.keywords || <span className="text-mute">Default</span>}</span>}
-                      </td>
-                      <td className="py-2 pr-3 align-top">
-                        {editing ? (
-                          <textarea aria-label="Chatbot response" className="min-h-16 w-full rounded-md border border-line bg-white px-2 py-1.5" value={reply.response} onChange={(e) => updateChatbotReply(reply.id, "response", e.target.value)} />
-                        ) : <p className="line-clamp-2 break-words">{reply.response}</p>}
+                    <p className="line-clamp-2 break-words">{reply.response}</p>
                       </td>
                       <td className="py-2 text-right align-top">
-                        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1">
-                          {editing ? (
-                            <>
-                              <button type="button" onClick={() => saveChatbotReply(reply)} disabled={chatbotSaving === reply.id} className="font-semibold text-p1 hover:underline disabled:opacity-50">{chatbotSaving === reply.id ? "Saving..." : "Save"}</button>
-                              <button type="button" onClick={() => {
-                                if (reply.id.startsWith("new-")) setChatbotReplies((current) => current.filter((item) => item.id !== reply.id));
-                                else fetchChatbotReplies();
-                                setEditingReplyId(null);
-                              }} className="text-mute hover:underline">Cancel</button>
-                            </>
-                          ) : (
-                            <button type="button" onClick={() => setEditingReplyId(reply.id)} className="font-semibold text-p1 hover:underline">Edit</button>
-                          )}
-                          <button type="button" onClick={() => deleteChatbotReply(reply)} className="font-semibold text-red-500 hover:underline">Delete</button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button type="button" onClick={() => setEditingReplyId(reply.id)} className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white">Edit</button>
+                      <button type="button" onClick={() => deleteChatbotReply(reply)} className="rounded-full border border-red-200 px-4 py-1.5 font-semibold text-red-500 hover:bg-red-50">Delete</button>
                         </div>
                       </td>
                     </tr>
@@ -456,13 +486,43 @@ export default function Admin({ view }: { view: AdminView }) {
             </table>
           </div>
         </Card>
+        {editingReplyId && (() => {
+          const reply = chatbotReplies.find((item) => item.id === editingReplyId);
+          if (!reply) return null;
+          return (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
+              if (event.target === event.currentTarget && chatbotSaving !== reply.id) {
+                void fetchChatbotReplies();
+                setEditingReplyId(null);
+              }
+            }}>
+              <section role="dialog" aria-modal="true" aria-labelledby="edit-chatbot-reply-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
+                <h2 id="edit-chatbot-reply-title" className="font-display text-2xl font-bold">Edit chatbot response</h2>
+                <form className="mt-5 grid gap-4" onSubmit={(event) => { event.preventDefault(); void saveChatbotReply(reply); }}>
+                  <label className="grid gap-1.5 text-sm font-semibold">
+                    User question or keyword
+                    <textarea value={reply.keywords} onChange={(event) => updateChatbotReply(reply.id, "keywords", event.target.value)} placeholder="Example: How do I join a class?" className="min-h-24 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                  </label>
+                  <label className="grid gap-1.5 text-sm font-semibold">
+                    Chatbot response
+                    <textarea required value={reply.response} onChange={(event) => updateChatbotReply(reply.id, "response", event.target.value)} className="min-h-28 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                  </label>
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => { void fetchChatbotReplies(); setEditingReplyId(null); }} disabled={chatbotSaving === reply.id} className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-50">Cancel</button>
+                    <button type="submit" disabled={chatbotSaving === reply.id || !reply.response.trim()} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{chatbotSaving === reply.id ? "Saving..." : "Save changes"}</button>
+                  </div>
+                </form>
+              </section>
+            </div>
+          );
+        })()}
         {showAddReply && (
           <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
             if (event.target === event.currentTarget && !creatingReply) setShowAddReply(false);
           }}>
             <section role="dialog" aria-modal="true" aria-labelledby="add-chatbot-reply-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
               <h2 id="add-chatbot-reply-title" className="font-display text-2xl font-bold">Add chatbot response</h2>
-              <p className="mt-1 text-sm text-mute">Enter the user question or keyword that should trigger this answer.</p>
+              <p className="mt-1 text-sm text-mute">One exact or partial keyword match is enough to trigger this answer.</p>
               <form className="mt-5 grid gap-4" onSubmit={createChatbotReply}>
                 <label className="grid gap-1.5 text-sm font-semibold">
                   User question or keyword
@@ -537,7 +597,7 @@ export default function Admin({ view }: { view: AdminView }) {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
               {([
-                ["all", "All Accounts"],
+                ["all", "All"],
                 ["student", "Students"],
                 ["teacher", "Teachers"],
                 ["admin", "Admins"],
@@ -685,6 +745,11 @@ export default function Admin({ view }: { view: AdminView }) {
                     })()
                   : selectedUser.birthYear || "Not provided"}
               </p>
+              {Number(selectedUser.birthYear || selectedUser.birthday?.slice(0, 4)) > 0 && (
+                <p>
+                  <strong>Age:</strong> {new Date().getFullYear() - Number(selectedUser.birthYear || selectedUser.birthday?.slice(0, 4))}
+                </p>
+              )}
               <p>
                 <strong>Phone Number:</strong> {selectedUser.phoneNumber || "Not provided"}
               </p>
@@ -892,24 +957,35 @@ export default function Admin({ view }: { view: AdminView }) {
           sub="Assign teachers, set age groups, and choose which classes students can enroll in."
         />
         <Card className="mt-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <Label>Class Catalog</Label>
+          <input
+            type="search"
+            value={classSearch}
+            onChange={(event) => setClassSearch(event.target.value)}
+            placeholder="Search class, teacher, age group, or enrollment..."
+            aria-label="Search classes by name, teacher, age group, or enrollment status"
+            className="mb-4 w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-p1"
+          />
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["all", "All Classes"],
+                ["open", "Open"],
+                ["closed", "Close"],
+                ["deleted", "Deleted"],
+              ] as [ClassFilter, string][]).map(([filter, label]) => (
+                <button
+                  key={filter}
+                  onClick={() => setClassFilter(filter)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${classFilter === filter ? "bg-p1 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <Btn variant="soft" onClick={() => setShowCreateClass((show) => !show)}>
               {showCreateClass ? "Cancel" : "+ Create New Class"}
             </Btn>
           </div>
-          {showCreateClass && (
-            <form onSubmit={createManagedClass} className="mb-5 grid gap-3 rounded-xl border border-line bg-p1-soft/40 p-4 md:grid-cols-4">
-              <input required value={newClassName} onChange={(event) => setNewClassName(event.target.value)} placeholder="Class name" className="rounded-lg border border-line bg-white px-3 py-2" />
-              <select value={newClassTeacher} onChange={(event) => setNewClassTeacher(event.target.value)} className="rounded-lg border border-line bg-white px-3 py-2">
-                <option>Unassigned</option><option>Sis. Ethyl</option><option>Bro. Jet</option><option>Mr. Rafael Santos</option>
-              </select>
-              <select value={newClassAge} onChange={(event) => setNewClassAge(event.target.value as ClassCatalogItem["age"])} className="rounded-lg border border-line bg-white px-3 py-2">
-                <option value="all">All Ages</option><option value="kids">Kids (5-12)</option><option value="youth">Youth (13-25)</option><option value="adults">Adults (26+)</option>
-              </select>
-              <button type="submit" className="grad rounded-full px-4 py-2 font-semibold text-white">Create Class</button>
-            </form>
-          )}
           {classesLoading ? (
             <p className="py-8 text-center text-mute">Loading classes…</p>
           ) : (
@@ -925,54 +1001,150 @@ export default function Admin({ view }: { view: AdminView }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {managedClasses.map((c) => (
+                {filteredClasses.map((c) => (
                   <tr key={c.id}>
-                    <td className="py-3 pr-3">
-                      <input value={c.name} onChange={(event) => updateManagedClass(c.id, { name: event.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-semibold" />
+                    <td className="py-4 pr-3 font-semibold">{c.name}</td>
+                    <td className="py-4">{c.teacher || "Unassigned"}</td>
+                    <td className="py-4 capitalize">{c.age === "all" ? "All ages" : c.age}</td>
+                    <td className="py-4">
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${c.availableForEnrollment ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-600"}`}>
+                        {c.availableForEnrollment ? "Open" : "Closed"}
+                      </span>
                     </td>
                     <td className="py-4">
-                      <select
-                        value={c.teacher}
-                        onChange={(event) => updateManagedClass(c.id, { teacher: event.target.value })}
-                        className="border border-line rounded px-2 py-1 text-sm bg-white"
-                      >
-                        <option>Sis. Ethyl</option>
-                        <option>Bro. Jet</option>
-                        <option>Mr. Rafael Santos</option>
-                        <option>Unassigned</option>
-                      </select>
-                    </td>
-                    <td className="py-4">
-                      <select
-                        value={c.age}
-                        onChange={(event) => updateManagedClass(c.id, { age: event.target.value as ClassCatalogItem["age"] })}
-                        className="border border-line rounded px-2 py-1 text-sm bg-white"
-                      >
-                        <option value="all">All Ages</option>
-                        <option value="kids">Kids (5-12)</option>
-                        <option value="youth">Youth (13-25)</option>
-                        <option value="adults">Adults (26+)</option>
-                      </select>
-                    </td>
-                    <td className="py-4">
-                      <select value={c.availableForEnrollment ? "open" : "closed"} onChange={(event) => updateManagedClass(c.id, { availableForEnrollment: event.target.value === "open" })} className="border border-line rounded px-2 py-1 text-sm bg-white">
-                        <option value="open">Open for enrollment</option>
-                        <option value="closed">Not available</option>
-                      </select>
-                    </td>
-                    <td className="py-4 text-right">
-                      <button type="button" onClick={() => void saveManagedClass(c)} disabled={savingClassId === c.id} className="text-p1 font-semibold hover:underline text-sm disabled:opacity-50">
-                        {savingClassId === c.id ? "Saving…" : "Save"}
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        {c.deleted ? (
+                          <button type="button" onClick={() => void restoreManagedClass(c)} className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white">Restore</button>
+                        ) : (
+                          <>
+                            <button type="button" onClick={() => setEditingClass({ ...c })} className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white">Edit</button>
+                            <button type="button" onClick={() => void deleteManagedClass(c)} className="rounded-full border border-red-200 px-4 py-1.5 font-semibold text-red-500 hover:bg-red-50">Delete</button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
-                {managedClasses.length === 0 && <tr><td colSpan={5} className="py-8 text-center text-mute">No classes have been created yet.</td></tr>}
+                {filteredClasses.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-mute">
+                      {managedClasses.length === 0 ? "No classes have been created yet." : "No classes match this search or filter."}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
           )}
         </Card>
+        {showCreateClass && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowCreateClass(false);
+            }}
+          >
+            <section role="dialog" aria-modal="true" aria-labelledby="create-class-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
+              <h2 id="create-class-title" className="font-display text-2xl font-bold">Create new class</h2>
+              <form className="mt-5 grid gap-4" onSubmit={createManagedClass}>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Class name
+                  <input required value={newClassName} onChange={(event) => setNewClassName(event.target.value)} placeholder="Class name" className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Assigned teacher
+                  <select value={newClassTeacher} onChange={(event) => setNewClassTeacher(event.target.value)} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option value="Unassigned">Unassigned</option>
+                    {accountTeachers.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Age group
+                  <select value={newClassAge} onChange={(event) => setNewClassAge(event.target.value as ClassCatalogItem["age"])} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option value="all">All ages</option><option value="kids">Kids (5–12)</option><option value="youth">Youth (13–25)</option><option value="adults">Adults (26+)</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Description
+                  <textarea value={newClassDescription} onChange={(event) => setNewClassDescription(event.target.value)} className="min-h-24 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Enrollment
+                  <select value={newClassAvailable ? "open" : "closed"} onChange={(event) => setNewClassAvailable(event.target.value === "open")} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setShowCreateClass(false)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold">Cancel</button>
+                  <button type="submit" className="grad rounded-full px-4 py-2 text-sm font-semibold text-white">Create class</button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
+        {editingClass && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && savingClassId !== editingClass.id) setEditingClass(null);
+            }}
+          >
+            <section role="dialog" aria-modal="true" aria-labelledby="edit-class-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
+              <h2 id="edit-class-title" className="font-display text-2xl font-bold">Edit class</h2>
+              <form
+                className="mt-5 grid gap-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveManagedClass(editingClass);
+                }}
+              >
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Class name
+                  <input required value={editingClass.name} onChange={(event) => updateEditingClass({ name: event.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Assigned teacher
+                  <select value={editingClass.teacher} onChange={(event) => updateEditingClass({ teacher: event.target.value })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option>Unassigned</option>
+                    {editingClass.teacher && editingClass.teacher !== "Unassigned" && !accountTeachers.includes(editingClass.teacher) && (
+                      <option value={editingClass.teacher} disabled>{editingClass.teacher} (not an active teacher account)</option>
+                    )}
+                    {accountTeachers.map((teacher) => <option key={teacher} value={teacher}>{teacher}</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Age group
+                  <select value={editingClass.age} onChange={(event) => updateEditingClass({ age: event.target.value as ClassCatalogItem["age"] })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option value="all">All ages</option>
+                    <option value="kids">Kids (5–12)</option>
+                    <option value="youth">Youth (13–25)</option>
+                    <option value="adults">Adults (26+)</option>
+                  </select>
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Description
+                  <textarea value={editingClass.description} onChange={(event) => updateEditingClass({ description: event.target.value })} className="min-h-24 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal" />
+                </label>
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Enrollment
+                  <select value={editingClass.availableForEnrollment ? "open" : "closed"} onChange={(event) => updateEditingClass({ availableForEnrollment: event.target.value === "open" })} className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal">
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </label>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditingClass(null)} disabled={savingClassId === editingClass.id} className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={savingClassId === editingClass.id || !editingClass.name.trim()} className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                    {savingClassId === editingClass.id ? "Saving…" : "Save changes"}
+                  </button>
+                </div>
+              </form>
+            </section>
+          </div>
+        )}
       </>
     );
   }
