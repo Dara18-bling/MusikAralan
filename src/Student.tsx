@@ -214,12 +214,53 @@ const materials = [
   },
 ];
 
-function Materials({ userId }: { userId: string }) {
+function Materials({ userId, userName }: { userId: string; userName: string }) {
   const [section, setSection] = useState<"lessons" | "enrolled" | "available">("enrolled");
   const [tab, setTab] = useState<"active" | "completed">("active");
   const [open, setOpen] = useState<number | null>(0);
   const [classCatalog, setClassCatalog] = useState<ClassCatalogItem[]>([]);
   const [openClass, setOpenClass] = useState<ClassCatalogItem | null>(null);
+  const [enrolledClassIds, setEnrolledClassIds] = useState<string[]>([]);
+  const [classProgress, setClassProgress] = useState<Record<string, any>>({});
+  const [classMaterials, setClassMaterials] = useState<any[]>([]);
+  const [classAssessment, setClassAssessment] = useState<any | null>(null);
+  const [classmates, setClassmates] = useState<any[]>([]);
+  const [assessmentAnswers, setAssessmentAnswers] = useState<Record<number, string>>({});
+
+  useEffect(() => {
+    if (!userId) {
+      setEnrolledClassIds([]);
+      return;
+    }
+    return onSnapshot(doc(db, "users", userId), (snapshot) => {
+      const enrolled = snapshot.data()?.enrolledClassIds;
+      setEnrolledClassIds(Array.isArray(enrolled) ? enrolled : []);
+      setClassProgress(snapshot.data()?.classProgress || {});
+    }, (error) => console.error("Could not load student enrollments:", error));
+  }, [userId]);
+
+  useEffect(() => {
+    if (!openClass) {
+      setClassMaterials([]);
+      setClassAssessment(null);
+      setClassmates([]);
+      setAssessmentAnswers({});
+      return;
+    }
+    const stopMaterials = onSnapshot(collection(db, "classes", openClass.id, "materials"), (snapshot) => {
+      setClassMaterials(snapshot.docs.map((materialDoc) => ({ id: materialDoc.id, ...materialDoc.data() })));
+    }, (error) => console.error("Could not load class materials:", error));
+    const stopAssessment = onSnapshot(doc(db, "classes", openClass.id, "assessments", "published"), (snapshot) => {
+      setClassAssessment(snapshot.exists() ? snapshot.data() : null);
+    }, (error) => console.error("Could not load class assessment:", error));
+    const stopClassmates = onSnapshot(collection(db, "users"), (snapshot) => {
+      setClassmates(snapshot.docs
+        .filter((studentDoc) => studentDoc.id !== userId && Array.isArray(studentDoc.data().enrolledClassIds)
+          && studentDoc.data().enrolledClassIds.includes(openClass.id))
+        .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() })));
+    }, (error) => console.error("Could not load classmates:", error));
+    return () => { stopMaterials(); stopAssessment(); stopClassmates(); };
+  }, [openClass?.id, userId]);
 
   useEffect(() => onSnapshot(collection(db, "classes"), (snapshot) => {
     setClassCatalog(snapshot.docs.map((classDoc) => {
@@ -237,16 +278,19 @@ function Materials({ userId }: { userId: string }) {
     }));
   }, (error) => console.error("Could not load classes:", error)), []);
 
-  const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && item.enrolledStudentIds?.includes(userId));
+  const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && (
+    enrolledClassIds.includes(item.id) || item.enrolledStudentIds?.includes(userId)
+  ));
   const availableClasses = classCatalog.filter((item) =>
     !item.deleted
     && item.availableForEnrollment
+    && !enrolledClassIds.includes(item.id)
     && !item.enrolledStudentIds?.includes(userId),
   );
   const joinClass = async (item: ClassCatalogItem) => {
     if (!userId || item.deleted || !item.availableForEnrollment) return;
     try {
-      await updateDoc(doc(db, "classes", item.id), { enrolledStudentIds: arrayUnion(userId) });
+      await updateDoc(doc(db, "users", userId), { enrolledClassIds: arrayUnion(item.id) });
     } catch (error) {
       console.error("Could not enroll in class:", error);
       const firestoreError = error as { code?: string; message?: string };
@@ -257,12 +301,76 @@ function Materials({ userId }: { userId: string }) {
     }
   };
 
+  const currentClassProgress = openClass ? classProgress[openClass.id] || {} : {};
+  const completedMaterialIds: string[] = Array.isArray(currentClassProgress.completedMaterialIds)
+    ? currentClassProgress.completedMaterialIds
+    : [];
+  const assessmentPassed = currentClassProgress.assessmentPassed === true;
+  const classFinished = classMaterials.length > 0
+    && classMaterials.every((material) => completedMaterialIds.includes(material.id))
+    && (!classAssessment || assessmentPassed);
+
+  const markMaterialComplete = async (materialId: string) => {
+    if (!openClass || !userId) return;
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        [`classProgress.${openClass.id}.completedMaterialIds`]: arrayUnion(materialId),
+      });
+    } catch (error) {
+      console.error("Could not save material progress:", error);
+      alert("Could not save your progress. Please try again.");
+    }
+  };
+
+  const submitAssessment = async () => {
+    if (!openClass || !classAssessment || !userId) return;
+    const questions = Array.isArray(classAssessment.questions) ? classAssessment.questions : [];
+    if (questions.some((question: any, index: number) => assessmentAnswers[index] === undefined || assessmentAnswers[index] === "")) {
+      alert("Answer every question before submitting.");
+      return;
+    }
+    const correct = questions.filter((question: any, index: number) => {
+      if (question.type === "identification") {
+        return assessmentAnswers[index].trim().toLowerCase() === String(question.answer || "").trim().toLowerCase();
+      }
+      return Number(assessmentAnswers[index]) === Number(question.a);
+    }).length;
+    const percent = questions.length ? Math.round(correct / questions.length * 100) : 0;
+    const passed = percent >= Number(classAssessment.passingPercent || 70);
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        [`classProgress.${openClass.id}.assessmentScore`]: percent,
+        [`classProgress.${openClass.id}.assessmentPassed`]: passed,
+      });
+      alert(passed ? `Assessment passed: ${percent}%.` : `Assessment score: ${percent}%. Review the materials and try again.`);
+    } catch (error) {
+      console.error("Could not save assessment result:", error);
+      alert("Could not save your assessment result. Please try again.");
+    }
+  };
+
+  const downloadCertificate = () => {
+    if (!openClass || !classFinished) return;
+    const certificate = new jsPDF({ orientation: "landscape" });
+    certificate.setFontSize(30);
+    certificate.text("Certificate of Completion", 148, 55, { align: "center" });
+    certificate.setFontSize(16);
+    certificate.text("This certifies that", 148, 82, { align: "center" });
+    certificate.setFontSize(25);
+    certificate.text(userName || "Student", 148, 101, { align: "center" });
+    certificate.setFontSize(16);
+    certificate.text(`has completed ${openClass.name}`, 148, 121, { align: "center" });
+    certificate.setFontSize(12);
+    certificate.text(`Issued ${new Date().toLocaleDateString()}`, 148, 145, { align: "center" });
+    certificate.save(`${openClass.name.replace(/[^a-z0-9]+/gi, "-")}-certificate.pdf`);
+  };
+
   return (
     <>
       <Title
         kicker="Learning & Enrollment"
         title="Classes"
-        sub="View your classes or enroll in classes available for your age group."
+        sub="Enroll in open classes to access their learning materials, assessments, classmates, and completion certificates."
         right={
           <div className="flex rounded-full border border-line bg-white p-1 text-sm">
             {([
@@ -415,12 +523,83 @@ function Materials({ userId }: { userId: string }) {
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setOpenClass(null);
         }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="open-class-title" className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl">
-            <h2 id="open-class-title" className="font-display text-2xl font-bold">{openClass.name}</h2>
-            <p className="mt-3 text-sm"><span className="font-semibold">Teacher:</span> {openClass.teacher}</p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-mute">{openClass.description || "No class description provided."}</p>
-            <div className="mt-6 flex justify-end">
-              <button type="button" onClick={() => setOpenClass(null)} className="rounded-full bg-p1 px-5 py-2 text-sm font-semibold text-white">Close</button>
+          <section role="dialog" aria-modal="true" aria-labelledby="open-class-title" className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-line bg-white p-6 shadow-2xl">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 id="open-class-title" className="font-display text-2xl font-bold">{openClass.name}</h2>
+                <p className="mt-1 text-sm text-mute">Teacher: {openClass.teacher}</p>
+                {openClass.description && <p className="mt-2 whitespace-pre-wrap text-sm text-mute">{openClass.description}</p>}
+              </div>
+              <button type="button" onClick={() => setOpenClass(null)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold">Close</button>
+            </div>
+
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <div>
+                <h3 className="font-display text-lg font-bold">Learning materials</h3>
+                {classMaterials.length === 0 ? <p className="mt-2 text-sm text-mute">No learning materials have been published yet.</p> : (
+                  <ul className="mt-3 grid gap-3">
+                    {classMaterials.map((material) => {
+                      const completed = completedMaterialIds.includes(material.id);
+                      return (
+                        <li key={material.id} className="rounded-xl border border-line p-3">
+                          <p className="font-semibold">{material.title}</p>
+                          <p className="mt-1 text-sm text-mute">{material.kind}{material.description ? ` · ${material.description}` : ""}</p>
+                          {Array.isArray(material.files) && material.files.map((file: any) => (
+                            <a key={file.url} href={file.url} target="_blank" rel="noreferrer" className="mt-2 block text-sm font-semibold text-p1 underline">Open {file.name}</a>
+                          ))}
+                          {Array.isArray(material.links) && material.links.map((link: any) => (
+                            <a key={link.url} href={link.url} target="_blank" rel="noreferrer" className="mt-2 block break-all text-sm font-semibold text-p1 underline">Open attached link</a>
+                          ))}
+                          <button type="button" onClick={() => void markMaterialComplete(material.id)} disabled={completed} className={`mt-3 rounded-full px-4 py-1.5 text-sm font-semibold ${completed ? "bg-emerald-100 text-emerald-800" : "bg-p1-soft text-p1"}`}>
+                            {completed ? "Completed" : "Mark complete"}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              <div>
+                <h3 className="font-display text-lg font-bold">Classmates</h3>
+                {classmates.length === 0 ? <p className="mt-2 text-sm text-mute">You are the only enrolled student so far.</p> : (
+                  <ul className="mt-3 divide-y divide-line rounded-xl border border-line px-3">
+                    {classmates.map((student) => <li key={student.id} className="py-2 text-sm">{student.name || student.email || "Student"}</li>)}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {classAssessment && (
+              <div className="mt-6 rounded-2xl border border-line p-4">
+                <h3 className="font-display text-lg font-bold">{classAssessment.title || "Class assessment"}</h3>
+                <p className="mt-1 text-sm text-mute">Passing score: {classAssessment.passingPercent || 70}%{currentClassProgress.assessmentScore !== undefined ? ` · Your latest score: ${currentClassProgress.assessmentScore}%` : ""}</p>
+                <div className="mt-4 grid gap-4">
+                  {(classAssessment.questions || []).map((question: any, index: number) => (
+                    <fieldset key={index} className="rounded-xl bg-p1-soft/40 p-3">
+                      <legend className="font-semibold">{index + 1}. {question.q}</legend>
+                      {question.type === "identification" ? (
+                        <input value={assessmentAnswers[index] || ""} onChange={(event) => setAssessmentAnswers((current) => ({ ...current, [index]: event.target.value }))} placeholder="Your answer" className="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm" />
+                      ) : (
+                        <div className="mt-2 grid gap-2">
+                          {(question.o || []).map((option: string, optionIndex: number) => (
+                            <label key={optionIndex} className="flex items-center gap-2 text-sm">
+                              <input type="radio" name={`assessment-question-${index}`} checked={assessmentAnswers[index] === String(optionIndex)} onChange={() => setAssessmentAnswers((current) => ({ ...current, [index]: String(optionIndex) }))} />
+                              {option}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </fieldset>
+                  ))}
+                </div>
+                <button type="button" onClick={() => void submitAssessment()} className="mt-4 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white">Submit assessment</button>
+              </div>
+            )}
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+              <p className="text-sm text-mute">{classFinished ? "You completed all class requirements." : "Complete every learning material and pass the assessment to earn your certificate."}</p>
+              <button type="button" onClick={downloadCertificate} disabled={!classFinished} className="rounded-full bg-p1 px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Download certificate</button>
             </div>
           </section>
         </div>
@@ -621,7 +800,7 @@ export default function Student({
   userId: string;
 }) {
   if (view === "notes") return <PianoQuiz />;
-  if (view === "materials") return <Materials userId={userId} />;
+  if (view === "materials") return <Materials userId={userId} userName={userName} />;
   if (view === "live") return <Live />;
   if (view === "exams") return <Exams userName={userName} />;
   if (view === "help") return <Help />;

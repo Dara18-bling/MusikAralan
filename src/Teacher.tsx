@@ -1,8 +1,9 @@
 ﻿import { useEffect, useState } from "react";
 import { UploadCloud, FileText, FileSpreadsheet, Image as ImageIcon, Music2, Presentation, Video, Edit2, Trash2, Check } from "lucide-react";
 import { Btn, Card, Input, Label, Pill, Title } from "./ui";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
+import { getDownloadURL, getStorage, ref, uploadBytes } from "firebase/storage";
 import type { ClassCatalogItem } from "./classCatalog";
 import * as XLSX from "xlsx";
 import Notifications from "./Notifications";
@@ -105,15 +106,29 @@ function Dashboard() {
   );
 }
 
-function StudentList({ className, studentIds = [] }: { className?: string; studentIds?: string[] }) {
+function StudentList({ className, classId, studentIds = [] }: { className?: string; classId?: string; studentIds?: string[] }) {
   const [students, setStudents] = useState<any[]>([]);
+  const [materialCount, setMaterialCount] = useState(0);
 
   useEffect(() => onSnapshot(collection(db, "users"), (snapshot) => {
     const enrolledIds = new Set(studentIds);
     setStudents(snapshot.docs
-      .filter((studentDoc) => enrolledIds.has(studentDoc.id))
+      .filter((studentDoc) => enrolledIds.has(studentDoc.id)
+        || (classId && Array.isArray(studentDoc.data().enrolledClassIds)
+          ? studentDoc.data().enrolledClassIds.includes(classId)
+          : false))
       .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() })));
-  }, (error) => console.error("Could not load enrolled students:", error)), [studentIds.join("|")]);
+  }, (error) => console.error("Could not load enrolled students:", error)), [classId, studentIds.join("|")]);
+
+  useEffect(() => {
+    if (!classId) {
+      setMaterialCount(0);
+      return;
+    }
+    return onSnapshot(collection(db, "classes", classId, "materials"), (snapshot) => {
+      setMaterialCount(snapshot.size);
+    }, (error) => console.error("Could not load class material count:", error));
+  }, [classId]);
 
   return (
     <>
@@ -128,6 +143,8 @@ function StudentList({ className, studentIds = [] }: { className?: string; stude
             <tr className="border-b border-line text-mute">
               <th className="pb-3 font-medium">Name</th>
               <th className="pb-3 font-medium">Age Group</th>
+              <th className="pb-3 font-medium">Materials</th>
+              <th className="pb-3 font-medium">Assessment</th>
               <th className="pb-3 font-medium text-right">Status</th>
             </tr>
           </thead>
@@ -136,12 +153,16 @@ function StudentList({ className, studentIds = [] }: { className?: string; stude
                   const birthYear = Number(s.birthYear || s.birthday?.slice(0, 4));
                   const age = birthYear > 0 ? new Date().getFullYear() - birthYear : null;
                   const ageGroup = age === null ? "Not provided" : age <= 12 ? "Kids" : age <= 25 ? "Youth" : "Adults";
+                  const progress = classId ? s.classProgress?.[classId] || {} : {};
+                  const completedCount = Array.isArray(progress.completedMaterialIds) ? progress.completedMaterialIds.length : 0;
                   return (
               <tr key={s.id}>
                 <td className="py-4 font-semibold">{s.name || s.email || "Student"}</td>
                 <td className="py-4">
                   {ageGroup}
                 </td>
+                <td className="py-4">{completedCount} / {materialCount} completed</td>
+                <td className="py-4">{progress.assessmentScore === undefined ? "Not attempted" : `${progress.assessmentScore}%${progress.assessmentPassed ? " · Passed" : " · Retry needed"}`}</td>
                 <td className="py-4 text-right">
                   <Pill tone={s.status === "approved" ? "p1" : "p2"}>
                     {s.status === "approved" ? "Active" : s.status || "Unknown"}
@@ -149,7 +170,7 @@ function StudentList({ className, studentIds = [] }: { className?: string; stude
                 </td>
               </tr>
                 );})}
-                {students.length === 0 && <tr><td colSpan={3} className="py-6 text-center text-mute">No students are enrolled in this class yet.</td></tr>}
+                {students.length === 0 && <tr><td colSpan={5} className="py-6 text-center text-mute">No students are enrolled in this class yet.</td></tr>}
           </tbody>
         </table>
       </Card>
@@ -191,7 +212,7 @@ function TeacherClasses({ classes, onChooseAction }: { classes: ClassCatalogItem
   );
 }
 
-function Upload({ className }: { className?: string }) {
+function Upload({ className, classId }: { className?: string; classId?: string }) {
   type AttachedLink = { url: string; previewUrl: string };
   const [kind, setKind] = useState("Module");
   const [filesByKind, setFilesByKind] = useState<Record<string, File[]>>({});
@@ -360,7 +381,7 @@ function Upload({ className }: { className?: string }) {
     setPreviewFileIndex((current) => current === index ? null : current !== null && current > index ? current - 1 : current);
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!title.trim() || !description.trim()) {
       alert("Enter a title and description before publishing.");
       return;
@@ -370,9 +391,41 @@ function Upload({ className }: { className?: string }) {
       alert("Attach at least one file or add a valid supported link before publishing.");
       return;
     }
-    setRecent([{ id: Date.now(), title, kind, date: "Just now" }, ...recent]);
-    alert("Material successfully uploaded and synced to your assigned class!");
-    setTitle("");
+    if (!classId) {
+      alert("Choose an assigned class before publishing materials.");
+      return;
+    }
+    try {
+      const storage = getStorage();
+      const uploadedFiles = await Promise.all(selectedFiles.map(async (file) => {
+        const storagePath = `classes/${classId}/materials/${Date.now()}-${file.name}`;
+        const fileRef = ref(storage, storagePath);
+        await uploadBytes(fileRef, file);
+        return {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          url: await getDownloadURL(fileRef),
+        };
+      }));
+      await addDoc(collection(db, "classes", classId, "materials"), {
+        title: title.trim(),
+        description: description.trim(),
+        kind,
+        files: uploadedFiles,
+        links: attachedLinks,
+        createdAt: new Date(),
+      });
+      setRecent((current) => [{ id: Date.now(), title, kind, date: "Just now" }, ...current]);
+      setSelectedFiles([]);
+      setAttachedLinksByKind((current) => ({ ...current, [kind]: [] }));
+      setTitle("");
+      alert("Material published to the class.");
+    } catch (error) {
+      console.error("Could not publish class material:", error);
+      const problem = error as { code?: string; message?: string };
+      alert(`Could not publish material${problem.code ? ` (${problem.code})` : ""}: ${problem.message || "Check Firestore and Storage permissions."}`);
+    }
   };
 
   const handleEdit = (id: number) => {
@@ -690,8 +743,9 @@ type Q = {
   o: string[];
   a: number;
   type: "multiple" | "truefalse" | "identification";
+  answer?: string;
 };
-function Quiz({ className }: { className?: string }) {
+function Quiz({ className, classId }: { className?: string; classId?: string }) {
   const [qs, setQs] = useState<Q[]>([
     {
       q: "What is the time signature of a waltz?",
@@ -702,6 +756,25 @@ function Quiz({ className }: { className?: string }) {
   ]);
   const upd = (i: number, p: Partial<Q>) =>
     setQs(qs.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const publishAssessment = async () => {
+    if (!classId) return alert("Choose an assigned class before publishing an assessment.");
+    if (qs.some((question) => !question.q.trim() || (question.type === "identification" && !question.answer?.trim()))) {
+      return alert("Complete every question and correct answer before publishing.");
+    }
+    try {
+      await setDoc(doc(db, "classes", classId, "assessments", "published"), {
+        title: "Note Reading Quiz 5",
+        questions: qs,
+        passingPercent: 70,
+        updatedAt: new Date(),
+      });
+      alert("Assessment published to the class.");
+    } catch (error) {
+      console.error("Could not publish class assessment:", error);
+      const problem = error as { code?: string; message?: string };
+      alert(`Could not publish assessment${problem.code ? ` (${problem.code})` : ""}: ${problem.message || "Check Firestore permissions."}`);
+    }
+  };
 
   return (
     <>
@@ -743,7 +816,7 @@ function Quiz({ className }: { className?: string }) {
             />
             {x.type === "identification" ? (
               <div className="mt-3">
-                <Input placeholder="Enter correct exact answer here" />
+                <Input placeholder="Enter correct exact answer here" value={x.answer || ""} onChange={(e) => upd(i, { answer: e.target.value })} />
               </div>
             ) : (
               <div className="mt-3 grid gap-2">
@@ -789,7 +862,7 @@ function Quiz({ className }: { className?: string }) {
           >
             + Add question
           </Btn>
-          <Btn>Publish & Link to Class</Btn>
+          <Btn onClick={() => void publishAssessment()}>Publish & Link to Class</Btn>
         </div>
       </div>
     </>
@@ -897,7 +970,7 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
   return (
     <>
       {(view === "dash" || view === "classes") && <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />}
-      {(view === "dash" || view === "meet") && <Card className="mb-5 flex flex-wrap items-center gap-3">
+      {view === "meet" && <Card className="mb-5 flex flex-wrap items-center gap-3">
         <label htmlFor="teacher-class-selector" className="text-sm font-semibold">Accessing class</label>
         <select
           id="teacher-class-selector"
@@ -914,15 +987,6 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
         </select>
         {selectedClass && <span className="text-sm text-mute">{selectedClass.description}</span>}
       </Card>}
-      {view !== "classes" && (
-        <button
-          type="button"
-          onClick={() => go("classes")}
-          className="mb-4 rounded-full border border-line px-4 py-2 text-sm font-semibold text-p1 hover:bg-p1-soft"
-        >
-          ← Back to Classes
-        </button>
-      )}
       {view === "dash" ? (
         <Dashboard />
       ) : view === "classes" ? (
@@ -931,15 +995,15 @@ export default function Teacher({ view, userId, go }: { view: TeacherView; userI
           go(nextView);
         }} />
       ) : view === "students" ? (
-        <StudentList className={selectedClass?.name} studentIds={selectedClass?.enrolledStudentIds || []} />
+        <StudentList className={selectedClass?.name} classId={selectedClass?.id} studentIds={selectedClass?.enrolledStudentIds || []} />
       ) : view === "quiz" ? (
-        <Quiz className={selectedClass?.name} />
+        <Quiz className={selectedClass?.name} classId={selectedClass?.id} />
       ) : view === "meet" ? (
         <Meet />
       ) : view === "alerts" ? (
         <Notifications role="teacher" />
       ) : (
-        <Upload className={selectedClass?.name} />
+        <Upload className={selectedClass?.name} classId={selectedClass?.id} />
       )}
     </>
   );
