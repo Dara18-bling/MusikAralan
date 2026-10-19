@@ -21,9 +21,9 @@ export function Title({ kicker, title, sub, right }: { kicker: string; title: st
   )
 }
 
-export function Btn({ children, onClick, variant = 'solid', className = '' }: { children: ReactNode; onClick?: () => void; variant?: 'solid' | 'ghost' | 'soft'; className?: string }) {
+export function Btn({ children, onClick, variant = 'solid', className = '', disabled }: { children: ReactNode; onClick?: () => void; variant?: 'solid' | 'ghost' | 'soft'; className?: string; disabled?: boolean }) {
   const v = variant === 'solid' ? 'grad text-white shadow-sm hover:brightness-110' : variant === 'soft' ? 'bg-p1-soft text-p1 hover:bg-p2-soft hover:text-p2' : 'border border-line hover:bg-p1-soft'
-  return <button onClick={onClick} className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--p1)] ${v} ${className}`}>{children}</button>
+  return <button disabled={disabled} onClick={onClick} className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--p1)] disabled:opacity-50 disabled:cursor-not-allowed ${v} ${className}`}>{children}</button>
 }
 
 export function Bar({ value }: { value: number }) {
