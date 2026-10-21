@@ -10,7 +10,6 @@
     "format": "oxfmt"
   },
   "dependencies": {
-    "firebase": "^13.0.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.52.0",
     "react": "^19.0.0",

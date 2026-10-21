@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../firebase";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Label, Title } from "../ui";
 
 export function AdminNews() {
@@ -23,9 +14,7 @@ export function AdminNews() {
   const fetchNews = async () => {
     setNewsLoading(true);
     try {
-      const q = query(collection(db, "announcements"));
-      const snapshot = await getDocs(q);
-      const news = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const { data: news } = await apiGet<{ data: any[] }>("/announcements");
       setAnnouncements(news);
     } catch (err) {
       console.error(err);
@@ -47,10 +36,10 @@ export function AdminNews() {
         createdAt: new Date(),
       };
       if (editingId) {
-        await updateDoc(doc(db, "announcements", editingId), newsData);
+        await apiPut(`/announcements/${editingId}`, newsData);
         alert("Announcement updated!");
       } else {
-        await addDoc(collection(db, "announcements"), newsData);
+        await apiPost("/announcements", newsData);
         alert("Announcement posted!");
       }
       setNewsTitle("");
@@ -67,7 +56,7 @@ export function AdminNews() {
     if (!window.confirm("Are you sure you want to delete this announcement?"))
       return;
     try {
-      await deleteDoc(doc(db, "announcements", id));
+      await apiDelete(`/announcements/${id}`);
       setAnnouncements(announcements.filter((a) => a.id !== id));
       alert("Announcement deleted!");
     } catch (err) {

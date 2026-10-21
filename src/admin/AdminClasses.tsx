@@ -1,15 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
-import { db } from "../firebase";
+import { apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Title } from "../ui";
-import { DEFAULT_CLASSES, type ClassCatalogItem } from "../classCatalog";
+import type { ClassCatalogItem } from "../classCatalog";
 import type { ClassFilter } from "./adminTypes";
 
 interface AdminClassesProps {
@@ -35,20 +27,11 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     const loadClasses = async () => {
       setClassesLoading(true);
       try {
-        const snapshot = await getDocs(collection(db, "classes"));
-        if (snapshot.empty) {
+        const { data } = await apiGet<{ data: ClassCatalogItem[] }>("/classes");
+        if (data.length === 0) {
           if (active) setManagedClasses([]);
         } else if (active) {
-          setManagedClasses(
-            snapshot.docs.map(
-              (classDoc) =>
-                ({
-                  ...DEFAULT_CLASSES.find((item) => item.id === classDoc.id),
-                  ...classDoc.data(),
-                  id: classDoc.id,
-                } as ClassCatalogItem)
-            )
-          );
+          setManagedClasses(data);
         }
       } catch (error) {
         console.error("Could not load classes:", error);
@@ -77,12 +60,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       ) {
         classData.enrollmentUpdatedAt = new Date();
       }
-      await setDoc(doc(db, "classes", id), classData, { merge: true });
+      const { class: saved } = await apiPut<{ class: ClassCatalogItem }>(`/classes/${id}`, classData);
       setManagedClasses((current) =>
         current.map((existing) =>
-          existing.id === id
-            ? { ...item, enrolledStudentIds: existing.enrolledStudentIds }
-            : existing
+          existing.id === id ? saved : existing
         )
       );
       setEditingClass(null);
@@ -103,7 +84,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     )
       return;
     try {
-      await updateDoc(doc(db, "classes", item.id), { deleted: true });
+      await apiPut(`/classes/${item.id}`, { deleted: true });
       setManagedClasses((current) =>
         current.map((existing) =>
           existing.id === item.id ? { ...existing, deleted: true } : existing
@@ -118,7 +99,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
 
   const restoreManagedClass = async (item: ClassCatalogItem) => {
     try {
-      await updateDoc(doc(db, "classes", item.id), { deleted: false });
+      await apiPut(`/classes/${item.id}`, { deleted: false });
       setManagedClasses((current) =>
         current.map((existing) =>
           existing.id === item.id ? { ...existing, deleted: false } : existing
@@ -143,10 +124,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       createdAt: new Date(),
     };
     try {
-      const created = await addDoc(collection(db, "classes"), newClass);
+      const { class: created } = await apiPost<{ class: ClassCatalogItem }>("/classes", newClass);
       setManagedClasses((current) => [
         ...current,
-        { id: created.id, ...newClass },
+        created,
       ]);
       setNewClassName("");
       setNewClassTeacher("Unassigned");

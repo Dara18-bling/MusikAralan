@@ -1,15 +1,7 @@
 import { useEffect, useState } from "react";
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  getDocs,
-  setDoc,
-  doc
-} from "firebase/firestore";
-import { db } from "../firebase";
+import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Title } from "../ui";
-import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "../chatbotResponses";
+import type { ChatbotResponse } from "../chatbotResponses";
 
 export function AdminChatbot() {
   const [chatbotReplies, setChatbotReplies] = useState<ChatbotResponse[]>([]);
@@ -25,22 +17,8 @@ export function AdminChatbot() {
   const fetchChatbotReplies = async () => {
     setChatbotLoading(true);
     try {
-      const snapshot = await getDocs(collection(db, "chatbotResponses"));
-      const saved = snapshot.docs.map((item) => ({
-        id: item.id,
-        ...(item.data() as Omit<ChatbotResponse, "id">),
-      }));
-      setChatbotReplies([
-        ...DEFAULT_CHATBOT_RESPONSES.flatMap((fallback) => {
-          const override = saved.find((item) => item.id === fallback.id);
-          return override?.deleted ? [] : [override ?? fallback];
-        }),
-        ...saved.filter(
-          (item) =>
-            !item.deleted &&
-            !DEFAULT_CHATBOT_RESPONSES.some((fallback) => fallback.id === item.id)
-        ),
-      ]);
+      const { data: saved } = await apiGet<{ data: ChatbotResponse[] }>("/chatbot-responses");
+      setChatbotReplies(saved.filter((item) => !item.deleted));
     } catch (err) {
       console.error(err);
       alert("Could not load chatbot responses.");
@@ -68,7 +46,7 @@ export function AdminChatbot() {
     try {
       const data = { keywords: reply.keywords.trim(), response: reply.response.trim() };
       if (reply.id.startsWith("new-")) {
-        const created = await addDoc(collection(db, "chatbotResponses"), {
+        const { response: created } = await apiPost<{ response: ChatbotResponse }>("/chatbot-responses", {
           ...data,
           deleted: false,
         });
@@ -78,7 +56,7 @@ export function AdminChatbot() {
           )
         );
       } else {
-        await setDoc(doc(db, "chatbotResponses", reply.id), { ...data, deleted: false }, { merge: true });
+        await apiPut(`/chatbot-responses/${encodeURIComponent(reply.id)}`, { ...data, deleted: false });
       }
       setEditingReplyId(null);
       alert("Chatbot response saved.");
@@ -99,8 +77,8 @@ export function AdminChatbot() {
         response: newReplyResponse.trim(),
         deleted: false,
       };
-      const created = await addDoc(collection(db, "chatbotResponses"), data);
-      setChatbotReplies((current) => [...current, { id: created.id, ...data }]);
+      const { response: created } = await apiPost<{ response: ChatbotResponse }>("/chatbot-responses", data);
+      setChatbotReplies((current) => [...current, created]);
       setNewReplyQuestion("");
       setNewReplyResponse("");
       setShowAddReply(false);
@@ -124,11 +102,7 @@ export function AdminChatbot() {
         setEditingReplyId(null);
         return;
       }
-      if (DEFAULT_CHATBOT_RESPONSES.some((item) => item.id === reply.id)) {
-        await setDoc(doc(db, "chatbotResponses", reply.id), { deleted: true }, { merge: true });
-      } else {
-        await deleteDoc(doc(db, "chatbotResponses", reply.id));
-      }
+      await apiDelete(`/chatbot-responses/${encodeURIComponent(reply.id)}`);
       setChatbotReplies((current) => current.filter((item) => item.id !== reply.id));
       if (editingReplyId === reply.id) setEditingReplyId(null);
     } catch (err) {

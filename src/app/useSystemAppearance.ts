@@ -1,21 +1,24 @@
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { watchApi } from "../api";
 
 export function useSystemAppearance(darkMode: boolean) {
   const [primaryColor, setPrimaryColor] = useState("#e88faf");
   const [secondaryColor, setSecondaryColor] = useState("#7ea9d2");
 
   useEffect(() => {
-    return onSnapshot(
-      doc(db, "settings", "appearance"),
-      (snapshot) => {
-        const color = snapshot.data()?.primaryColor;
+    const apply = (appearance: {
+      primaryColor?: string;
+      secondaryColor?: string;
+    } | null) => {
+        const color = appearance?.primaryColor;
         if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) setPrimaryColor(color);
-        const secondary = snapshot.data()?.secondaryColor;
+        const secondary = appearance?.secondaryColor;
         if (typeof secondary === "string" && /^#[0-9a-f]{6}$/i.test(secondary)) setSecondaryColor(secondary);
-      },
-      (error) => console.error("Could not load system appearance:", error)
+    };
+    return watchApi<{ appearance: Parameters<typeof apply>[0] }>(
+      "/settings/appearance",
+      ({ appearance }) => apply(appearance),
+      (error) => console.error("Could not load system appearance:", error),
     );
   }, []);
 

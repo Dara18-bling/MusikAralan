@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { collection, getDocs, query, updateDoc, doc } from "firebase/firestore";
-import { db } from "../firebase";
+import { apiGet, apiPatch } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 
@@ -31,10 +30,8 @@ export function AdminAccounts({
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, "users"));
-      const snapshot = await getDocs(q);
-      const users = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      setAllUsers(users);
+      const { data } = await apiGet<{ data: any[] }>("/admin/users");
+      setAllUsers(data);
     } catch (err) {
       console.error(err);
     }
@@ -75,7 +72,7 @@ export function AdminAccounts({
           updateData.accessUntil = accessDates[uid];
         }
       }
-      await updateDoc(doc(db, "users", uid), updateData);
+      await apiPatch(`/admin/users/${encodeURIComponent(uid)}`, updateData);
       setAllUsers((prev) =>
         prev.map((u) => (u.id === uid ? { ...u, ...updateData } : u))
       );
@@ -85,7 +82,7 @@ export function AdminAccounts({
       const error = err as { code?: string; message?: string };
       alert(
         `Could not update account${error.code ? ` (${error.code})` : ""}: ${
-          error.message || "Check your Firestore permissions and try again."
+          error.message || "Check your API connection and try again."
         }`
       );
     }

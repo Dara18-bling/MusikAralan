@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
 import { Bell, Megaphone } from "lucide-react";
 import { Card, Label, Title } from "./ui";
-import { db } from "./firebase";
+import { watchApi } from "./api";
 
 type Notice = {
   id: string;
@@ -27,15 +26,14 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
   const [previewAnnouncement, setPreviewAnnouncement] = useState<Notice | null>(null);
 
   useEffect(() => {
-    const unsubscribeAnnouncements = onSnapshot(collection(db, "announcements"), (snapshot) => {
-      setAnnouncements(snapshot.docs.map((item) => {
-        const data = item.data();
+    const unsubscribeAnnouncements = watchApi<{ data: any[] }>("/announcements", ({ data }) => {
+      setAnnouncements(data.map((item) => {
         return {
           id: `announcement-${item.id}`,
-          title: data.title || "New announcement",
-          detail: data.content || "",
+          title: item.title || "New announcement",
+          detail: item.content || "",
           source: "Admin announcement",
-          createdAt: timestampMillis(data.createdAt),
+          createdAt: timestampMillis(item.createdAt),
         };
       }));
       setError("");
@@ -46,25 +44,24 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
 
     if (role === "teacher") return () => unsubscribeAnnouncements();
 
-    const unsubscribeClasses = onSnapshot(collection(db, "classes"), (snapshot) => {
-      setClasses(snapshot.docs.flatMap((item) => {
-        const data = item.data();
-        const classAge = data.age || "all";
+    const unsubscribeClasses = watchApi<{ data: any[] }>("/classes", ({ data }) => {
+      setClasses(data.flatMap((item) => {
+        const classAge = item.age || "all";
         const ageMatches = classAge === "all" || classAge === age || (classAge === "adults" && age === "adult");
-        const isOpen = data.availableForEnrollment === true;
-        const statusChangedAt = timestampMillis(data.enrollmentUpdatedAt);
-        if (data.deleted === true || !ageMatches || (!isOpen && statusChangedAt === 0)) return [];
+        const isOpen = item.availableForEnrollment === true;
+        const statusChangedAt = timestampMillis(item.enrollmentUpdatedAt);
+        if (item.deleted === true || !ageMatches || (!isOpen && statusChangedAt === 0)) return [];
         return [{
           id: `class-${item.id}`,
           title: isOpen
-            ? `Enrollment open: ${data.name || "Class"}`
-            : `Enrollment closed: ${data.name || "Class"}`,
+            ? `Enrollment open: ${item.name || "Class"}`
+            : `Enrollment closed: ${item.name || "Class"}`,
           detail: [
-            isOpen ? data.description : "Enrollment for this class has closed.",
+            isOpen ? item.description : "Enrollment for this class has closed.",
             `Age group: ${classAge === "all" ? "All ages" : classAge}`,
           ].filter(Boolean).join(" · "),
           source: "Class enrollment",
-          createdAt: statusChangedAt || timestampMillis(data.createdAt),
+          createdAt: statusChangedAt || timestampMillis(item.createdAt),
         }];
       }));
       setError("");

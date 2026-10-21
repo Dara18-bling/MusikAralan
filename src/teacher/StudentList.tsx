@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { watchApi } from "../api";
 import { Card, Pill, Title } from "../ui";
 
 interface StudentListProps {
@@ -14,23 +13,14 @@ export function StudentList({ className, classId, studentIds = [] }: StudentList
   const [materialCount, setMaterialCount] = useState(0);
 
   useEffect(() => {
-    return onSnapshot(
-      collection(db, "users"),
-      (snapshot) => {
-        const enrolledIds = new Set(studentIds);
-        setStudents(
-          snapshot.docs
-            .filter(
-              (studentDoc) =>
-                enrolledIds.has(studentDoc.id) ||
-                (classId && Array.isArray(studentDoc.data().enrolledClassIds)
-                  ? studentDoc.data().enrolledClassIds.includes(classId)
-                  : false)
-            )
-            .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() }))
-        );
-      },
-      (error) => console.error("Could not load enrolled students:", error)
+    if (!classId) {
+      setStudents([]);
+      return;
+    }
+    return watchApi<{ data: any[] }>(
+      `/classes/${classId}/students`,
+      ({ data }) => setStudents(data),
+      (error) => console.error("Could not load enrolled students:", error),
     );
   }, [classId, studentIds.join("|")]);
 
@@ -39,12 +29,10 @@ export function StudentList({ className, classId, studentIds = [] }: StudentList
       setMaterialCount(0);
       return;
     }
-    return onSnapshot(
-      collection(db, "classes", classId, "materials"),
-      (snapshot) => {
-        setMaterialCount(snapshot.size);
-      },
-      (error) => console.error("Could not load class material count:", error)
+    return watchApi<{ data: unknown[] }>(
+      `/classes/${classId}/materials`,
+      ({ data }) => setMaterialCount(data.length),
+      (error) => console.error("Could not load class material count:", error),
     );
   }, [classId]);
 

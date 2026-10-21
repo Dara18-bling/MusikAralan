@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { watchApi } from "../api";
 
 interface ExpiryBannerProps {
   teacherName?: string;
@@ -16,12 +15,10 @@ export function ExpiryBanner({
 
   useEffect(() => {
     if (!userId) return;
-    return onSnapshot(
-      doc(db, "users", userId),
-      (snapshot) => {
-        setAccessUntil(String(snapshot.data()?.accessUntil || ""));
-      },
-      (error) => console.error("Could not load teacher access end date:", error)
+    return watchApi<{ user: { accessUntil?: string | null } }>(
+      "/me",
+      ({ user }) => setAccessUntil(String(user.accessUntil || "")),
+      (error) => console.error("Could not load teacher access end date:", error),
     );
   }, [userId]);
 

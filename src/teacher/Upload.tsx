@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, Edit2, FileSpreadsheet, FileText, Image as ImageIcon, Music2, Presentation, Trash2, UploadCloud, Video, Link as LinkIcon } from "lucide-react";
-import { addDoc, collection } from "firebase/firestore";
 import * as XLSX from "xlsx";
-import { db } from "../firebase";
+import { apiPost } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import { parseAndConvertMediaUrl, ensureAbsoluteUrl } from "../utils/mediaUrlHelper";
 
@@ -84,10 +83,10 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     const file = files[0];
     setFileError("");
 
-    // Check size limit: Firestore document cap is 1 MB; keep local file < 800 KB
+    // Keep data URLs small enough for a single API request.
     if (file.size > 800 * 1024) {
       setFileError(
-        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Cloud Storage is disabled. Please upload large audio/video/PDFs to Google Drive and paste the share link below.`
+        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link below.`
       );
       setSelectedFile(null);
       setFileDataUrl("");
@@ -141,7 +140,7 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     return FileText;
   };
 
-  // Publish directly to Firestore per Schema-ish.txt
+  // Publish through the authenticated backend API.
   const handlePublish = async () => {
     if (!title.trim() || !description.trim()) {
       alert("Enter a title and description before publishing.");
@@ -167,15 +166,13 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     try {
       const resolvedTeacher = teacherName || localStorage.getItem("name") || "Teacher";
       
-      // Conforms to /Classes/{classId}/Materials/{documentId} in Schema-ish.txt
-      await addDoc(collection(db, "classes", classId, "materials"), {
+      await apiPost(`/classes/${classId}/materials`, {
         title: title.trim(),
         description: description.trim(),
         kind,
         mediaUrl: finalMediaUrl,
         streamUrl: finalStreamUrl,
         teacherName: resolvedTeacher,
-        createdAt: new Date(),
       });
 
       setRecent((current) => [{ id: Date.now(), title, kind, date: "Just now" }, ...current]);
@@ -185,7 +182,7 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     } catch (error) {
       console.error("Could not publish class material:", error);
       const problem = error as { code?: string; message?: string };
-      alert(`Could not publish material${problem.code ? ` (${problem.code})` : ""}: ${problem.message || "Check Firestore permissions."}`);
+      alert(`Could not publish material: ${problem.message || "Please check your connection and try again."}`);
     } finally {
       setPublishing(false);
     }

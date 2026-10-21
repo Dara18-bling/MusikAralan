@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Menu, Moon, Sun } from "lucide-react";
-import { signOut } from "firebase/auth";
 
 import logo from "../assets/logo.png";
 import Student, { Gospel, type StudentView } from "../Student";
 import Teacher, { type TeacherView } from "../Teacher";
 import Admin, { type AdminView } from "../Admin";
-import { auth } from "../firebase";
+import { apiPost, clearApiToken, hasApiToken } from "../api";
 import { NAV, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
@@ -39,7 +38,7 @@ export function Dashboard() {
     localStorage.setItem("darkMode", String(darkMode));
   }, [darkMode]);
 
-  if (!role || !NAV[role]) return <Navigate to="/login" replace />;
+  if (!role || !NAV[role] || !hasApiToken()) return <Navigate to="/login" replace />;
 
   const pathParts = location.pathname.split("/");
   const pathRole = pathParts[1] as Role;
@@ -54,12 +53,18 @@ export function Dashboard() {
   };
 
   const handleSignOut = async () => {
-    await signOut(auth);
-    localStorage.removeItem("role");
-    localStorage.removeItem("uid");
-    localStorage.removeItem("name");
-    localStorage.removeItem("birthYear");
-    navigate("/login");
+    try {
+      await apiPost("/auth/logout");
+    } catch (error) {
+      console.error("Could not revoke the API token:", error);
+    } finally {
+      clearApiToken();
+      localStorage.removeItem("role");
+      localStorage.removeItem("uid");
+      localStorage.removeItem("name");
+      localStorage.removeItem("birthYear");
+      navigate("/login");
+    }
   };
 
   return (

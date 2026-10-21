@@ -2,17 +2,9 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { CircleCheck, Eye, EyeOff, Moon, ShieldCheck, Sun } from "lucide-react";
-import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword,
-  signOut,
-} from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-
 import logo from "../assets/logo.png";
 import church from "../assets/church.jpg";
-import { auth, db } from "../firebase";
+import { apiPost, setApiToken } from "../api";
 import { Btn, Input, Label } from "../ui";
 import { Field } from "./Field";
 import { NAV, type Role } from "./AppTypes";
@@ -55,57 +47,22 @@ export function Login() {
     if (!email || !password) return alert("Please enter email and password.");
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const { token, user: data } = await apiPost<{
+        token: string;
+        user: { id: string; name: string; birthYear: number | null; role: Role };
+      }>("/auth/login", { email, password });
 
-      if (email === "lucionaradnas@gmail.com") {
-        await setDoc(
-          doc(db, "users", cred.user.uid),
-          {
-            name: "Sandara Torres",
-            email: "lucionaradnas@gmail.com",
-            role: "admin",
-            status: "approved",
-          },
-          { merge: true }
-        );
-
-        localStorage.setItem("role", "admin");
-        localStorage.setItem("uid", cred.user.uid);
-        localStorage.setItem("name", "Sis. Ethyl");
-        navigate("/admin/dash");
-        setLoading(false);
-        return;
-      }
-
-      const userDoc = await getDoc(doc(db, "users", cred.user.uid));
-
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        if (data.status === "pending") {
-          await signOut(auth);
-          alert("Your account is still pending admin approval.");
-          setLoading(false);
-          return;
-        }
-        if (data.status === "rejected") {
-          await signOut(auth);
-          alert("Your account request was declined.");
-          setLoading(false);
-          return;
-        }
-        localStorage.setItem("role", data.role);
-        localStorage.setItem("uid", cred.user.uid);
-        localStorage.setItem("name", data.name || "User");
-        localStorage.setItem("birthYear", data.birthYear || "2000");
-        navigate(`/${data.role}/${NAV[data.role as Role][0][0]}`);
-      } else {
-        await signOut(auth);
-        alert("User data not found in database.");
-      }
+      setApiToken(token);
+      localStorage.setItem("role", data.role);
+      localStorage.setItem("uid", data.id);
+      localStorage.setItem("name", data.name || "User");
+      localStorage.setItem("birthYear", String(data.birthYear || "2000"));
+      navigate(`/${data.role}/${NAV[data.role][0][0]}`);
     } catch (err: any) {
       alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -134,32 +91,28 @@ export function Login() {
 
     setLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, reqEmail, reqPass);
-      await setDoc(doc(db, "users", cred.user.uid), {
-        uid: cred.user.uid,
+      await apiPost("/auth/register", {
         name: reqName,
         email: reqEmail,
+        password: reqPass,
+        password_confirmation: reqConfirm,
         birthday: reqBirthday,
-        birthYear: reqBirthday.slice(0, 4),
         phoneNumber: reqPhone,
         messengerLink: reqMessenger.trim(),
-        role: "student",
-        status: "pending",
-        dateRequested: new Date().toISOString(),
       });
-      await signOut(auth);
       setSent(true);
     } catch (err: any) {
       alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleForgot = async () => {
     if (!email) return alert("Please enter your email address in the field first.");
     try {
-      await sendPasswordResetEmail(auth, email);
-      alert("Password reset email sent! Check your Gmail inbox/spam.");
+      const response = await apiPost<{ message: string }>("/auth/forgot-password", { email });
+      alert(response.message);
     } catch (err: any) {
       alert("Error: " + err.message);
     }

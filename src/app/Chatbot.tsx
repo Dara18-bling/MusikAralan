@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageCircle, X } from "lucide-react";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "../firebase";
+import { watchApi } from "../api";
 import { Btn, Input } from "../ui";
-import { DEFAULT_CHATBOT_RESPONSES, type ChatbotResponse } from "../chatbotResponses";
+import type { ChatbotResponse } from "../chatbotResponses";
 import { CHATBOT_STOP_WORDS, keywordDistanceIsOne } from "./chatbotUtils";
 
 interface ChatbotProps {
@@ -14,7 +13,7 @@ interface ChatbotProps {
 export function Chatbot({ isAdmin }: ChatbotProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [responses, setResponses] = useState(DEFAULT_CHATBOT_RESPONSES);
+  const [responses, setResponses] = useState<ChatbotResponse[]>([]);
   const [msgs, setMsgs] = useState([
     {
       me: false,
@@ -24,26 +23,12 @@ export function Chatbot({ isAdmin }: ChatbotProps) {
   const [v, setV] = useState("");
 
   useEffect(() => {
-    return onSnapshot(
-      collection(db, "chatbotResponses"),
-      (snapshot) => {
-        if (snapshot.empty) {
-          setResponses(DEFAULT_CHATBOT_RESPONSES);
-          return;
-        }
-        const saved = snapshot.docs.map((item) => ({
-          id: item.id,
-          ...(item.data() as Omit<ChatbotResponse, "id">),
-        }));
-        setResponses([
-          ...DEFAULT_CHATBOT_RESPONSES.flatMap((fallback) => {
-            const override = saved.find((item) => item.id === fallback.id);
-            return override?.deleted ? [] : [override ?? fallback];
-          }),
-          ...saved.filter((item) => !item.deleted && !DEFAULT_CHATBOT_RESPONSES.some((fallback) => fallback.id === item.id)),
-        ]);
+    return watchApi<{ data: ChatbotResponse[] }>(
+      "/chatbot-responses",
+      ({ data: saved }) => {
+        setResponses(saved.filter((item) => !item.deleted));
       },
-      (error) => console.error("Could not load chatbot responses:", error)
+      (error) => console.error("Could not load chatbot responses:", error),
     );
   }, []);
 

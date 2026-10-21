@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, doc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { watchApi } from "./api";
 import { Card } from "./ui";
 import type { ClassCatalogItem } from "./classCatalog";
 import Notifications from "./Notifications";
@@ -30,34 +29,24 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
 
   useEffect(() => {
     if (!userId) return;
-    return onSnapshot(
-      doc(db, "users", userId),
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-        const profile = snapshot.data();
-        setTeacherIdentity(String(profile.name || profile.email || loggedInTeacherName).trim());
-      },
-      (error) => console.error("Could not load teacher profile:", error)
+    return watchApi<{ user: { name?: string; email?: string } }>(
+      "/me",
+      ({ user }) => setTeacherIdentity(String(user.name || user.email || loggedInTeacherName).trim()),
+      (error) => console.error("Could not load teacher profile:", error),
     );
   }, [userId, loggedInTeacherName]);
 
   useEffect(() => {
-    return onSnapshot(
-      collection(db, "classes"),
-      (snapshot) => {
-        const teacherClasses = snapshot.docs
-          .map((classDoc) => ({ id: classDoc.id, ...classDoc.data() } as ClassCatalogItem))
-          .filter(
-            (item) =>
-              !item.deleted &&
-              String(item.teacher || "").trim().toLowerCase() === teacherIdentity.toLowerCase()
-          );
+    return watchApi<{ data: ClassCatalogItem[] }>(
+      "/classes",
+      ({ data }) => {
+        const teacherClasses = data.filter((item) => !item.deleted);
         setAssignedClasses(teacherClasses);
         setSelectedClassId((current) =>
           teacherClasses.some((item) => item.id === current) ? current : teacherClasses[0]?.id || ""
         );
       },
-      (error) => console.error("Could not load assigned classes:", error)
+      (error) => console.error("Could not load assigned classes:", error),
     );
   }, [teacherIdentity]);
 

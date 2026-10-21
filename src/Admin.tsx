@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { collection, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
+import { useEffect, useRef, useState } from "react";
+import { watchApi } from "./api";
 import type { AdminView } from "./admin/adminTypes";
 import { AdminDashboard } from "./admin/AdminDashboard";
 import { AdminAccounts } from "./admin/AdminAccounts";
@@ -15,24 +14,22 @@ export default function Admin({ view }: { view: AdminView }) {
   const [loading, setLoading] = useState(false);
   const [newRequestNotice, setNewRequestNotice] = useState("");
   const [accountListenerError, setAccountListenerError] = useState("");
+  const knownUserIds = useRef(new Set<string>());
 
   useEffect(() => {
     setLoading(true);
     let initialSnapshot = true;
     let noticeTimer: number | undefined;
 
-    const unsubscribe = onSnapshot(
-      collection(db, "users"),
-      (snapshot) => {
-        setAllUsers(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
+    const unsubscribe = watchApi<{ data: any[] }>(
+      "/admin/users",
+      ({ data }) => {
+        setAllUsers(data);
         setAccountListenerError("");
         if (!initialSnapshot) {
-          const newRequests = snapshot
-            .docChanges()
-            .filter(
-              (change) => change.type === "added" && change.doc.data().status === "pending"
-            )
-            .map((change) => change.doc.data().name || change.doc.data().email || "A user");
+          const newRequests = data
+            .filter((user) => !knownUserIds.current.has(user.id) && user.status === "pending")
+            .map((user) => user.name || user.email || "A user");
 
           if (newRequests.length > 0) {
             setNewRequestNotice(
@@ -44,16 +41,20 @@ export default function Admin({ view }: { view: AdminView }) {
             noticeTimer = window.setTimeout(() => setNewRequestNotice(""), 8000);
           }
         }
+        knownUserIds.current = new Set(data.map((user) => user.id));
         initialSnapshot = false;
         setLoading(false);
       },
       (error) => {
         console.error("Could not listen for account requests:", error);
         setAccountListenerError(
-          error.message || "Could not receive live account requests."
+          error instanceof Error
+            ? error.message
+            : "Could not receive live account requests."
         );
         setLoading(false);
-      }
+      },
+      15_000,
     );
 
     return () => {

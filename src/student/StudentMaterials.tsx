@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, MessageCircle, Music, PenLine } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { arrayUnion, collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { apiPost, watchApi } from "../api";
 import { Btn, Card, Label, Pill, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import { isDataUrl, downloadDataUrl, ensureAbsoluteUrl, getDriveDownloadUrl } from "../utils/mediaUrlHelper";
@@ -55,11 +54,6 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
       setEnrolledClassIds([]);
       return;
     }
-    return onSnapshot(doc(db, "users", userId), (snapshot) => {
-      const enrolled = snapshot.data()?.enrolledClassIds;
-      setEnrolledClassIds(Array.isArray(enrolled) ? enrolled : []);
-      setClassProgress(snapshot.data()?.classProgress || {});
-    }, (error) => console.error("Could not load student enrollments:", error));
   }, [userId]);
 
   useEffect(() => {
@@ -70,36 +64,31 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
       setAssessmentAnswers({});
       return;
     }
-    const stopMaterials = onSnapshot(collection(db, "classes", openClass.id, "materials"), (snapshot) => {
-      setClassMaterials(snapshot.docs.map((materialDoc) => ({ id: materialDoc.id, ...materialDoc.data() })));
+    const classPath = `/classes/${openClass.id}`;
+    const stopMaterials = watchApi<{ data: any[] }>(`${classPath}/materials`, ({ data }) => {
+      setClassMaterials(data);
     }, (error) => console.error("Could not load class materials:", error));
-    const stopAssessment = onSnapshot(doc(db, "classes", openClass.id, "assessments", "published"), (snapshot) => {
-      setClassAssessment(snapshot.exists() ? snapshot.data() : null);
+    const stopAssessment = watchApi<{ assessment: any | null }>(`${classPath}/assessment`, ({ assessment }) => {
+      setClassAssessment(assessment);
     }, (error) => console.error("Could not load class assessment:", error));
-    const stopClassmates = onSnapshot(collection(db, "users"), (snapshot) => {
-      setClassmates(snapshot.docs
-        .filter((studentDoc) => studentDoc.id !== userId && Array.isArray(studentDoc.data().enrolledClassIds)
-          && studentDoc.data().enrolledClassIds.includes(openClass.id))
-        .map((studentDoc) => ({ id: studentDoc.id, ...studentDoc.data() })));
+    const stopClassmates = watchApi<{ data: any[] }>(`${classPath}/students`, ({ data }) => {
+      setClassmates(data);
     }, (error) => console.error("Could not load classmates:", error));
-    return () => { stopMaterials(); stopAssessment(); stopClassmates(); };
+    const stopProgress = watchApi<{ progress: Record<string, any> }>(`${classPath}/progress`, ({ progress }) => {
+      setClassProgress({ [openClass.id]: progress });
+    }, (error) => console.error("Could not load class progress:", error));
+    return () => {
+      stopMaterials();
+      stopAssessment();
+      stopClassmates();
+      stopProgress();
+    };
   }, [openClass?.id, userId]);
 
-  useEffect(() => onSnapshot(collection(db, "classes"), (snapshot) => {
-    setClassCatalog(snapshot.docs.map((classDoc) => {
-      const data = classDoc.data();
-      return {
-        id: classDoc.id,
-        name: data.name ?? "Unnamed class",
-        teacher: data.teacher ?? "Unassigned",
-        age: data.age ?? "all",
-        description: data.description ?? "",
-        availableForEnrollment: data.availableForEnrollment === true,
-        deleted: data.deleted === true,
-        enrolledStudentIds: Array.isArray(data.enrolledStudentIds) ? data.enrolledStudentIds : [],
-      } as ClassCatalogItem;
-    }));
-  }, (error) => console.error("Could not load classes:", error)), []);
+  useEffect(() => watchApi<{ data: ClassCatalogItem[] }>("/classes", ({ data }) => {
+    setClassCatalog(data);
+    setEnrolledClassIds(data.filter((item) => item.enrolledStudentIds?.includes(userId)).map((item) => item.id));
+  }, (error) => console.error("Could not load classes:", error)), [userId]);
 
   const enrolledClasses = classCatalog.filter((item) => !item.deleted && userId && (
     enrolledClassIds.includes(item.id) || item.enrolledStudentIds?.includes(userId)
@@ -114,14 +103,17 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   const joinClass = async (item: ClassCatalogItem) => {
     if (!userId || item.deleted || !item.availableForEnrollment) return;
     try {
-      await updateDoc(doc(db, "users", userId), { enrolledClassIds: arrayUnion(item.id) });
+      await apiPost(`/classes/${item.id}/enroll`);
+      setEnrolledClassIds((current) => [...new Set([...current, item.id])]);
+      setClassCatalog((current) => current.map((classItem) =>
+        classItem.id === item.id
+          ? { ...classItem, enrolledStudentIds: [...new Set([...(classItem.enrolledStudentIds || []), userId])] }
+          : classItem,
+      ));
     } catch (error) {
       console.error("Could not enroll in class:", error);
-      const firestoreError = error as { code?: string; message?: string };
-      const reason = firestoreError.code === "permission-denied"
-        ? "Firestore security rules are blocking student enrollment."
-        : firestoreError.message || "Please check your connection and try again.";
-      alert(`Could not enroll in this class${firestoreError.code ? ` (${firestoreError.code})` : ""}: ${reason}`);
+      const details = error as { message?: string };
+      alert(`Could not enroll in this class: ${details.message || "Please check your connection and try again."}`);
     }
   };
 
@@ -137,9 +129,14 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   const markMaterialComplete = async (materialId: string) => {
     if (!openClass || !userId) return;
     try {
-      await updateDoc(doc(db, "users", userId), {
-        [`classProgress.${openClass.id}.completedMaterialIds`]: arrayUnion(materialId),
-      });
+      await apiPost(`/classes/${openClass.id}/materials/${materialId}/complete`);
+      setClassProgress((current) => ({
+        ...current,
+        [openClass.id]: {
+          ...current[openClass.id],
+          completedMaterialIds: [...new Set([...(current[openClass.id]?.completedMaterialIds || []), materialId])],
+        },
+      }));
     } catch (error) {
       console.error("Could not save material progress:", error);
       alert("Could not save your progress. Please try again.");
@@ -153,20 +150,22 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
       alert("Answer every question before submitting.");
       return;
     }
-    const correct = questions.filter((question: any, index: number) => {
-      if (question.type === "identification") {
-        return assessmentAnswers[index].trim().toLowerCase() === String(question.answer || "").trim().toLowerCase();
-      }
-      return Number(assessmentAnswers[index]) === Number(question.a);
-    }).length;
-    const percent = questions.length ? Math.round(correct / questions.length * 100) : 0;
-    const passed = percent >= Number(classAssessment.passingPercent || 70);
     try {
-      await updateDoc(doc(db, "users", userId), {
-        [`classProgress.${openClass.id}.assessmentScore`]: percent,
-        [`classProgress.${openClass.id}.assessmentPassed`]: passed,
-      });
-      alert(passed ? `Assessment passed: ${percent}%.` : `Assessment score: ${percent}%. Review the materials and try again.`);
+      const { attempt } = await apiPost<{ attempt: { score: number; passed: boolean } }>(
+        `/classes/${openClass.id}/assessment/attempts`,
+        { answers: questions.map((_: unknown, index: number) => assessmentAnswers[index]) },
+      );
+      setClassProgress((current) => ({
+        ...current,
+        [openClass.id]: {
+          ...current[openClass.id],
+          assessmentScore: attempt.score,
+          assessmentPassed: attempt.passed,
+        },
+      }));
+      alert(attempt.passed
+        ? `Assessment passed: ${attempt.score}%.`
+        : `Assessment score: ${attempt.score}%. Review the materials and try again.`);
     } catch (error) {
       console.error("Could not save assessment result:", error);
       alert("Could not save your assessment result. Please try again.");

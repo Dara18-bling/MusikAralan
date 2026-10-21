@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase";
+import { apiPut } from "../api";
 import { Btn, Card, Input, Pill, Title } from "../ui";
 
 export type Question = {
@@ -35,17 +34,16 @@ export function Quiz({ className, classId }: QuizProps) {
       return alert("Complete every question and correct answer before publishing.");
     }
     try {
-      await setDoc(doc(db, "classes", classId, "assessments", "published"), {
+      await apiPut(`/classes/${classId}/assessment`, {
         title: "Note Reading Quiz 5",
         questions: qs,
         passingPercent: 70,
-        updatedAt: new Date(),
       });
       alert("Assessment published to the class.");
     } catch (error) {
       console.error("Could not publish class assessment:", error);
-      const problem = error as { code?: string; message?: string };
-      alert(`Could not publish assessment${problem.code ? ` (${problem.code})` : ""}: ${problem.message || "Check Firestore permissions."}`);
+      const problem = error as { message?: string };
+      alert(`Could not publish assessment: ${problem.message || "Please check your connection and try again."}`);
     }
   };
 
