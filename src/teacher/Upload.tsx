@@ -1,9 +1,24 @@
 import { useEffect, useState } from "react";
-import { Check, Edit2, FileSpreadsheet, FileText, Image as ImageIcon, Music2, Presentation, Trash2, UploadCloud, Video, Link as LinkIcon } from "lucide-react";
+import {
+  Check,
+  Edit2,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Music2,
+  Presentation,
+  Trash2,
+  UploadCloud,
+  Video,
+  Link as LinkIcon,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import { apiPost } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
-import { parseAndConvertMediaUrl, ensureAbsoluteUrl } from "../utils/mediaUrlHelper";
+import {
+  parseAndConvertMediaUrl,
+  ensureAbsoluteUrl,
+} from "../utils/mediaUrlHelper";
 
 interface UploadProps {
   className?: string;
@@ -14,18 +29,25 @@ interface UploadProps {
 export function Upload({ className, classId, teacherName }: UploadProps) {
   const [kind, setKind] = useState("Module");
   const [titlesByKind, setTitlesByKind] = useState<Record<string, string>>({
-    Module: "Psalm 95 — Kung marinig n'yo ang Kanyang tinig",
+    Module: "",
   });
-  const [descriptionsByKind, setDescriptionsByKind] = useState<Record<string, string>>({});
-  const [mediaUrlsByKind, setMediaUrlsByKind] = useState<Record<string, string>>({});
+  const [descriptionsByKind, setDescriptionsByKind] = useState<
+    Record<string, string>
+  >({});
+  const [mediaUrlsByKind, setMediaUrlsByKind] = useState<
+    Record<string, string>
+  >({});
 
   const title = titlesByKind[kind] || "";
   const description = descriptionsByKind[kind] || "";
   const mediaUrlInput = mediaUrlsByKind[kind] || "";
 
-  const setTitle = (value: string) => setTitlesByKind((current) => ({ ...current, [kind]: value }));
-  const setDescription = (value: string) => setDescriptionsByKind((current) => ({ ...current, [kind]: value }));
-  const setMediaUrlInput = (value: string) => setMediaUrlsByKind((current) => ({ ...current, [kind]: value }));
+  const setTitle = (value: string) =>
+    setTitlesByKind((current) => ({ ...current, [kind]: value }));
+  const setDescription = (value: string) =>
+    setDescriptionsByKind((current) => ({ ...current, [kind]: value }));
+  const setMediaUrlInput = (value: string) =>
+    setMediaUrlsByKind((current) => ({ ...current, [kind]: value }));
 
   // Attached files and local base64/data previews
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -33,20 +55,29 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
   const [fileError, setFileError] = useState("");
 
   // Spreadsheet preview state
-  const [spreadsheetPreview, setSpreadsheetPreview] = useState<{ file: File; sheets: { name: string; rows: unknown[][] }[] } | null>(null);
+  const [spreadsheetPreview, setSpreadsheetPreview] = useState<{
+    file: File;
+    sheets: { name: string; rows: unknown[][] }[];
+  } | null>(null);
   const [spreadsheetLoading, setSpreadsheetLoading] = useState(false);
   const [activeSpreadsheetSheet, setActiveSpreadsheetSheet] = useState("");
 
   const [publishing, setPublishing] = useState(false);
   const [recent, setRecent] = useState([
-    { id: 1, title: "Ledger Lines Worksheet", kind: "Module", date: "Yesterday" },
+    {
+      id: 1,
+      title: "Ledger Lines Worksheet",
+      kind: "Module",
+      date: "Yesterday",
+    },
   ]);
 
   // Derived media preview using our parser utility
   const processedMedia = parseAndConvertMediaUrl(mediaUrlInput, kind);
   const activeStreamUrl = fileDataUrl || processedMedia.streamUrl;
 
-  const isExcelFile = kind === "Others" && /\.xlsx?$/i.test(selectedFile?.name || "");
+  const isExcelFile =
+    kind === "Others" && /\.xlsx?$/i.test(selectedFile?.name || "");
 
   // Spreadsheet parser for local Excel preview
   useEffect(() => {
@@ -58,23 +89,32 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     }
     let active = true;
     setSpreadsheetLoading(true);
-    void selectedFile.arrayBuffer().then((buffer) => {
-      const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const sheets = workbook.SheetNames.map((name: string) => ({
-        name,
-        rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: "" }),
-      }));
-      if (active) {
-        setSpreadsheetPreview({ file: selectedFile, sheets });
-        setActiveSpreadsheetSheet(sheets[0]?.name || "");
-      }
-    }).catch((error) => {
-      console.error("Could not preview spreadsheet:", error);
-      if (active) setSpreadsheetPreview({ file: selectedFile, sheets: [] });
-    }).finally(() => {
-      if (active) setSpreadsheetLoading(false);
-    });
-    return () => { active = false; };
+    void selectedFile
+      .arrayBuffer()
+      .then((buffer) => {
+        const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+        const sheets = workbook.SheetNames.map((name: string) => ({
+          name,
+          rows: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], {
+            header: 1,
+            defval: "",
+          }),
+        }));
+        if (active) {
+          setSpreadsheetPreview({ file: selectedFile, sheets });
+          setActiveSpreadsheetSheet(sheets[0]?.name || "");
+        }
+      })
+      .catch((error) => {
+        console.error("Could not preview spreadsheet:", error);
+        if (active) setSpreadsheetPreview({ file: selectedFile, sheets: [] });
+      })
+      .finally(() => {
+        if (active) setSpreadsheetLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [selectedFile, isExcelFile]);
 
   // Handle local file selection
@@ -86,7 +126,7 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     // Keep data URLs small enough for a single API request.
     if (file.size > 800 * 1024) {
       setFileError(
-        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link below.`
+        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link below.`,
       );
       setSelectedFile(null);
       setFileDataUrl("");
@@ -135,7 +175,13 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     if (file.type.startsWith("image/")) return ImageIcon;
     if (file.type.startsWith("video/")) return Video;
     if (file.type.startsWith("audio/")) return Music2;
-    if (extension === "xls" || extension === "xlsx" || extension === "csv" || extension === "ods") return FileSpreadsheet;
+    if (
+      extension === "xls" ||
+      extension === "xlsx" ||
+      extension === "csv" ||
+      extension === "ods"
+    )
+      return FileSpreadsheet;
     if (extension === "ppt" || extension === "pptx") return Presentation;
     return FileText;
   };
@@ -158,14 +204,17 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     const finalStreamUrl = fileDataUrl || processedMedia.streamUrl;
 
     if (!finalMediaUrl && !finalStreamUrl) {
-      alert("Please provide a media link (Google Drive, YouTube, Docs) or select a file before publishing.");
+      alert(
+        "Please provide a media link (Google Drive, YouTube, Docs) or select a file before publishing.",
+      );
       return;
     }
 
     setPublishing(true);
     try {
-      const resolvedTeacher = teacherName || localStorage.getItem("name") || "Teacher";
-      
+      const resolvedTeacher =
+        teacherName || localStorage.getItem("name") || "Teacher";
+
       await apiPost(`/classes/${classId}/materials`, {
         title: title.trim(),
         description: description.trim(),
@@ -175,21 +224,30 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
         teacherName: resolvedTeacher,
       });
 
-      setRecent((current) => [{ id: Date.now(), title, kind, date: "Just now" }, ...current]);
+      setRecent((current) => [
+        { id: Date.now(), title, kind, date: "Just now" },
+        ...current,
+      ]);
       setMediaUrlInput("");
       removeFile();
       alert("Material published successfully to class.");
     } catch (error) {
       console.error("Could not publish class material:", error);
       const problem = error as { code?: string; message?: string };
-      alert(`Could not publish material: ${problem.message || "Please check your connection and try again."}`);
+      alert(
+        `Could not publish material: ${problem.message || "Please check your connection and try again."}`,
+      );
     } finally {
       setPublishing(false);
     }
   };
 
   const handleEdit = (id: number) => {
-    alert("Edit modal opening for item ID: " + id + ". You can re-upload or rename files here.");
+    alert(
+      "Edit modal opening for item ID: " +
+        id +
+        ". You can re-upload or rename files here.",
+    );
   };
 
   return (
@@ -197,7 +255,11 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
       <Title
         kicker="Content uploader"
         title="Add learning material"
-        sub={className ? `Adding content for ${className}.` : "Choose an assigned class before adding content."}
+        sub={
+          className
+            ? `Adding content for ${className}.`
+            : "Choose an assigned class before adding content."
+        }
       />
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <Card>
@@ -211,7 +273,9 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                   setFileError("");
                 }}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  kind === k ? "grad text-white" : "bg-p1-soft text-p1 hover:bg-p1-soft/70"
+                  kind === k
+                    ? "grad text-white"
+                    : "bg-p1-soft text-p1 hover:bg-p1-soft/70"
                 }`}
               >
                 {k}
@@ -248,7 +312,8 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                 Media / Streaming Link (Google Drive, YouTube, Docs, Sheets)
               </label>
               <p className="mt-1 text-xs text-mute">
-                Paste any shared link. The system automatically converts it into a direct stream for students.
+                Paste any shared link. The system automatically converts it into
+                a direct stream for students.
               </p>
               <div className="mt-2">
                 <Input
@@ -262,7 +327,8 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
               {processedMedia.provider !== "direct" && mediaUrlInput && (
                 <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-emerald-700">
                   <Check className="h-3.5 w-3.5" />
-                  Recognized {processedMedia.provider.replace("_", " ")} ({processedMedia.type}) stream ready
+                  Recognized {processedMedia.provider.replace("_", " ")} (
+                  {processedMedia.type}) stream ready
                 </div>
               )}
             </div>
@@ -291,7 +357,8 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                     Drop score or worksheet here or browse
                   </span>
                   <span className="text-xs text-mute">
-                    PDF, image, audio, or document (max 800 KB). For larger rehearsal tracks, paste a Google Drive link above.
+                    PDF, image, audio, or document (max 800 KB). For larger
+                    rehearsal tracks, paste a Google Drive link above.
                   </span>
                 </label>
               ) : (
@@ -302,9 +369,12 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                       return <FileIcon className="h-5 w-5 text-p1" />;
                     })()}
                     <div>
-                      <p className="text-sm font-semibold text-ink">{selectedFile.name}</p>
+                      <p className="text-sm font-semibold text-ink">
+                        {selectedFile.name}
+                      </p>
                       <p className="text-xs text-mute">
-                        {(selectedFile.size / 1024).toFixed(0)} KB · Ready to save
+                        {(selectedFile.size / 1024).toFixed(0)} KB · Ready to
+                        save
                       </p>
                     </div>
                   </div>
@@ -318,7 +388,11 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                   </button>
                 </div>
               )}
-              {fileError && <p role="alert" className="text-xs font-medium text-red-600">{fileError}</p>}
+              {fileError && (
+                <p role="alert" className="text-xs font-medium text-red-600">
+                  {fileError}
+                </p>
+              )}
             </div>
 
             {/* Publish Button */}
@@ -344,22 +418,27 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                   allowFullScreen
                 />
-              ) : processedMedia.provider === "google_docs" && activeStreamUrl ? (
+              ) : processedMedia.provider === "google_docs" &&
+                activeStreamUrl ? (
                 <iframe
                   className="h-80 w-full"
                   src={activeStreamUrl}
                   title="Google file preview"
                   allow="autoplay"
                 />
-              ) : (kind === "Vocal Guide" || processedMedia.type === "audio") && activeStreamUrl ? (
+              ) : (kind === "Vocal Guide" || processedMedia.type === "audio") &&
+                activeStreamUrl ? (
                 <div className="grid min-h-56 place-items-center p-5 text-center">
                   <div className="w-full">
                     <Music2 className="mx-auto h-12 w-12 text-p1 mb-2" />
-                    <p className="font-semibold text-sm mb-3">Vocal Guide Audio Stream</p>
+                    <p className="font-semibold text-sm mb-3">
+                      Vocal Guide Audio Stream
+                    </p>
                     <audio className="w-full" src={activeStreamUrl} controls />
                   </div>
                 </div>
-              ) : (kind === "Video Guide" || processedMedia.type === "video") && activeStreamUrl ? (
+              ) : (kind === "Video Guide" || processedMedia.type === "video") &&
+                activeStreamUrl ? (
                 <div className="grid min-h-56 place-items-center p-2">
                   <iframe
                     className="h-80 w-full rounded-lg"
@@ -369,58 +448,103 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                   />
                 </div>
               ) : fileDataUrl && selectedFile?.type.startsWith("image/") ? (
-                <img className="max-h-96 w-full object-contain" src={fileDataUrl} alt={`Preview of ${selectedFile?.name}`} />
+                <img
+                  className="max-h-96 w-full object-contain"
+                  src={fileDataUrl}
+                  alt={`Preview of ${selectedFile?.name}`}
+                />
               ) : fileDataUrl && selectedFile?.type === "application/pdf" ? (
-                <iframe className="h-80 w-full" src={fileDataUrl} title="PDF preview" />
+                <iframe
+                  className="h-80 w-full"
+                  src={fileDataUrl}
+                  title="PDF preview"
+                />
               ) : selectedFile && isExcelFile ? (
-                spreadsheetLoading || spreadsheetPreview?.file !== selectedFile ? (
-                  <div className="grid min-h-56 place-items-center p-5 text-mute">Preparing spreadsheet preview…</div>
+                spreadsheetLoading ||
+                spreadsheetPreview?.file !== selectedFile ? (
+                  <div className="grid min-h-56 place-items-center p-5 text-mute">
+                    Preparing spreadsheet preview…
+                  </div>
                 ) : spreadsheetPreview.sheets.length === 0 ? (
-                  <div className="grid min-h-56 place-items-center p-5 text-center text-mute">Could not read this spreadsheet. Try another Excel file.</div>
-                ) : (() => {
-                  const sheet = spreadsheetPreview.sheets.find((item) => item.name === activeSpreadsheetSheet) || spreadsheetPreview.sheets[0];
-                  const rows = sheet.rows.slice(0, 100);
-                  const columnCount = Math.min(30, Math.max(0, ...rows.map((row) => row.length)));
-                  return (
-                    <div className="p-3">
-                      <div className="mb-3 flex flex-wrap gap-2">
-                        {spreadsheetPreview.sheets.map((item) => (
-                          <button
-                            key={item.name}
-                            type="button"
-                            onClick={() => setActiveSpreadsheetSheet(item.name)}
-                            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
-                              item.name === sheet.name ? "bg-[var(--p1)] text-white" : "bg-white text-p1"
-                            }`}
-                          >
-                            {item.name}
-                          </button>
-                        ))}
+                  <div className="grid min-h-56 place-items-center p-5 text-center text-mute">
+                    Could not read this spreadsheet. Try another Excel file.
+                  </div>
+                ) : (
+                  (() => {
+                    const sheet =
+                      spreadsheetPreview.sheets.find(
+                        (item) => item.name === activeSpreadsheetSheet,
+                      ) || spreadsheetPreview.sheets[0];
+                    const rows = sheet.rows.slice(0, 100);
+                    const columnCount = Math.min(
+                      30,
+                      Math.max(0, ...rows.map((row) => row.length)),
+                    );
+                    return (
+                      <div className="p-3">
+                        <div className="mb-3 flex flex-wrap gap-2">
+                          {spreadsheetPreview.sheets.map((item) => (
+                            <button
+                              key={item.name}
+                              type="button"
+                              onClick={() =>
+                                setActiveSpreadsheetSheet(item.name)
+                              }
+                              className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
+                                item.name === sheet.name
+                                  ? "bg-[var(--p1)] text-white"
+                                  : "bg-white text-p1"
+                              }`}
+                            >
+                              {item.name}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="max-h-80 overflow-auto rounded-lg border border-line bg-white">
+                          <table className="min-w-full border-collapse text-left text-xs">
+                            <tbody>
+                              {rows.map((row, rowIndex) => (
+                                <tr
+                                  key={rowIndex}
+                                  className={
+                                    rowIndex === 0
+                                      ? "bg-p1-soft font-semibold"
+                                      : "odd:bg-white even:bg-slate-50"
+                                  }
+                                >
+                                  {Array.from(
+                                    { length: columnCount },
+                                    (_, columnIndex) => (
+                                      <td
+                                        key={columnIndex}
+                                        className="max-w-64 border-b border-r border-line px-2 py-1.5 align-top"
+                                      >
+                                        {String(row[columnIndex] ?? "")}
+                                      </td>
+                                    ),
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                      <div className="max-h-80 overflow-auto rounded-lg border border-line bg-white">
-                        <table className="min-w-full border-collapse text-left text-xs">
-                          <tbody>
-                            {rows.map((row, rowIndex) => (
-                              <tr key={rowIndex} className={rowIndex === 0 ? "bg-p1-soft font-semibold" : "odd:bg-white even:bg-slate-50"}>
-                                {Array.from({ length: columnCount }, (_, columnIndex) => (
-                                  <td key={columnIndex} className="max-w-64 border-b border-r border-line px-2 py-1.5 align-top">
-                                    {String(row[columnIndex] ?? "")}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  );
-                })()
+                    );
+                  })()
+                )
               ) : activeStreamUrl ? (
                 <div className="grid min-h-56 place-items-center p-5 text-center text-sm text-mute">
                   <div>
                     <FileText className="mx-auto h-10 w-10 text-p1 mb-2" />
-                    <p className="font-semibold text-ink">External Media Ready</p>
-                    <a href={activeStreamUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block font-semibold text-p1 underline">
+                    <p className="font-semibold text-ink">
+                      External Media Ready
+                    </p>
+                    <a
+                      href={activeStreamUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-block font-semibold text-p1 underline"
+                    >
                       Open stream / preview ↗
                     </a>
                   </div>
@@ -432,7 +556,8 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
               )}
             </div>
             <p className="mt-3 text-xs text-mute">
-              Media streams directly inside MusikAralan without requiring dedicated cloud storage buckets.
+              Media streams directly inside MusikAralan without requiring
+              dedicated cloud storage buckets.
             </p>
           </Card>
 
@@ -441,7 +566,10 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
             <Label>Recently Published</Label>
             <ul className="mt-3 divide-y divide-line">
               {recent.map((m) => (
-                <li key={m.id} className="flex items-center justify-between gap-3 py-3">
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 py-3"
+                >
                   <div className="flex items-center gap-3">
                     <div className="rounded-lg bg-p1-soft p-2 text-p1">
                       {m.kind === "Video Guide" || m.kind === "Vocal Guide" ? (
@@ -452,10 +580,15 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                     </div>
                     <div>
                       <p className="font-semibold text-sm">{m.title}</p>
-                      <p className="text-xs text-mute">{m.kind} · {m.date}</p>
+                      <p className="text-xs text-mute">
+                        {m.kind} · {m.date}
+                      </p>
                     </div>
                   </div>
-                  <button onClick={() => handleEdit(m.id)} className="text-blue-500 hover:text-blue-700">
+                  <button
+                    onClick={() => handleEdit(m.id)}
+                    className="text-blue-500 hover:text-blue-700"
+                  >
                     <Edit2 className="h-4 w-4" />
                   </button>
                 </li>

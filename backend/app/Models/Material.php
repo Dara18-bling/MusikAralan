@@ -9,6 +9,8 @@ class Material extends Model
 {
     protected $fillable = [
         'class_id',
+        'module_id',
+        'voice_group_id',
         'legacy_id',
         'teacher_id',
         'title',
@@ -27,5 +29,15 @@ class Material extends Model
     public function teacher(): BelongsTo
     {
         return $this->belongsTo(User::class, 'teacher_id');
+    }
+
+    public function module(): BelongsTo
+    {
+        return $this->belongsTo(Module::class);
+    }
+
+    public function voiceGroup(): BelongsTo
+    {
+        return $this->belongsTo(VoiceGroup::class);
     }
 }

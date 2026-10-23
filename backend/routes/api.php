@@ -6,6 +6,8 @@ use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\LearningController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\UserNotificationController;
+use App\Http\Controllers\Api\VoiceGroupController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/settings/appearance', [SettingController::class, 'appearance']);
@@ -23,8 +25,11 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
         Route::patch('/me/phone', [AuthController::class, 'updatePhone']);
+        Route::get('/notifications', [UserNotificationController::class, 'index']);
+        Route::patch('/notifications/{notificationId}/read', [UserNotificationController::class, 'markRead']);
 
         Route::get('/classes', [ClassController::class, 'index']);
+        Route::post('/classes/{class}/notifications', [UserNotificationController::class, 'notifyClass']);
         Route::get('/classes/{class}/enrollment-notice', [ClassController::class, 'enrollmentNotice']);
         Route::post('/classes/{class}/enroll', [ClassController::class, 'enrollment']);
         Route::get('/classes/{class}/students', [ClassController::class, 'students']);
@@ -39,6 +44,11 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/chatbot-responses', [ChatbotController::class, 'index']);
         Route::middleware('role:admin')->group(function (): void {
+            Route::get('/voice-groups', [VoiceGroupController::class, 'index']);
+            Route::post('/voice-groups', [VoiceGroupController::class, 'store']);
+            Route::put('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'update']);
+            Route::delete('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'destroy']);
+            Route::put('/admin/users/{userId}/voice-groups', [VoiceGroupController::class, 'assignUsers'])->whereNumber('userId');
             Route::get('/admin/users', [AuthController::class, 'indexUsers']);
             Route::patch('/admin/users/{userId}', [AuthController::class, 'updateUser'])->whereNumber('userId');
             Route::post('/classes', [ClassController::class, 'store']);

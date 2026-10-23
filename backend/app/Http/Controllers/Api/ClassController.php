@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Classroom;
+use App\Models\Module;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,6 +33,7 @@ class ClassController extends Controller
     {
         $data = $this->validatedClass($request);
         $class = Classroom::query()->create($this->classAttributes($data));
+        $this->ensureModule($class);
 
         return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))], 201);
     }
@@ -44,6 +46,14 @@ class ClassController extends Controller
             $class->enrollment_updated_at = now();
         }
         $class->save();
+        $module = $class->modules()->first();
+        if ($module) {
+            $module->update([
+                'title' => $class->name,
+                'category' => $class->age_group,
+                'description' => $class->description,
+            ]);
+        }
 
         return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))]);
     }
@@ -166,6 +176,16 @@ class ClassController extends Controller
             'createdAt' => $class->created_at?->toISOString(),
             'enrollmentUpdatedAt' => $class->enrollment_updated_at?->toISOString(),
         ];
+    }
+
+    private function ensureModule(Classroom $class): Module
+    {
+        return $class->modules()->first() ?? $class->modules()->create([
+            'title' => $class->name,
+            'category' => $class->age_group,
+            'description' => $class->description,
+            'created_by' => $class->teacher_id,
+        ]);
     }
 
     private function ensureAssignedTeacher(Request $request, Classroom $class): void

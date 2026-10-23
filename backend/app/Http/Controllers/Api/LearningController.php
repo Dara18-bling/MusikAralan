@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Assessment;
-use App\Models\AssessmentAttempt;
 use App\Models\AssessmentQuestion;
 use App\Models\Classroom;
 use App\Models\Material;
+use App\Models\Module;
+use App\Models\ModuleProgress;
+use App\Models\QuizAttempt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +52,7 @@ class LearningController extends Controller
             if (is_string($candidate) && str_starts_with($candidate, 'data:')) {
                 if ($storagePath !== null) {
                     $candidate = Storage::disk('public')->url($storagePath);
+
                     continue;
                 }
                 $storagePath = $this->storeDataUrl($candidate);
@@ -58,7 +61,9 @@ class LearningController extends Controller
         }
         unset($candidate);
 
+        $module = $this->moduleForClass($class);
         $material = $class->materials()->create([
+            'module_id' => $module->id,
             'teacher_id' => $user->id,
             'title' => trim($data['title']),
             'description' => trim($data['description']),
@@ -107,10 +112,11 @@ class LearningController extends Controller
             }
         }
 
-        $assessment = DB::transaction(function () use ($class, $data): Assessment {
+        $assessment = DB::transaction(function () use ($class, $data, $user): Assessment {
+            $module = $this->moduleForClass($class, $user->id);
             $assessment = Assessment::query()->updateOrCreate(
                 ['class_id' => $class->id],
-                ['title' => $data['title'], 'passing_percent' => $data['passingPercent']],
+                ['module_id' => $module->id, 'title' => $data['title'], 'passing_percent' => $data['passingPercent']],
             );
             $assessment->questions()->delete();
             foreach (array_values($data['questions']) as $position => $question) {
@@ -155,13 +161,24 @@ class LearningController extends Controller
         )->count();
         $score = (int) round(($correctCount / max($questions->count(), 1)) * 100);
         $passed = $score >= $assessment->passing_percent;
+        $module = $assessment->module ?? $this->moduleForClass($class);
+        if ($assessment->module_id !== $module->id) {
+            $assessment->module()->associate($module);
+            $assessment->save();
+        }
 
-        $attempt = DB::transaction(function () use ($assessment, $user, $questions, $normalizedAnswers, $score, $passed): AssessmentAttempt {
-            $attempt = AssessmentAttempt::query()->create([
+        $attempt = DB::transaction(function () use ($assessment, $module, $user, $questions, $normalizedAnswers, $score, $passed): QuizAttempt {
+            $progress = ModuleProgress::query()->firstOrCreate(
+                ['user_id' => $user->id, 'module_id' => $module->id],
+                ['status' => 'in_progress'],
+            );
+            $attempt = QuizAttempt::query()->create([
                 'assessment_id' => $assessment->id,
                 'student_id' => $user->id,
+                'module_progress_id' => $progress->id,
                 'score' => $score,
                 'passed' => $passed,
+                'status' => $passed ? 'passed' : 'failed',
                 'submitted_at' => now(),
             ]);
             foreach ($questions as $question) {
@@ -172,6 +189,8 @@ class LearningController extends Controller
                     'correct' => $this->isCorrectAnswer($question, $answer),
                 ]);
             }
+
+            $this->refreshModuleProgress($progress);
 
             return $attempt;
         });
@@ -204,10 +223,15 @@ class LearningController extends Controller
             ->orderByDesc('assessment_attempts.submitted_at')
             ->first();
 
+        $module = $class->modules()->first();
+
         return response()->json(['progress' => [
             'completedMaterialIds' => $completed,
             'assessmentScore' => $attempt?->score,
             'assessmentPassed' => (bool) ($attempt?->passed ?? false),
+            'moduleProgress' => $module
+                ? ModuleProgress::query()->where('user_id', $user->id)->where('module_id', $module->id)->value('status') ?? 'not_started'
+                : 'not_started',
         ]]);
     }
 
@@ -276,6 +300,37 @@ class LearningController extends Controller
         abort_unless($user->role === 'student' && $class->students()->where('users.id', $user->id)->exists(), 403);
     }
 
+    private function moduleForClass(Classroom $class, ?int $createdBy = null): Module
+    {
+        return $class->modules()->first() ?? $class->modules()->create([
+            'title' => $class->name,
+            'category' => $class->age_group,
+            'description' => $class->description,
+            'created_by' => $createdBy ?? $class->teacher_id,
+        ]);
+    }
+
+    private function refreshModuleProgress(ModuleProgress $progress): void
+    {
+        $module = $progress->module()->with('assessments')->firstOrFail();
+        $hasUnpassedQuiz = $module->assessments->contains(
+            fn (Assessment $assessment) => ! $assessment->attempts()
+                ->where('student_id', $progress->user_id)
+                ->where('passed', true)
+                ->exists(),
+        );
+        $hasRequiredPractice = $module->requires_practice
+            && ! $progress->practiceSessions()->whereNotNull('completed_at')->exists();
+        $hasRequiredQuiz = $module->assessments->isEmpty() || ! $hasUnpassedQuiz;
+        $hasRequiredActivity = $module->assessments->isNotEmpty() || $module->requires_practice;
+        $completed = $hasRequiredActivity && $hasRequiredQuiz && ! $hasRequiredPractice;
+
+        $progress->forceFill([
+            'status' => $completed ? 'completed' : 'in_progress',
+            'completed_at' => $completed ? ($progress->completed_at ?? now()) : null,
+        ])->save();
+    }
+
     private function isCorrectAnswer(AssessmentQuestion $question, string $answer): bool
     {
         if ($question->type === 'identification') {
@@ -283,6 +338,7 @@ class LearningController extends Controller
         }
 
         $selectedOption = filter_var($answer, FILTER_VALIDATE_INT);
+
         return $selectedOption !== false && $selectedOption === $question->correct_option_index;
     }
 
@@ -312,6 +368,7 @@ class LearningController extends Controller
     private function isSafeExternalUrl(string $url): bool
     {
         $parts = parse_url($url);
+
         return is_array($parts)
             && strtolower($parts['scheme'] ?? '') === 'https'
             && isset($parts['host'])

@@ -52,4 +52,9 @@ class Classroom extends Model
     {
         return $this->hasOne(Assessment::class, 'class_id');
     }
+
+    public function modules(): HasMany
+    {
+        return $this->hasMany(Module::class, 'class_id');
+    }
 }

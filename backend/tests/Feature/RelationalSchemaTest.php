@@ -2,17 +2,18 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\LearningController;
 use App\Models\Assessment;
 use App\Models\Classroom;
 use App\Models\Material;
+use App\Models\QuizAttempt;
 use App\Models\User;
-use App\Http\Controllers\Api\LearningController;
+use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Tests\TestCase;
 
 class RelationalSchemaTest extends TestCase
@@ -223,7 +224,7 @@ class RelationalSchemaTest extends TestCase
             'correct_option_index' => 1,
         ]);
 
-        $controller = new LearningController();
+        $controller = new LearningController;
         $readRequest = Request::create('/api/classes/'.$class->id.'/assessment');
         $readRequest->attributes->set('app_user', $student);
         $assessmentResponse = $controller->assessment($readRequest, $class)->getData(true)['assessment'];
@@ -243,6 +244,10 @@ class RelationalSchemaTest extends TestCase
             'student_id' => $student->id,
             'score' => 100,
             'passed' => true,
+            'status' => 'passed',
         ]);
+        $attempt = QuizAttempt::query()->where('assessment_id', $assessment->id)->firstOrFail();
+        $this->assertNotNull($attempt->module_progress_id);
+        $this->assertSame('completed', $attempt->moduleProgress->status);
     }
 }

@@ -6,8 +6,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -44,6 +45,7 @@ class User extends Authenticatable
             'birthday' => 'date:Y-m-d',
             'access_until' => 'date:Y-m-d',
             'date_requested' => 'datetime',
+            'approved_at' => 'datetime',
             'phone_verified' => 'boolean',
         ];
     }
@@ -52,5 +54,17 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Classroom::class, 'enrollments', 'student_id', 'class_id')
             ->withPivot('enrolled_at');
+    }
+
+    public function voiceGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(VoiceGroup::class, 'user_voice_group')
+            ->withPivot('voice_part')
+            ->withTimestamps();
+    }
+
+    public function moduleProgress(): HasMany
+    {
+        return $this->hasMany(ModuleProgress::class);
     }
 }

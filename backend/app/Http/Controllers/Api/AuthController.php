@@ -173,6 +173,10 @@ class AuthController extends Controller
         if (array_key_exists('accessUntil', $data) && $data['accessUntil'] !== null) {
             $target->access_until = $data['accessUntil'];
         }
+        if ($data['status'] === 'approved' && $target->status !== 'approved') {
+            $target->approved_by = $request->attributes->get('app_user')->id;
+            $target->approved_at = now();
+        }
         $target->save();
 
         return response()->json(['user' => $this->userPayload($target)]);
@@ -191,6 +195,8 @@ class AuthController extends Controller
             'messengerLink' => $user->messenger_link,
             'role' => $user->role,
             'status' => $user->status,
+            'approvedBy' => $user->approved_by === null ? null : (string) $user->approved_by,
+            'approvedAt' => $user->approved_at?->toISOString(),
             'accessUntil' => $user->access_until?->format('Y-m-d'),
             'dateRequested' => $user->date_requested?->toISOString(),
         ];

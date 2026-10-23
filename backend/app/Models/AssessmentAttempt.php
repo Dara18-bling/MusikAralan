@@ -10,7 +10,7 @@ class AssessmentAttempt extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['assessment_id', 'student_id', 'legacy_key', 'score', 'passed', 'submitted_at'];
+    protected $fillable = ['assessment_id', 'student_id', 'module_progress_id', 'legacy_key', 'score', 'passed', 'status', 'submitted_at'];
 
     protected function casts(): array
     {
@@ -25,5 +25,10 @@ class AssessmentAttempt extends Model
     public function assessment(): BelongsTo
     {
         return $this->belongsTo(Assessment::class);
+    }
+
+    public function moduleProgress(): BelongsTo
+    {
+        return $this->belongsTo(ModuleProgress::class);
     }
 }
