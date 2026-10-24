@@ -14,12 +14,7 @@ export function Chatbot({ isAdmin }: ChatbotProps) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [responses, setResponses] = useState<ChatbotResponse[]>([]);
-  const [msgs, setMsgs] = useState([
-    {
-      me: false,
-      t: 'Kumusta po! I am your Music Helper. Ask me anything — like "How do I join class?"',
-    },
-  ]);
+  const [msgs, setMsgs] = useState<{ me: boolean; t: string }[]>([]);
   const [v, setV] = useState("");
 
   useEffect(() => {
@@ -92,6 +87,11 @@ export function Chatbot({ isAdmin }: ChatbotProps) {
           </div>
 
           <div className="flex-1 space-y-2 overflow-y-auto p-4">
+            {!msgs.length && (
+              <p className="rounded-2xl bg-p1-soft px-3 py-2 text-sm text-mute">
+                Ask a question about classes, materials, assessments, or your account.
+              </p>
+            )}
             {msgs.map((m, i) => (
               <p
                 key={i}
@@ -101,17 +101,6 @@ export function Chatbot({ isAdmin }: ChatbotProps) {
               >
                 {m.t}
               </p>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-1 px-3">
-            {["How do I join class?", "Download a PDF"].map((q) => (
-              <button
-                key={q}
-                onClick={() => send(q)}
-                className="rounded-full border border-line px-3 py-1 text-xs"
-              >
-                {q}
-              </button>
             ))}
           </div>
           <form

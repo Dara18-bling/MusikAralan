@@ -46,13 +46,15 @@ The frontend does not authenticate with Firebase or access Firestore. Laravel is
    php artisan serve
    ```
 
-   Demo accounts are seeded only when `APP_ENV` is `local` or `testing`:
+   The seeder creates a realistic, relational UI dataset (multiple teachers and students, classes/enrollments, voice groups, modules/materials, quizzes and varied attempts, progress, practice sessions, scheduled sessions, announcements, notifications, chatbot replies, and appearance settings). It runs only when `APP_ENV` is `local` or `testing`:
 
    | Role | Email | Password |
    |---|---|---|
    | Admin | `admin@musik.test` | `Password123!` |
    | Teacher | `teacher@musik.test` | `Password123!` |
    | Student | `student@musik.test` | `Password123!` |
+
+   Additional student accounts use `student02@musik.test` through `student24@musik.test`; the last two are pending approval. Teacher accounts include `teacher.maria@musik.test` and `teacher.jose@musik.test`. All seeded accounts use `Password123!`.
 
    Do not use these credentials in a deployed environment. Production admins should be provisioned through a controlled database operation.
 

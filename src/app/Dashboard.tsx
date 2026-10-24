@@ -3,11 +3,11 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, Menu, Moon, Sun } from "lucide-react";
 
 import logo from "../assets/logo.png";
-import Student, { Gospel, type StudentView } from "../Student";
+import Student, { type StudentView } from "../Student";
 import Teacher, { type TeacherView } from "../Teacher";
 import Admin, { type AdminView } from "../Admin";
 import { apiPost, clearApiToken, hasApiToken } from "../api";
-import { NAV, type Role } from "./AppTypes";
+import { DASHBOARD_VIEW, NAV, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
 import { Chatbot } from "./Chatbot";
@@ -42,9 +42,9 @@ export function Dashboard() {
 
   const pathParts = location.pathname.split("/");
   const pathRole = pathParts[1] as Role;
-  const view = pathParts[2] || NAV[role][0][0];
+  const view = pathParts[2] || DASHBOARD_VIEW[role];
 
-  if (pathRole !== role) return <Navigate to={`/${role}/${NAV[role][0][0]}`} replace />;
+  if (pathRole !== role) return <Navigate to={`/${role}/${DASHBOARD_VIEW[role]}`} replace />;
   if (role === "student" && view === "store") return <Navigate to="/student/materials" replace />;
 
   const go = (v: string) => {
@@ -115,9 +115,6 @@ export function Dashboard() {
               </button>
             ))}
           </nav>
-          <div className="mt-6 pb-8">
-            <Gospel />
-          </div>
         </div>
 
         <div

@@ -31,7 +31,6 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
   const [messageContent, setMessageContent] = useState("");
   const [sending, setSending] = useState(false);
   const [sentMessage, setSentMessage] = useState("");
-  const [channels, setChannels] = useState({ SMS: true, Gmail: true, Messenger: true });
   const [previewAnnouncement, setPreviewAnnouncement] = useState<Notice | null>(null);
 
   useEffect(() => {
@@ -58,7 +57,11 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         announcementId: item.announcementId == null ? null : String(item.announcementId),
         title: item.title || "New notification",
         detail: item.content || "",
-        source: item.kind === "announcement" ? "Admin announcement" : "Class notification",
+        source: item.kind === "announcement"
+          ? "Admin announcement"
+          : item.kind === "schedule"
+            ? "Scheduled session"
+            : "Class notification",
         createdAt: timestampMillis(item.createdAt),
         readAt: item.readAt,
       })));
@@ -151,7 +154,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     <>
       <Title kicker="Notification center" title="Notifications" sub="Announcements and class updates." />
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+      <div className={role === "teacher" ? "grid gap-5 lg:grid-cols-[1.5fr_1fr]" : "block"}>
         <Card>
           {notices.length === 0 ? (
             <p className="py-8 text-center text-mute">No notifications yet.</p>
@@ -178,25 +181,6 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
               ))}
             </ul>
           )}
-        </Card>
-        <Card>
-          <Label>Notification channels</Label>
-          <p className="mt-1 text-sm text-mute">Turn social and messaging notifications on or off.</p>
-          {(Object.keys(channels) as (keyof typeof channels)[]).map((channel) => (
-            <label key={channel} className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-line px-4 py-3">
-              <span className="font-semibold">{channel}</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={channels[channel]}
-                aria-label={`${channel} notifications`}
-                onClick={() => setChannels((current) => ({ ...current, [channel]: !current[channel] }))}
-                className={`h-6 w-11 rounded-full p-0.5 transition ${channels[channel] ? "grad" : "bg-slate-200"}`}
-              >
-                <span className={`block h-5 w-5 rounded-full bg-white transition ${channels[channel] ? "translate-x-5" : ""}`} />
-              </button>
-            </label>
-          ))}
         </Card>
         {role === "teacher" && (
           <Card>

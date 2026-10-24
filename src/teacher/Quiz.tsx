@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { apiPut } from "../api";
-import { Btn, Card, Input, Pill, Title } from "../ui";
+import { useEffect, useState } from "react";
+import { apiGet, apiPut } from "../api";
+import { Btn, Card, Input, Label, Pill, Title } from "../ui";
 
 export type Question = {
   q: string;
@@ -16,29 +16,59 @@ interface QuizProps {
 }
 
 export function Quiz({ className, classId }: QuizProps) {
-  const [qs, setQs] = useState<Question[]>([
-    {
-      q: "What is the time signature of a waltz?",
-      o: ["2/4", "3/4", "4/4"],
-      a: 1,
-      type: "multiple",
-    },
-  ]);
+  const [qs, setQs] = useState<Question[]>([{ q: "", o: [], a: 0, type: "multiple" }]);
+  const [title, setTitle] = useState("");
+  const [passingPercent, setPassingPercent] = useState(70);
+  const [loading, setLoading] = useState(false);
 
-  const upd = (i: number, p: Partial<Question>) =>
-    setQs(qs.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  useEffect(() => {
+    if (!classId) {
+      setTitle("");
+      setQs([{ q: "", o: [], a: 0, type: "multiple" }]);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+    void apiGet<{ assessment: { title: string; passingPercent: number; questions: Question[] } | null }>(
+      `/classes/${classId}/assessment`,
+    ).then(({ assessment }) => {
+      if (!active) return;
+      setTitle(assessment?.title || "");
+      setPassingPercent(assessment?.passingPercent ?? 70);
+      setQs(assessment?.questions?.length
+        ? assessment.questions.map((question) => ({ ...question, a: question.a ?? 0 }))
+        : [{ q: "", o: [], a: 0, type: "multiple" }]);
+    }).catch((error) => {
+      console.error("Could not load class assessment:", error);
+      if (active) alert("Could not load the current assessment for this class.");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [classId]);
+
+  const upd = (i: number, p: Partial<Question>) => {
+    setQs((current) => current.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  };
 
   const publishAssessment = async () => {
     if (!classId) return alert("Choose an assigned class before publishing an assessment.");
-    if (qs.some((question) => !question.q.trim() || (question.type === "identification" && !question.answer?.trim()))) {
+    if (!title.trim() || qs.some((question) => !question.q.trim() || (question.type === "identification" && !question.answer?.trim()))) {
       return alert("Complete every question and correct answer before publishing.");
     }
     try {
-      await apiPut(`/classes/${classId}/assessment`, {
-        title: "Note Reading Quiz 5",
+      const { assessment } = await apiPut<{ assessment: { title: string; passingPercent: number; questions: Question[] } }>(`/classes/${classId}/assessment`, {
+        title: title.trim(),
         questions: qs,
-        passingPercent: 70,
+        passingPercent,
       });
+      setTitle(assessment.title);
+      setPassingPercent(assessment.passingPercent);
+      setQs(assessment.questions.map((question) => ({ ...question, a: question.a ?? 0 })));
       alert("Assessment published to the class.");
     } catch (error) {
       console.error("Could not publish class assessment:", error);
@@ -51,16 +81,25 @@ export function Quiz({ className, classId }: QuizProps) {
     <>
       <Title
         kicker="Assessment builder"
-        title="Note Reading Quiz 5"
+        title={title || "Assessment Builder"}
         sub={className ? `Creating an assessment for ${className}.` : "Choose an assigned class before creating an assessment."}
         right={
           <div className="flex gap-2">
             <Pill>Auto-graded</Pill>
-            <Pill tone="p2">Passing 70%</Pill>
+            <Pill tone="p2">Passing {passingPercent}%</Pill>
           </div>
         }
       />
       <div className="grid max-w-3xl gap-4">
+        {loading && <p className="text-sm text-mute">Loading saved assessment…</p>}
+        <Card className="grid gap-3">
+          <Label>Assessment details</Label>
+          <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Assessment title" maxLength={255} />
+          <label className="grid gap-1 text-sm font-semibold">
+            Passing score: {passingPercent}%
+            <input type="range" min={0} max={100} value={passingPercent} onChange={(event) => setPassingPercent(Number(event.target.value))} />
+          </label>
+        </Card>
         {qs.map((x, i) => (
           <Card key={i}>
             <div className="flex justify-between items-center mb-2">
@@ -115,7 +154,7 @@ export function Quiz({ className, classId }: QuizProps) {
                 ))}
                 {x.type === "multiple" && (
                   <button
-                    onClick={() => upd(i, { o: [...x.o, "New option"] })}
+                    onClick={() => upd(i, { o: [...x.o, ""] })}
                     className="mt-2 text-sm font-semibold text-p1 text-left"
                   >
                     + Option
@@ -129,9 +168,9 @@ export function Quiz({ className, classId }: QuizProps) {
           <Btn
             variant="soft"
             onClick={() =>
-              setQs([
-                ...qs,
-                { q: "New question", o: ["A", "B"], a: 0, type: "multiple" },
+              setQs((current) => [
+                ...current,
+                { q: "", o: [], a: 0, type: "multiple" },
               ])
             }
           >

@@ -7,7 +7,7 @@ import church from "../assets/church.jpg";
 import { apiPost, setApiToken } from "../api";
 import { Btn, Input, Label } from "../ui";
 import { Field } from "./Field";
-import { NAV, type Role } from "./AppTypes";
+import { DASHBOARD_VIEW, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 
 export function Login() {
@@ -24,15 +24,25 @@ export function Login() {
   const [reqPhone, setReqPhone] = useState("");
   const [nameInputWarning, setNameInputWarning] = useState("");
   const [phoneInputWarning, setPhoneInputWarning] = useState("");
-  const [nameWarningPosition, setNameWarningPosition] = useState<{ left: number; top: number; width: number } | null>(null);
-  const [phoneWarningPosition, setPhoneWarningPosition] = useState<{ left: number; top: number; width: number } | null>(null);
+  const [nameWarningPosition, setNameWarningPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
+  const [phoneWarningPosition, setPhoneWarningPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const [reqMessenger, setReqMessenger] = useState("");
   const [showReqPass, setShowReqPass] = useState(false);
   const [showReqConfirm, setShowReqConfirm] = useState(false);
   const [signupError, setSignupError] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
+  const [darkMode, setDarkMode] = useState(
+    () => localStorage.getItem("darkMode") === "true",
+  );
 
   const maxBirthday = "2021-12-31";
   const minBirthday = "1920-01-01";
@@ -49,7 +59,12 @@ export function Login() {
     try {
       const { token, user: data } = await apiPost<{
         token: string;
-        user: { id: string; name: string; birthYear: number | null; role: Role };
+        user: {
+          id: string;
+          name: string;
+          birthYear: number | null;
+          role: Role;
+        };
       }>("/auth/login", { email, password });
 
       setApiToken(token);
@@ -57,7 +72,7 @@ export function Login() {
       localStorage.setItem("uid", data.id);
       localStorage.setItem("name", data.name || "User");
       localStorage.setItem("birthYear", String(data.birthYear || "2000"));
-      navigate(`/${data.role}/${NAV[data.role][0][0]}`);
+      navigate(`/${data.role}/${DASHBOARD_VIEW[data.role]}`);
     } catch (err: any) {
       alert("Error: " + err.message);
     } finally {
@@ -69,11 +84,19 @@ export function Login() {
     e.preventDefault();
     setSignupError("");
     if (!/^[\p{L}\p{M} .'-]+$/u.test(reqName.trim())) {
-      setSignupError("Enter a complete name using letters only (spaces, periods, apostrophes, and hyphens are allowed).");
+      setSignupError(
+        "Enter a complete name using letters only (spaces, periods, apostrophes, and hyphens are allowed).",
+      );
       return;
     }
-    if (!reqBirthday || reqBirthday < minBirthday || reqBirthday > maxBirthday) {
-      setSignupError("Enter a birthday between January 1920 and December 2021.");
+    if (
+      !reqBirthday ||
+      reqBirthday < minBirthday ||
+      reqBirthday > maxBirthday
+    ) {
+      setSignupError(
+        "Enter a birthday between January 1920 and December 2021.",
+      );
       return;
     }
     if (!/^\d{11}$/.test(reqPhone)) {
@@ -81,11 +104,15 @@ export function Login() {
       return;
     }
     if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,}$/.test(reqPass)) {
-      setSignupError("Password must be at least 8 characters and include a letter, a number, and a special character.");
+      setSignupError(
+        "Password must be at least 8 characters and include a letter, a number, and a special character.",
+      );
       return;
     }
     if (reqPass !== reqConfirm) {
-      setSignupError("Passwords do not match. Check both fields and try again.");
+      setSignupError(
+        "Passwords do not match. Check both fields and try again.",
+      );
       return;
     }
 
@@ -109,9 +136,13 @@ export function Login() {
   };
 
   const handleForgot = async () => {
-    if (!email) return alert("Please enter your email address in the field first.");
+    if (!email)
+      return alert("Please enter your email address in the field first.");
     try {
-      const response = await apiPost<{ message: string }>("/auth/forgot-password", { email });
+      const response = await apiPost<{ message: string }>(
+        "/auth/forgot-password",
+        { email },
+      );
       alert(response.message);
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -120,7 +151,12 @@ export function Login() {
 
   return (
     <div className="relative grid min-h-screen overflow-hidden bg-ink lg:grid-cols-[1.1fr_1fr]">
-      <img src={church} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover" />
+      <img
+        src={church}
+        alt=""
+        aria-hidden
+        className="absolute inset-0 h-full w-full object-cover"
+      />
       <div
         className="absolute inset-0"
         style={{
@@ -154,17 +190,25 @@ export function Login() {
       <div className="relative grid place-items-center p-6 h-screen overflow-y-auto">
         <div
           className={`relative my-auto w-full max-w-md rounded-3xl border border-line bg-white/95 p-8 text-ink shadow-2xl shadow-black/25 backdrop-blur [&_input]:font-medium [&_label>span]:font-bold [&_p]:font-medium ${
-            darkMode ? "[&_label>span]:text-slate-100" : "[&_label>span]:text-slate-800"
+            darkMode
+              ? "[&_label>span]:text-slate-100"
+              : "[&_label>span]:text-slate-800"
           }`}
         >
           <button
             type="button"
             onClick={() => setDarkMode((enabled) => !enabled)}
             className="absolute right-5 top-5 rounded-full border border-line p-2 text-mute transition hover:text-p1"
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              darkMode ? "Switch to light mode" : "Switch to dark mode"
+            }
             title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {darkMode ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
           </button>
           <img
             src={logo}
@@ -178,18 +222,24 @@ export function Login() {
           />
           <p className="mx-auto mb-4 max-w-xs text-center font-display text-sm italic leading-relaxed text-slate-600 lg:hidden">
             “He who sings, prays twice.”{" "}
-            <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">— St. Augustine</span>
+            <span className="mt-1 block whitespace-nowrap not-italic text-slate-500">
+              — St. Augustine
+            </span>
           </p>
           <div className="text-center">
             <div className="block">
               <Label>Ministry of Music in the Liturgy</Label>
             </div>
-            <h1 className="mt-1 font-display text-3xl font-semibold grad-text">MusikAralan</h1>
+            <h1 className="mt-1 font-display text-3xl font-semibold grad-text">
+              MusikAralan
+            </h1>
           </div>
 
           {mode === "login" ? (
-            <>
-              <p className="mt-1 text-center text-mute">For members and aspirants only.</p>
+            <form>
+              <p className="mt-1 text-center text-mute">
+                For members and aspirants only.
+              </p>
               <div className="mt-6 grid gap-3">
                 <Field label="Email Address">
                   <Input
@@ -214,7 +264,11 @@ export function Login() {
                       onClick={() => setShow(!show)}
                       className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
                     >
-                      {show ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      {show ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
                     </button>
                   </div>
                 </Field>
@@ -229,7 +283,7 @@ export function Login() {
                 </div>
 
                 <button
-                  type="button"
+                  type="submit"
                   onClick={handleLogin}
                   disabled={loading}
                   className="w-full rounded-full bg-[var(--p1)] py-3 text-base font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
@@ -247,27 +301,36 @@ export function Login() {
                   </button>
                 </p>
               </div>
-            </>
+            </form>
           ) : sent ? (
-            <div className="mt-6 text-center">
-              <CircleCheck className="mx-auto h-12 w-12 text-p1" strokeWidth={1.5} />
-              <p className="mt-3 font-display text-xl">Request submitted</p>
-              <p className="mt-1 text-sm text-mute">
-                An administrator will review your account. You'll be notified by email once approved.
-              </p>
-              <Btn
-                variant="ghost"
-                className="mt-5"
-                onClick={() => {
-                  setMode("login");
-                  setSent(false);
-                }}
-              >
-                Back to log in
-              </Btn>
-            </div>
+            <form>
+              <div className="mt-6 text-center">
+                <CircleCheck
+                  className="mx-auto h-12 w-12 text-p1"
+                  strokeWidth={1.5}
+                />
+                <p className="mt-3 font-display text-xl">Request submitted</p>
+                <p className="mt-1 text-sm text-mute">
+                  An administrator will review your account. You'll be notified
+                  by email once approved.
+                </p>
+                <Btn
+                  variant="ghost"
+                  className="mt-5"
+                  onClick={() => {
+                    setMode("login");
+                    setSent(false);
+                  }}
+                >
+                  Back to log in
+                </Btn>
+              </div>
+            </form>
           ) : (
-            <form className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2" onSubmit={handleSignup}>
+            <form
+              className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-2"
+              onSubmit={handleSignup}
+            >
               <p className="-mt-4 mb-1 text-center text-mute lg:col-span-2">
                 Request access as a member or aspirant.
               </p>
@@ -282,13 +345,23 @@ export function Login() {
                     }}
                     onChange={(e) => {
                       const value = e.target.value;
-                      const hasInvalidCharacters = /[^\p{L}\p{M} .'-]/u.test(value);
+                      const hasInvalidCharacters = /[^\p{L}\p{M} .'-]/u.test(
+                        value,
+                      );
                       const rect = e.currentTarget.getBoundingClientRect();
                       setNameInputWarning(
-                        hasInvalidCharacters ? "Letters and spaces only. Digits are not allowed." : ""
+                        hasInvalidCharacters
+                          ? "Letters and spaces only. Digits are not allowed."
+                          : "",
                       );
                       setNameWarningPosition(
-                        hasInvalidCharacters ? { left: rect.left, top: rect.top - 8, width: rect.width } : null
+                        hasInvalidCharacters
+                          ? {
+                              left: rect.left,
+                              top: rect.top - 8,
+                              width: rect.width,
+                            }
+                          : null,
                       );
                       setReqName(value.replace(/[^\p{L}\p{M} .'-]/gu, ""));
                     }}
@@ -340,10 +413,18 @@ export function Login() {
                       const hasInvalidCharacters = /\D/.test(value);
                       const rect = e.currentTarget.getBoundingClientRect();
                       setPhoneInputWarning(
-                        hasInvalidCharacters ? "Digits only. Letters are not allowed." : ""
+                        hasInvalidCharacters
+                          ? "Digits only. Letters are not allowed."
+                          : "",
                       );
                       setPhoneWarningPosition(
-                        hasInvalidCharacters ? { left: rect.left, top: rect.top - 8, width: rect.width } : null
+                        hasInvalidCharacters
+                          ? {
+                              left: rect.left,
+                              top: rect.top - 8,
+                              width: rect.width,
+                            }
+                          : null,
                       );
                       setReqPhone(value.replace(/\D/g, ""));
                     }}
@@ -379,7 +460,11 @@ export function Login() {
                     className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
                     aria-label={showReqPass ? "Hide password" : "Show password"}
                   >
-                    {showReqPass ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showReqPass ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </Field>
@@ -399,19 +484,31 @@ export function Login() {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setShowReqConfirm((visible) => !visible)}
                     className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
-                    aria-label={showReqConfirm ? "Hide confirmation password" : "Show confirmation password"}
+                    aria-label={
+                      showReqConfirm
+                        ? "Hide confirmation password"
+                        : "Show confirmation password"
+                    }
                   >
-                    {showReqConfirm ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showReqConfirm ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </Field>
               {signupError && (
-                <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 lg:col-span-2">
+                <p
+                  role="alert"
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 lg:col-span-2"
+                >
                   {signupError}
                 </p>
               )}
               <p className="flex items-center justify-center gap-2 rounded-xl bg-p2-soft px-3 py-2 text-xs text-p2 lg:col-span-2">
-                <ShieldCheck className="h-4 w-4 shrink-0" /> Accounts require Admin approval.
+                <ShieldCheck className="h-4 w-4 shrink-0" /> Accounts require
+                Admin approval.
               </p>
 
               <button
@@ -436,40 +533,44 @@ export function Login() {
           )}
         </div>
       </div>
-      {nameInputWarning && nameWarningPosition && createPortal(
-        <p
-          role="alert"
-          style={{
-            position: "fixed",
-            left: nameWarningPosition.left,
-            top: nameWarningPosition.top,
-            width: nameWarningPosition.width,
-            transform: "translateY(-100%)",
-            zIndex: 2147483647,
-          }}
-          className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
-        >
-          {nameInputWarning}
-        </p>,
-        document.body
-      )}
-      {phoneInputWarning && phoneWarningPosition && createPortal(
-        <p
-          role="alert"
-          style={{
-            position: "fixed",
-            left: phoneWarningPosition.left,
-            top: phoneWarningPosition.top,
-            width: phoneWarningPosition.width,
-            transform: "translateY(-100%)",
-            zIndex: 2147483647,
-          }}
-          className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
-        >
-          {phoneInputWarning}
-        </p>,
-        document.body
-      )}
+      {nameInputWarning &&
+        nameWarningPosition &&
+        createPortal(
+          <p
+            role="alert"
+            style={{
+              position: "fixed",
+              left: nameWarningPosition.left,
+              top: nameWarningPosition.top,
+              width: nameWarningPosition.width,
+              transform: "translateY(-100%)",
+              zIndex: 2147483647,
+            }}
+            className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
+          >
+            {nameInputWarning}
+          </p>,
+          document.body,
+        )}
+      {phoneInputWarning &&
+        phoneWarningPosition &&
+        createPortal(
+          <p
+            role="alert"
+            style={{
+              position: "fixed",
+              left: phoneWarningPosition.left,
+              top: phoneWarningPosition.top,
+              width: phoneWarningPosition.width,
+              transform: "translateY(-100%)",
+              zIndex: 2147483647,
+            }}
+            className="pointer-events-none rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-medium text-red-700 shadow-lg before:absolute before:-bottom-1 before:left-3 before:h-2 before:w-2 before:rotate-45 before:border-b before:border-r before:border-red-200 before:bg-red-50"
+          >
+            {phoneInputWarning}
+          </p>,
+          document.body,
+        )}
     </div>
   );
 }

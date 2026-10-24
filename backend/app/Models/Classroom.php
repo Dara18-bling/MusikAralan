@@ -57,4 +57,9 @@ class Classroom extends Model
     {
         return $this->hasMany(Module::class, 'class_id');
     }
+
+    public function scheduleEvents(): HasMany
+    {
+        return $this->hasMany(ScheduleEvent::class, 'class_id');
+    }
 }

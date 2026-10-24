@@ -4,7 +4,10 @@ use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\ClassController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\LearningController;
+use App\Http\Controllers\Api\QuizAttemptController;
+use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\Api\VoiceGroupController;
@@ -25,6 +28,10 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
         Route::patch('/me/phone', [AuthController::class, 'updatePhone']);
+        Route::get('/dashboard', [DashboardController::class, 'show']);
+        Route::get('/schedules', [ScheduleController::class, 'index']);
+        Route::post('/schedules', [ScheduleController::class, 'store']);
+        Route::get('/quiz-attempts', [QuizAttemptController::class, 'index']);
         Route::get('/notifications', [UserNotificationController::class, 'index']);
         Route::patch('/notifications/{notificationId}/read', [UserNotificationController::class, 'markRead']);
 

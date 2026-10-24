@@ -25,6 +25,8 @@ use Laravel\Sanctum\HasApiTokens;
     'messenger_link',
     'role',
     'status',
+    'approved_by',
+    'approved_at',
     'access_until',
     'date_requested',
 ])]
@@ -66,5 +68,10 @@ class User extends Authenticatable
     public function moduleProgress(): HasMany
     {
         return $this->hasMany(ModuleProgress::class);
+    }
+
+    public function scheduleEvents(): HasMany
+    {
+        return $this->hasMany(ScheduleEvent::class, 'created_by');
     }
 }

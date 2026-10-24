@@ -14,6 +14,13 @@ export default function Admin({ view }: { view: AdminView }) {
   const [loading, setLoading] = useState(false);
   const [newRequestNotice, setNewRequestNotice] = useState("");
   const [accountListenerError, setAccountListenerError] = useState("");
+  const [dashboardData, setDashboardData] = useState<{
+    users: number;
+    classes: number;
+    modules: number;
+    materials: number;
+    completedModules: number;
+  } | null>(null);
   const knownUserIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -63,6 +70,12 @@ export default function Admin({ view }: { view: AdminView }) {
     };
   }, []);
 
+  useEffect(() => watchApi<{ dashboard: { users: number; classes: number; modules: number; materials: number; completedModules: number } }>(
+    "/dashboard",
+    ({ dashboard }) => setDashboardData(dashboard),
+    (error) => console.error("Could not load admin dashboard metrics:", error),
+  ), []);
+
   const pendingCount = allUsers.filter((u) => u.status === "pending").length;
 
   const accountTeachers = [
@@ -78,6 +91,8 @@ export default function Admin({ view }: { view: AdminView }) {
     return (
       <AdminDashboard
         pendingCount={pendingCount}
+        dashboardData={dashboardData}
+        loading={loading}
         newRequestNotice={newRequestNotice}
         accountListenerError={accountListenerError}
       />

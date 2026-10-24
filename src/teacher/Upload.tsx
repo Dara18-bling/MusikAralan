@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Check,
-  Edit2,
   FileSpreadsheet,
   FileText,
   Image as ImageIcon,
@@ -13,7 +12,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { apiPost } from "../api";
+import { apiPost, watchApi } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import {
   parseAndConvertMediaUrl,
@@ -63,14 +62,7 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
   const [activeSpreadsheetSheet, setActiveSpreadsheetSheet] = useState("");
 
   const [publishing, setPublishing] = useState(false);
-  const [recent, setRecent] = useState([
-    {
-      id: 1,
-      title: "Ledger Lines Worksheet",
-      kind: "Module",
-      date: "Yesterday",
-    },
-  ]);
+  const [recent, setRecent] = useState<{ id: string; title: string; kind: string; createdAt: string | null }[]>([]);
 
   // Derived media preview using our parser utility
   const processedMedia = parseAndConvertMediaUrl(mediaUrlInput, kind);
@@ -78,6 +70,18 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
 
   const isExcelFile =
     kind === "Others" && /\.xlsx?$/i.test(selectedFile?.name || "");
+
+  useEffect(() => {
+    if (!classId) {
+      setRecent([]);
+      return;
+    }
+    return watchApi<{ data: { id: string; title: string; kind: string; createdAt: string | null }[] }>(
+      `/classes/${classId}/materials`,
+      ({ data }) => setRecent(data),
+      (error) => console.error("Could not load published class materials:", error),
+    );
+  }, [classId]);
 
   // Spreadsheet parser for local Excel preview
   useEffect(() => {
@@ -224,10 +228,6 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
         teacherName: resolvedTeacher,
       });
 
-      setRecent((current) => [
-        { id: Date.now(), title, kind, date: "Just now" },
-        ...current,
-      ]);
       setMediaUrlInput("");
       removeFile();
       alert("Material published successfully to class.");
@@ -240,14 +240,6 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
     } finally {
       setPublishing(false);
     }
-  };
-
-  const handleEdit = (id: number) => {
-    alert(
-      "Edit modal opening for item ID: " +
-        id +
-        ". You can re-upload or rename files here.",
-    );
   };
 
   return (
@@ -581,18 +573,13 @@ export function Upload({ className, classId, teacherName }: UploadProps) {
                     <div>
                       <p className="font-semibold text-sm">{m.title}</p>
                       <p className="text-xs text-mute">
-                        {m.kind} · {m.date}
+                        {m.kind} · {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "Date unavailable"}
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleEdit(m.id)}
-                    className="text-blue-500 hover:text-blue-700"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
                 </li>
               ))}
+              {!recent.length && <li className="py-4 text-sm text-mute">No materials have been published to this class yet.</li>}
             </ul>
           </Card>
         </div>

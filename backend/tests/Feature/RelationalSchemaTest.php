@@ -12,6 +12,7 @@ use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -175,6 +176,7 @@ class RelationalSchemaTest extends TestCase
     public function test_local_database_seeder_creates_demo_accounts_and_catalog_data(): void
     {
         $this->seed();
+        $this->seed();
 
         $this->assertDatabaseHas('users', [
             'email' => 'admin@musik.test',
@@ -191,6 +193,27 @@ class RelationalSchemaTest extends TestCase
         ]);
         $this->assertDatabaseHas('classes', ['name' => 'Basic Keyboard Lessons']);
         $this->assertDatabaseHas('chatbot_responses', ['legacy_key' => 'join-class']);
+        $this->assertDatabaseCount('voice_groups', 4);
+        $this->assertDatabaseCount('classes', 7);
+        $this->assertDatabaseCount('modules', 7);
+        $this->assertDatabaseCount('materials', 21);
+        $this->assertDatabaseCount('assessments', 7);
+        $this->assertDatabaseCount('assessment_questions', 28);
+        $this->assertDatabaseCount('schedule_events', 7);
+        $this->assertDatabaseCount('announcements', 3);
+        $this->assertDatabaseCount('settings', 1);
+        $this->assertGreaterThan(20, DB::table('enrollments')->count());
+        $this->assertGreaterThan(0, DB::table('module_progress')->count());
+        $this->assertGreaterThan(0, DB::table('assessment_attempt_answers')->count());
+        $this->assertGreaterThan(0, DB::table('material_completions')->count());
+        $this->assertGreaterThan(0, DB::table('practice_sessions')->count());
+        $this->assertDatabaseCount('notifications', 2);
+
+        $student = User::query()->where('email', 'student@musik.test')->firstOrFail();
+        $this->assertGreaterThan(0, $student->classes()->count());
+        $this->assertGreaterThan(0, $student->voiceGroups()->count());
+        $this->assertGreaterThan(0, $student->moduleProgress()->count());
+
         $this->postJson('/api/auth/login', [
             'email' => 'admin@musik.test',
             'password' => 'Password123!',

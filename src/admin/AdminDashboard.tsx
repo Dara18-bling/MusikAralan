@@ -2,12 +2,16 @@ import { Card, Label, Title } from "../ui";
 
 interface AdminDashboardProps {
   pendingCount: number;
+  dashboardData: { users: number; classes: number; modules: number; materials: number; completedModules: number } | null;
+  loading: boolean;
   newRequestNotice: string;
   accountListenerError: string;
 }
 
 export function AdminDashboard({
   pendingCount,
+  dashboardData,
+  loading,
   newRequestNotice,
   accountListenerError,
 }: AdminDashboardProps) {
@@ -34,18 +38,30 @@ export function AdminDashboard({
           Live access requests unavailable: {accountListenerError}
         </div>
       )}
-      <div className="mt-5 grid grid-cols-3 gap-5">
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <Label>Pending Approvals</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{pendingCount}</p>
+          <p className="mt-2 font-display text-4xl grad-text">{loading ? "—" : pendingCount}</p>
         </Card>
         <Card>
-          <Label>Total Modules Uploaded</Label>
-          <p className="mt-2 font-display text-4xl grad-text">5</p>
+          <Label>Total Accounts</Label>
+          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.users ?? "—"}</p>
         </Card>
         <Card>
-          <Label>Certificates Issued</Label>
-          <p className="mt-2 font-display text-4xl grad-text">8</p>
+          <Label>Active Classes</Label>
+          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.classes ?? "—"}</p>
+        </Card>
+        <Card>
+          <Label>Learning Modules</Label>
+          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.modules ?? "—"}</p>
+        </Card>
+        <Card>
+          <Label>Learning Materials</Label>
+          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.materials ?? "—"}</p>
+        </Card>
+        <Card>
+          <Label>Completed Modules</Label>
+          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.completedModules ?? "—"}</p>
         </Card>
       </div>
     </>
