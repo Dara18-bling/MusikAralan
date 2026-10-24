@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Music } from "lucide-react";
 import { jsPDF } from "jspdf";
+import { toast } from "react-toastify";
 import { apiPost, watchApi } from "../api";
 import { Card, Label, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
@@ -79,7 +80,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
     } catch (error) {
       console.error("Could not enroll in class:", error);
       const details = error as { message?: string };
-      alert(`Could not enroll in this class: ${details.message || "Please check your connection and try again."}`);
+      toast.error(`Could not enroll in this class: ${details.message || "Please check your connection and try again."}`);
     }
   };
 
@@ -105,7 +106,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
       }));
     } catch (error) {
       console.error("Could not save material progress:", error);
-      alert("Could not save your progress. Please try again.");
+      toast.error("Could not save your progress. Please try again.");
     }
   };
 
@@ -113,7 +114,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
     if (!openClass || !classAssessment || !userId) return;
     const questions = Array.isArray(classAssessment.questions) ? classAssessment.questions : [];
     if (questions.some((question: any, index: number) => assessmentAnswers[index] === undefined || assessmentAnswers[index] === "")) {
-      alert("Answer every question before submitting.");
+      toast.warning("Answer every question before submitting.");
       return;
     }
     try {
@@ -129,12 +130,12 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
           assessmentPassed: attempt.passed,
         },
       }));
-      alert(attempt.passed
+      (attempt.passed ? toast.success : toast.warning)(attempt.passed
         ? `Assessment passed: ${attempt.score}%.`
         : `Assessment score: ${attempt.score}%. Review the materials and try again.`);
     } catch (error) {
       console.error("Could not save assessment result:", error);
-      alert("Could not save your assessment result. Please try again.");
+      toast.error("Could not save your assessment result. Please try again.");
     }
   };
 

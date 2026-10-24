@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { apiPost, watchApi } from "../../api";
 import { Title } from "../../ui";
 import {
@@ -98,18 +99,18 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
 
   const handlePublish = async () => {
     if (!title.trim() || !description.trim()) {
-      alert("Enter a title and description before publishing.");
+      toast.warning("Enter a title and description before publishing.");
       return;
     }
     if (!classId) {
-      alert("Choose an assigned class before publishing materials.");
+      toast.warning("Choose an assigned class before publishing materials.");
       return;
     }
 
     const finalMediaUrl = ensureAbsoluteUrl(mediaUrlInput) || fileDataUrl;
     const finalStreamUrl = fileDataUrl || processedMedia.streamUrl;
     if (!finalMediaUrl && !finalStreamUrl) {
-      alert(
+      toast.warning(
         "Please provide a media link (Google Drive, YouTube, Docs) or select a file before publishing.",
       );
       return;
@@ -127,11 +128,11 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
       });
       setMediaUrlInput("");
       removeFile();
-      alert("Material published successfully to class.");
+      toast.success("Material published successfully to class.");
     } catch (error) {
       console.error("Could not publish class material:", error);
       const problem = error as { code?: string; message?: string };
-      alert(
+      toast.error(
         `Could not publish material: ${problem.message || "Please check your connection and try again."}`,
       );
     } finally {

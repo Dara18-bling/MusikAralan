@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ChatbotResponse } from "../chatbotResponses";
@@ -21,7 +22,7 @@ export function AdminChatbot() {
       setChatbotReplies(saved.filter((item) => !item.deleted));
     } catch (err) {
       console.error(err);
-      alert("Could not load chatbot responses.");
+      toast.error("Could not load chatbot responses.");
     }
     setChatbotLoading(false);
   };
@@ -41,7 +42,10 @@ export function AdminChatbot() {
   };
 
   const saveChatbotReply = async (reply: ChatbotResponse) => {
-    if (!reply.response.trim()) return alert("Please enter a response.");
+    if (!reply.response.trim()) {
+      toast.warning("Please enter a response.");
+      return;
+    }
     setChatbotSaving(reply.id);
     try {
       const data = { keywords: reply.keywords.trim(), response: reply.response.trim() };
@@ -59,10 +63,10 @@ export function AdminChatbot() {
         await apiPut(`/chatbot-responses/${encodeURIComponent(reply.id)}`, { ...data, deleted: false });
       }
       setEditingReplyId(null);
-      alert("Chatbot response saved.");
+      toast.success("Chatbot response saved.");
     } catch (err) {
       console.error(err);
-      alert("Could not save chatbot response.");
+      toast.error("Could not save chatbot response.");
     }
     setChatbotSaving(null);
   };
@@ -84,7 +88,7 @@ export function AdminChatbot() {
       setShowAddReply(false);
     } catch (err) {
       console.error(err);
-      alert("Could not add chatbot response.");
+      toast.error("Could not add chatbot response.");
     }
     setCreatingReply(false);
   };
@@ -107,7 +111,7 @@ export function AdminChatbot() {
       if (editingReplyId === reply.id) setEditingReplyId(null);
     } catch (err) {
       console.error(err);
-      alert("Could not delete chatbot response.");
+      toast.error("Could not delete chatbot response.");
     }
   };
 

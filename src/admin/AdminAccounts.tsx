@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "react-toastify";
 import { apiGet, apiPatch } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
@@ -61,7 +62,7 @@ export function AdminAccounts({
       !accessDates[uid]
     ) {
       setTeacherDateUserId(uid);
-      alert("Set an access end date before approving a teacher account.");
+      toast.warning("Set an access end date before approving a teacher account.");
       return;
     }
     try {
@@ -76,11 +77,11 @@ export function AdminAccounts({
       setAllUsers((prev) =>
         prev.map((u) => (u.id === uid ? { ...u, ...updateData } : u))
       );
-      alert(`Account ${newStatus} successfully!`);
+      toast.success(`Account ${newStatus} successfully!`);
     } catch (err) {
       console.error("Could not update account approval:", err);
       const error = err as { code?: string; message?: string };
-      alert(
+      toast.error(
         `Could not update account${error.code ? ` (${error.code})` : ""}: ${
           error.message || "Check your API connection and try again."
         }`

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { CircleCheck } from "lucide-react";
 import { apiGet, apiPatch, apiPut } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
@@ -55,7 +56,10 @@ export function ProfileView({
   }, [name]);
 
   const saveProfile = async () => {
-    if (!fullName.trim()) return alert("Please enter your full name.");
+    if (!fullName.trim()) {
+      toast.warning("Please enter your full name.");
+      return;
+    }
     setProfileSaving(true);
     try {
       await apiPatch("/me", { name: fullName.trim() });
@@ -66,10 +70,10 @@ export function ProfileView({
         setPhoneVerified(Boolean(updated.phoneVerified));
       }
       localStorage.setItem("name", fullName.trim());
-      alert("Profile information saved.");
+      toast.success("Profile information saved.");
     } catch (error) {
       console.error(error);
-      alert("Could not save profile information.");
+      toast.error("Could not save profile information.");
     }
     setProfileSaving(false);
   };
@@ -83,11 +87,11 @@ export function ProfileView({
         secondaryColor: selectedPalette.secondary,
         paletteName: selectedPalette.name,
       });
-      alert("System interface color saved for all users.");
+      toast.success("System interface color saved for all users.");
     } catch (error) {
       console.error("Could not save system appearance:", error);
       const details = error as { code?: string; message?: string };
-      alert(`Could not save the system color${details.code ? ` (${details.code})` : ""}: ${details.message || "Check the API and database connection."}`);
+      toast.error(`Could not save the system color${details.code ? ` (${details.code})` : ""}: ${details.message || "Check the API and database connection."}`);
     }
     setColorSaving(false);
   };

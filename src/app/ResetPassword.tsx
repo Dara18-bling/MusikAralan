@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "react-toastify";
 import { apiPost } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
 import { Field } from "./Field";
@@ -21,10 +22,10 @@ export function ResetPassword() {
         password,
         password_confirmation: confirmation,
       });
-      alert(message);
+      toast.success(message);
       navigate("/login", { replace: true });
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Could not reset the password.");
+      toast.error(error instanceof Error ? error.message : "Could not reset the password.");
     } finally {
       setLoading(false);
     }

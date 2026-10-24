@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { apiDelete, apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Label, Title } from "../ui";
 
@@ -28,7 +29,7 @@ export function AdminNews() {
 
   const handleSaveAnnouncement = async () => {
     if (!newsTitle.trim() || !newsContent.trim())
-      return alert("Please fill all fields");
+      return toast.warning("Please fill all fields");
     try {
       const newsData = {
         title: newsTitle,
@@ -37,10 +38,10 @@ export function AdminNews() {
       };
       if (editingId) {
         await apiPut(`/announcements/${editingId}`, newsData);
-        alert("Announcement updated!");
+        toast.success("Announcement updated!");
       } else {
         await apiPost("/announcements", newsData);
-        alert("Announcement posted!");
+        toast.success("Announcement posted!");
       }
       setNewsTitle("");
       setNewsContent("");
@@ -48,7 +49,7 @@ export function AdminNews() {
       setIsPreview(false);
       void fetchNews();
     } catch (err) {
-      alert("Error saving announcement.");
+      toast.error("Error saving announcement.");
     }
   };
 
@@ -58,9 +59,9 @@ export function AdminNews() {
     try {
       await apiDelete(`/announcements/${id}`);
       setAnnouncements(announcements.filter((a) => a.id !== id));
-      alert("Announcement deleted!");
+      toast.success("Announcement deleted!");
     } catch (err) {
-      alert("Error deleting announcement.");
+      toast.error("Error deleting announcement.");
     }
   };
 

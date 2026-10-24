@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { apiGet, apiPost, apiPut } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
@@ -67,10 +68,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
         )
       );
       setEditingClass(null);
-      alert(`${item.name} saved.`);
+      toast.success(`${item.name} saved.`);
     } catch (error) {
       console.error(error);
-      alert("Could not save this class.");
+      toast.error("Could not save this class.");
     } finally {
       setSavingClassId(null);
     }
@@ -93,7 +94,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       if (editingClass?.id === item.id) setEditingClass(null);
     } catch (error) {
       console.error(error);
-      alert("Could not delete this class.");
+      toast.error("Could not delete this class.");
     }
   };
 
@@ -107,7 +108,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       );
     } catch (error) {
       console.error(error);
-      alert("Could not restore this class.");
+      toast.error("Could not restore this class.");
     }
   };
 
@@ -137,7 +138,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       setShowCreateClass(false);
     } catch (error) {
       console.error(error);
-      alert("Could not create the class.");
+      toast.error("Could not create the class.");
     }
   };
 

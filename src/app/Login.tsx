@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { CircleCheck, Eye, EyeOff, Moon, ShieldCheck, Sun } from "lucide-react";
 import logo from "../assets/logo.png";
 import church from "../assets/church.jpg";
@@ -54,7 +55,10 @@ export function Login() {
   }, [darkMode]);
 
   const handleLogin = async () => {
-    if (!email || !password) return alert("Please enter email and password.");
+    if (!email || !password) {
+      toast.warning("Please enter email and password.");
+      return;
+    }
     setLoading(true);
     try {
       const { token, user: data } = await apiPost<{
@@ -74,7 +78,7 @@ export function Login() {
       localStorage.setItem("birthYear", String(data.birthYear || "2000"));
       navigate(`/${data.role}/${DASHBOARD_VIEW[data.role]}`);
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -129,23 +133,25 @@ export function Login() {
       });
       setSent(true);
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleForgot = async () => {
-    if (!email)
-      return alert("Please enter your email address in the field first.");
+    if (!email) {
+      toast.warning("Please enter your email address in the field first.");
+      return;
+    }
     try {
       const response = await apiPost<{ message: string }>(
         "/auth/forgot-password",
         { email },
       );
-      alert(response.message);
+      toast.info(response.message);
     } catch (err: any) {
-      alert("Error: " + err.message);
+      toast.error("Error: " + err.message);
     }
   };
 

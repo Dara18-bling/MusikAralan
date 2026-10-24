@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
 import { apiGet, apiPut } from "../api";
 import { Btn, Card, Input, Label, Pill, Title } from "../ui";
 
@@ -41,7 +42,7 @@ export function Quiz({ className, classId }: QuizProps) {
         : [{ q: "", o: [], a: 0, type: "multiple" }]);
     }).catch((error) => {
       console.error("Could not load class assessment:", error);
-      if (active) alert("Could not load the current assessment for this class.");
+      if (active) toast.error("Could not load the current assessment for this class.");
     }).finally(() => {
       if (active) setLoading(false);
     });
@@ -56,9 +57,12 @@ export function Quiz({ className, classId }: QuizProps) {
   };
 
   const publishAssessment = async () => {
-    if (!classId) return alert("Choose an assigned class before publishing an assessment.");
+    if (!classId) {
+      toast.warning("Choose an assigned class before publishing an assessment.");
+      return;
+    }
     if (!title.trim() || qs.some((question) => !question.q.trim() || (question.type === "identification" && !question.answer?.trim()))) {
-      return alert("Complete every question and correct answer before publishing.");
+      return toast.warning("Complete every question and correct answer before publishing.");
     }
     try {
       const { assessment } = await apiPut<{ assessment: { title: string; passingPercent: number; questions: Question[] } }>(`/classes/${classId}/assessment`, {
@@ -69,11 +73,11 @@ export function Quiz({ className, classId }: QuizProps) {
       setTitle(assessment.title);
       setPassingPercent(assessment.passingPercent);
       setQs(assessment.questions.map((question) => ({ ...question, a: question.a ?? 0 })));
-      alert("Assessment published to the class.");
+      toast.success("Assessment published to the class.");
     } catch (error) {
       console.error("Could not publish class assessment:", error);
       const problem = error as { message?: string };
-      alert(`Could not publish assessment: ${problem.message || "Please check your connection and try again."}`);
+      toast.error(`Could not publish assessment: ${problem.message || "Please check your connection and try again."}`);
     }
   };
 
