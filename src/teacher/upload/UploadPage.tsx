@@ -9,6 +9,7 @@ import { RecentMaterials } from "./RecentMaterials";
 import { StudentPreview } from "./StudentPreview";
 import type { RecentMaterial, UploadKind, UploadProps } from "./types";
 import { UploadForm } from "./UploadForm";
+import { getUploadKindFromResource, isSpreadsheetFile } from "./uploadUtils";
 
 export function UploadPage({ className, classId, teacherName }: UploadProps) {
   const [kind, setKind] = useState<UploadKind>("Module");
@@ -18,9 +19,7 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
   const [descriptionsByKind, setDescriptionsByKind] = useState<
     Record<string, string>
   >({});
-  const [mediaUrlsByKind, setMediaUrlsByKind] = useState<
-    Record<string, string>
-  >({});
+  const [mediaUrlInput, setMediaUrlInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDataUrl, setFileDataUrl] = useState("");
   const [fileError, setFileError] = useState("");
@@ -29,11 +28,11 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
 
   const title = titlesByKind[kind] || "";
   const description = descriptionsByKind[kind] || "";
-  const mediaUrlInput = mediaUrlsByKind[kind] || "";
   const processedMedia = parseAndConvertMediaUrl(mediaUrlInput, kind);
   const activeStreamUrl = fileDataUrl || processedMedia.streamUrl;
   const isExcelFile =
-    kind === "Others" && /\.xlsx?$/i.test(selectedFile?.name || "");
+    kind === "Others" &&
+    Boolean(selectedFile && isSpreadsheetFile(selectedFile.name));
 
   useEffect(() => {
     if (!classId) {
@@ -55,7 +54,7 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
 
     if (file.size > 800 * 1024) {
       setFileError(
-        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link below.`,
+        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link above.`,
       );
       setSelectedFile(null);
       setFileDataUrl("");
@@ -63,6 +62,9 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
     }
 
     setSelectedFile(file);
+    setKind(getUploadKindFromResource(file.name));
+    setMediaUrlInput("");
+    setFileDataUrl("");
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") setFileDataUrl(reader.result);
@@ -80,6 +82,20 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
     setFileError("");
   };
 
+  const handleMediaUrlInput = (value: string) => {
+    if (!value.trim()) {
+      setMediaUrlInput("");
+      return;
+    }
+
+    const detectedKind = getUploadKindFromResource(value);
+    setKind(detectedKind);
+    setMediaUrlInput(value);
+    setSelectedFile(null);
+    setFileDataUrl("");
+    setFileError("");
+  };
+
   const handlePublish = async () => {
     if (!title.trim() || !description.trim()) {
       alert("Enter a title and description before publishing.");
@@ -90,8 +106,7 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
       return;
     }
 
-    const finalMediaUrl =
-      ensureAbsoluteUrl(mediaUrlInput) || fileDataUrl;
+    const finalMediaUrl = ensureAbsoluteUrl(mediaUrlInput) || fileDataUrl;
     const finalStreamUrl = fileDataUrl || processedMedia.streamUrl;
     if (!finalMediaUrl && !finalStreamUrl) {
       alert(
@@ -110,7 +125,7 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
         streamUrl: finalStreamUrl,
         teacherName: teacherName || localStorage.getItem("name") || "Teacher",
       });
-      setMediaUrlsByKind((current) => ({ ...current, [kind]: "" }));
+      setMediaUrlInput("");
       removeFile();
       alert("Material published successfully to class.");
     } catch (error) {
@@ -148,9 +163,7 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
             setDescriptionsByKind((current) => ({ ...current, [kind]: value }))
           }
           mediaUrlInput={mediaUrlInput}
-          setMediaUrlInput={(value) =>
-            setMediaUrlsByKind((current) => ({ ...current, [kind]: value }))
-          }
+          onMediaUrlInput={handleMediaUrlInput}
           selectedFile={selectedFile}
           fileError={fileError}
           processedMedia={processedMedia}
@@ -158,7 +171,6 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
           onFileChange={handleFileChange}
           onRemoveFile={removeFile}
           onPublish={handlePublish}
-          onKindChange={() => setFileError("")}
         />
         <div className="grid content-start gap-5">
           <StudentPreview

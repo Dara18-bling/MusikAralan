@@ -1,5 +1,6 @@
 import {
   Check,
+  X,
   Link as LinkIcon,
   Trash2,
   UploadCloud,
@@ -16,7 +17,7 @@ interface UploadFormProps {
   description: string;
   setDescription: (value: string) => void;
   mediaUrlInput: string;
-  setMediaUrlInput: (value: string) => void;
+  onMediaUrlInput: (value: string) => void;
   selectedFile: File | null;
   fileError: string;
   processedMedia: ProcessedMedia;
@@ -24,7 +25,6 @@ interface UploadFormProps {
   onFileChange: (files: FileList | null) => void;
   onRemoveFile: () => void;
   onPublish: () => void;
-  onKindChange: () => void;
 }
 
 export function UploadForm({
@@ -35,7 +35,7 @@ export function UploadForm({
   description,
   setDescription,
   mediaUrlInput,
-  setMediaUrlInput,
+  onMediaUrlInput,
   selectedFile,
   fileError,
   processedMedia,
@@ -43,8 +43,9 @@ export function UploadForm({
   onFileChange,
   onRemoveFile,
   onPublish,
-  onKindChange,
 }: UploadFormProps) {
+  const hasAttachedResource = Boolean(selectedFile || mediaUrlInput.trim());
+
   return (
     <Card>
       <div className="flex flex-wrap gap-2">
@@ -52,14 +53,18 @@ export function UploadForm({
           <button
             key={uploadKind}
             type="button"
-            onClick={() => {
-              setKind(uploadKind);
-              onKindChange();
-            }}
+            onClick={() => setKind(uploadKind)}
+            disabled={hasAttachedResource && uploadKind !== kind}
+            aria-pressed={kind === uploadKind}
+            title={
+              hasAttachedResource && uploadKind !== kind
+                ? "Remove the attached file or link before changing its category."
+                : undefined
+            }
             className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
               kind === uploadKind
                 ? "grad text-white"
-                : "bg-p1-soft text-p1 hover:bg-p1-soft/70"
+                : "bg-p1-soft text-p1 hover:bg-p1-soft/70 disabled:cursor-not-allowed disabled:opacity-50"
             }`}
           >
             {uploadKind}
@@ -100,10 +105,20 @@ export function UploadForm({
             <Input
               type="url"
               value={mediaUrlInput}
-              onChange={(event) => setMediaUrlInput(event.target.value)}
+              onChange={(event) => onMediaUrlInput(event.target.value)}
               placeholder={getLinkPlaceholder(kind)}
               className="bg-white"
             />
+            {mediaUrlInput && (
+              <button
+                type="button"
+                onClick={() => onMediaUrlInput("")}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-p1"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+                Remove link
+              </button>
+            )}
           </div>
           {processedMedia.provider !== "direct" && mediaUrlInput && (
             <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-emerald-700">
