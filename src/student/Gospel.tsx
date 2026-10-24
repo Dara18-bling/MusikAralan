@@ -1,21 +1,28 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, BookOpen } from "lucide-react";
-import { Card, Label } from "../ui";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen } from "lucide-react";
+import { watchApi } from "../api";
 
-const VERSE_VERSION = "en-kjv";
-const VERSES = [
-  { book: "john", bookName: "John", chapter: 3, verse: 16 },
-  { book: "psalms", bookName: "Psalms", chapter: 23, verse: 1 },
-  { book: "proverbs", bookName: "Proverbs", chapter: 3, verse: 5 },
-  { book: "philippians", bookName: "Philippians", chapter: 4, verse: 13 },
-  { book: "romans", bookName: "Romans", chapter: 8, verse: 28 },
-  { book: "matthew", bookName: "Matthew", chapter: 5, verse: 16 },
-] as const;
+const BIBLE_VERSION = "en-kjv";
 
-function getDailyVerseIndex() {
-  const now = new Date();
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.floor(today / 86_400_000) % VERSES.length;
+interface GospelVerseReference {
+  id: number;
+  book: string;
+  chapter: number;
+  verse: number;
+}
+
+function getUtcDayNumber(date: Date) {
+  return Math.floor(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) /
+      86_400_000,
+  );
+}
+
+function displayBookName(book: string) {
+  return book
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function getVerseText(payload: unknown): string {
@@ -28,19 +35,53 @@ function getVerseText(payload: unknown): string {
 }
 
 export function Gospel() {
-  const [verseIndex, setVerseIndex] = useState(getDailyVerseIndex);
+  const [references, setReferences] = useState<GospelVerseReference[]>([]);
+  const [today, setToday] = useState(() => new Date());
   const [verseText, setVerseText] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const verse = VERSES[verseIndex];
+
+  useEffect(
+    () =>
+      watchApi<{ data: GospelVerseReference[] }>(
+        "/gospel-verses",
+        ({ data }) => {
+          setReferences(data);
+          setError("");
+        },
+        (requestError) => {
+          console.error(
+            "Could not load Gospel verse references:",
+            requestError,
+          );
+          setError("The verse rotation is unavailable.");
+          setLoading(false);
+        },
+      ),
+    [],
+  );
 
   useEffect(() => {
+    const timer = window.setInterval(() => setToday(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const verse = useMemo(() => {
+    if (references.length === 0) return null;
+    return references[getUtcDayNumber(today) % references.length];
+  }, [references, today]);
+
+  useEffect(() => {
+    if (!verse) {
+      if (references.length === 0) setLoading(true);
+      return;
+    }
     const controller = new AbortController();
     setLoading(true);
     setError("");
     setVerseText("");
 
-    const url = `https://cdn.jsdelivr.net/gh/wldeh/bible-api/bibles/${VERSE_VERSION}/books/${verse.book}/chapters/${verse.chapter}/verses/${verse.verse}.json`;
+    const url = `https://cdn.jsdelivr.net/gh/wldeh/bible-api/bibles/${BIBLE_VERSION}/books/${verse.book}/chapters/${verse.chapter}/verses/${verse.verse}.json`;
     void fetch(url, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) {
@@ -54,58 +95,34 @@ export function Gospel() {
       .catch((requestError: unknown) => {
         if (controller.signal.aborted) return;
         console.error("Could not load Bible verse:", requestError);
-        setError(
-          "The verse could not be loaded right now. Please try another verse.",
-        );
+        setError("Verse text could not be loaded right now.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
-
     return () => controller.abort();
-  }, [verse]);
-
-  const moveVerse = (direction: number) => {
-    setVerseIndex(
-      (current) => (current + direction + VERSES.length) % VERSES.length,
-    );
-  };
+  }, [verse?.book, verse?.chapter, verse?.verse, references.length]);
 
   return (
-    <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <Label>Gospel</Label>
-          <h2 className="mt-2 font-display text-2xl">A verse for today</h2>
-        </div>
-        <BookOpen className="h-7 w-7 shrink-0 text-p1" aria-hidden="true" />
+    <section className="mt-5 rounded-2xl border border-line bg-p1-soft/60 p-4">
+      <div className="flex items-center gap-2 text-p1">
+        <BookOpen className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <h2 className="font-display text-lg">Gospel of the day</h2>
       </div>
-      <p className="mt-4 min-h-12 text-base leading-relaxed" aria-live="polite">
-        {loading ? "Loading verse…" : error || `“${verseText}”`}
+      <p className="mt-3 text-sm leading-relaxed" aria-live="polite">
+        {loading
+          ? "Loading today's verse…"
+          : error ||
+            (verseText
+              ? `“${verseText}”`
+              : "No verses have been added to the rotation yet.")}
       </p>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-p1">
-          {verse.bookName} {verse.chapter}:{verse.verse} · {VERSE_VERSION}
+      {verse && (
+        <p className="mt-3 text-xs font-semibold text-p1">
+          {displayBookName(verse.book)} {verse.chapter}:{verse.verse} ·{" "}
+          {BIBLE_VERSION.toUpperCase()}
         </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => moveVerse(-1)}
-            aria-label="Previous Bible verse"
-            className="rounded-full border border-line p-2 text-p1 transition hover:bg-p1-soft"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={() => moveVerse(1)}
-            aria-label="Next Bible verse"
-            className="rounded-full border border-line p-2 text-p1 transition hover:bg-p1-soft"
-          >
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-    </Card>
+      )}
+    </section>
   );
 }

@@ -3,7 +3,6 @@ import { BookOpen, CalendarDays, Music, Trophy } from "lucide-react";
 import { Card, Label, Title } from "../ui";
 import { watchApi } from "../api";
 import type { StudentView } from "./studentTypes";
-import { Gospel } from "./Gospel";
 
 interface StudentDashboard {
   classes: number;
@@ -137,7 +136,6 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
               <p className="mt-3 text-sm text-mute">No upcoming sessions.</p>
             )}
           </Card>
-          <Gospel />
         </div>
         <Card className="h-fit">
           <Label>Learning progress</Label>

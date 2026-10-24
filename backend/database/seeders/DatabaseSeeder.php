@@ -285,6 +285,20 @@ class DatabaseSeeder extends Seeder
             ],
         );
 
+        foreach ([
+            ['john', 3, 16],
+            ['psalms', 23, 1],
+            ['proverbs', 3, 5],
+            ['philippians', 4, 13],
+            ['romans', 8, 28],
+            ['matthew', 5, 16],
+        ] as [$book, $chapter, $verse]) {
+            DB::table('gospel_verses')->updateOrInsert(
+                ['book' => $book, 'chapter' => $chapter, 'verse' => $verse],
+                ['created_at' => now(), 'updated_at' => now()],
+            );
+        }
+
         $welcomeAnnouncementId = DB::table('announcements')->where('legacy_id', 'demo-welcome')->value('id');
         $this->seedNotification($students[0], '10000000-0000-4000-8000-000000000001', 'announcement', 'Welcome to MusikAralan', 'Explore your classes, review published materials, and check upcoming learning sessions.', $welcomeAnnouncementId);
         $this->seedNotification($students[0], '10000000-0000-4000-8000-000000000002', 'schedule', 'Your next group session', 'Check the Live Sessions page for the class and meeting details.', null);

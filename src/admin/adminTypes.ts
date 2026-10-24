@@ -1,4 +1,4 @@
-export type AdminView = "dash" | "accounts" | "news" | "classes" | "bot";
+export type AdminView = "dash" | "accounts" | "news" | "gospel" | "classes" | "bot";
 export type UserStatus = "pending" | "approved" | "rejected" | "inactive";
 export type AccountFilter =
   | "all"

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChatbotController;
 use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\GospelVerseController;
 use App\Http\Controllers\Api\LearningController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\ScheduleController;
@@ -29,6 +30,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::patch('/me', [AuthController::class, 'updateProfile']);
         Route::patch('/me/phone', [AuthController::class, 'updatePhone']);
         Route::get('/dashboard', [DashboardController::class, 'show']);
+        Route::get('/gospel-verses', [GospelVerseController::class, 'index']);
         Route::get('/schedules', [ScheduleController::class, 'index']);
         Route::post('/schedules', [ScheduleController::class, 'store']);
         Route::get('/quiz-attempts', [QuizAttemptController::class, 'index']);
@@ -51,6 +53,8 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/chatbot-responses', [ChatbotController::class, 'index']);
         Route::middleware('role:admin')->group(function (): void {
+            Route::post('/gospel-verses', [GospelVerseController::class, 'store']);
+            Route::delete('/gospel-verses/{gospelVerse}', [GospelVerseController::class, 'destroy']);
             Route::get('/voice-groups', [VoiceGroupController::class, 'index']);
             Route::post('/voice-groups', [VoiceGroupController::class, 'store']);
             Route::put('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'update']);

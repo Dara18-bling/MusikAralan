@@ -11,6 +11,7 @@ import { DASHBOARD_VIEW, NAV, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
 import { Chatbot } from "./Chatbot";
+import { Gospel } from "../student/Gospel";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -115,6 +116,7 @@ export function Dashboard() {
               </button>
             ))}
           </nav>
+          <Gospel />
         </div>
 
         <div

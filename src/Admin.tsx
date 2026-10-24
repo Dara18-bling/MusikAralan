@@ -6,6 +6,7 @@ import { AdminAccounts } from "./admin/AdminAccounts";
 import { AdminNews } from "./admin/AdminNews";
 import { AdminClasses } from "./admin/AdminClasses";
 import { AdminChatbot } from "./admin/AdminChatbot";
+import { AdminGospel } from "./admin/AdminGospel";
 
 export type { AdminView };
 
@@ -114,6 +115,10 @@ export default function Admin({ view }: { view: AdminView }) {
 
   if (view === "news") {
     return <AdminNews />;
+  }
+
+  if (view === "gospel") {
+    return <AdminGospel />;
   }
 
   if (view === "classes") {

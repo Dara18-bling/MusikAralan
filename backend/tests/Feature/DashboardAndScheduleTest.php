@@ -60,6 +60,58 @@ class DashboardAndScheduleTest extends TestCase
             ->assertJsonStructure(['data']);
     }
 
+    public function test_gospel_verse_rotation_is_readable_by_approved_users_and_managed_by_admins(): void
+    {
+        $admin = $this->createUser('gospel-admin@example.test', 'admin');
+        $student = $this->createUser('gospel-student@example.test', 'student');
+        $adminToken = $admin->createToken('gospel-admin')->plainTextToken;
+        $studentToken = $student->createToken('gospel-student')->plainTextToken;
+
+        $this->withToken($studentToken)
+            ->getJson('/api/gospel-verses')
+            ->assertOk()
+            ->assertJsonCount(6, 'data');
+
+        $this->withToken($studentToken)
+            ->postJson('/api/gospel-verses', [
+                'book' => 'john',
+                'chapter' => 3,
+                'verse' => 16,
+            ])
+            ->assertForbidden();
+
+        Auth::forgetGuards();
+        $createdVerse = $this->withToken($adminToken)
+            ->postJson('/api/gospel-verses', [
+                'book' => 'john',
+                'chapter' => 1,
+                'verse' => 1,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('verse.book', 'john')
+            ->json('verse.id');
+
+        Auth::forgetGuards();
+        $this->withToken($admin->createToken('gospel-admin-duplicate')->plainTextToken)
+            ->postJson('/api/gospel-verses', [
+                'book' => 'john',
+                'chapter' => 1,
+                'verse' => 1,
+            ])
+            ->assertUnprocessable();
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('gospel-student-list')->plainTextToken)
+            ->getJson('/api/gospel-verses')
+            ->assertOk()
+            ->assertJsonCount(7, 'data');
+
+        Auth::forgetGuards();
+        $this->withToken($admin->createToken('gospel-admin-delete')->plainTextToken)
+            ->deleteJson("/api/gospel-verses/{$createdVerse}")
+            ->assertOk();
+    }
+
     private function createUser(string $email, string $role): User
     {
         return User::query()->create([
