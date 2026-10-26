@@ -80,10 +80,51 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
-        $assessment = $class->assessment()->with('questions')->first();
+        $assessment = $class->assessments()->with('questions')->orderBy('id')->first();
 
         return response()->json([
             'assessment' => $assessment ? $this->assessmentPayload($assessment, $user->role !== 'student') : null,
+        ]);
+    }
+
+    public function assessments(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $this->ensureClassAccess($user, $class);
+        $assessments = $class->assessments()->withCount('questions')->orderBy('id')->get();
+
+        return response()->json([
+            'data' => $assessments->map(function (Assessment $assessment) use ($user): array {
+                $latestAttempt = $user->role === 'student'
+                    ? $assessment->attempts()->where('student_id', $user->id)->latest('submitted_at')->first()
+                    : null;
+
+                return [
+                    'id' => (string) $assessment->id,
+                    'assessmentCode' => $assessment->assessment_code,
+                    'title' => $assessment->title,
+                    'passingPercent' => $assessment->passing_percent,
+                    'questionCount' => $assessment->questions_count,
+                    'latestAttempt' => $latestAttempt ? [
+                        'score' => $latestAttempt->score,
+                        'passed' => $latestAttempt->passed,
+                        'submittedAt' => $latestAttempt->submitted_at?->toISOString(),
+                    ] : null,
+                ];
+            })->values(),
+        ]);
+    }
+
+    public function showAssessment(Request $request, Assessment $assessment): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $this->ensureClassAccess($user, $assessment->classroom);
+
+        return response()->json([
+            'assessment' => $this->assessmentPayload(
+                $assessment->load('questions'),
+                $user->role !== 'student',
+            ),
         ]);
     }
 
@@ -91,7 +132,43 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
+        $assessment = $class->assessments()->orderBy('id')->first();
+
+        return $this->saveAssessment($request, $class, $user, $assessment);
+    }
+
+    public function createAssessment(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
+
+        return $this->saveAssessment($request, $class, $user);
+    }
+
+    public function updateAssessment(Request $request, Assessment $assessment): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $class = $assessment->classroom;
+        abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
+
+        return $this->saveAssessment($request, $class, $user, $assessment);
+    }
+
+    private function saveAssessment(Request $request, Classroom $class, $user, ?Assessment $assessment = null): JsonResponse
+    {
+        $isNew = $assessment === null;
+        $assessmentCodeRule = Rule::unique('assessments', 'assessment_code')
+            ->where('class_id', $class->id);
+        if ($assessment !== null) {
+            $assessmentCodeRule->ignore($assessment->id);
+        }
         $data = $request->validate([
+            'assessmentCode' => [
+                'nullable',
+                'string',
+                'max:32',
+                $assessmentCodeRule,
+            ],
             'title' => ['required', 'string', 'max:255'],
             'passingPercent' => ['required', 'integer', 'between:0,100'],
             'questions' => ['required', 'array', 'min:1'],
@@ -112,12 +189,20 @@ class LearningController extends Controller
             }
         }
 
-        $assessment = DB::transaction(function () use ($class, $data, $user): Assessment {
+        $assessment = DB::transaction(function () use ($class, $data, $user, $assessment): Assessment {
             $module = $this->moduleForClass($class, $user->id);
-            $assessment = Assessment::query()->updateOrCreate(
-                ['class_id' => $class->id],
-                ['module_id' => $module->id, 'title' => $data['title'], 'passing_percent' => $data['passingPercent']],
-            );
+            if ($assessment === null) {
+                $assessment = new Assessment([
+                    'assessment_code' => $data['assessmentCode'] ?? $this->nextAssessmentCode($class),
+                ]);
+                $assessment->classroom()->associate($class);
+            } elseif (isset($data['assessmentCode'])) {
+                $assessment->assessment_code = $data['assessmentCode'];
+            }
+            $assessment->module()->associate($module);
+            $assessment->title = $data['title'];
+            $assessment->passing_percent = $data['passingPercent'];
+            $assessment->save();
             $assessment->questions()->delete();
             foreach (array_values($data['questions']) as $position => $question) {
                 $assessment->questions()->create([
@@ -133,7 +218,20 @@ class LearningController extends Controller
             return $assessment->load('questions');
         });
 
-        return response()->json(['assessment' => $this->assessmentPayload($assessment, true)]);
+        return response()->json(
+            ['assessment' => $this->assessmentPayload($assessment, true)],
+            $isNew ? 201 : 200,
+        );
+    }
+
+    private function nextAssessmentCode(Classroom $class): string
+    {
+        $nextNumber = (int) $class->assessments()
+            ->get()
+            ->map(fn (Assessment $assessment) => (int) preg_replace('/\D+/', '', $assessment->assessment_code))
+            ->max() + 1;
+
+        return 'A'.$nextNumber;
     }
 
     public function submitAssessment(Request $request, Classroom $class): JsonResponse
@@ -141,8 +239,29 @@ class LearningController extends Controller
         $user = $request->attributes->get('app_user');
         abort_unless($user->role === 'student', 403);
         abort_unless($class->students()->where('users.id', $user->id)->exists(), 403, 'Enroll in this class before submitting an assessment.');
+        $assessment = $class->assessments()->orderBy('id')->firstOrFail();
+
+        return $this->gradeAssessment($request, $assessment, $user);
+    }
+
+    public function submitAssessmentAttempt(Request $request, Assessment $assessment): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'student', 403);
+        abort_unless(
+            $assessment->classroom->students()->where('users.id', $user->id)->exists(),
+            403,
+            'Enroll in this class before submitting an assessment.',
+        );
+
+        return $this->gradeAssessment($request, $assessment, $user);
+    }
+
+    private function gradeAssessment(Request $request, Assessment $assessment, $user): JsonResponse
+    {
         $data = $request->validate(['answers' => ['required', 'array', 'min:1']]);
-        $assessment = $class->assessment()->with('questions')->firstOrFail();
+        $assessment->load('questions', 'classroom');
+        $class = $assessment->classroom;
         $questions = $assessment->questions;
         if (count($data['answers']) !== $questions->count()) {
             return response()->json(['message' => 'Answer every question before submitting.'], 422);
@@ -270,6 +389,7 @@ class LearningController extends Controller
     {
         return [
             'id' => (string) $assessment->id,
+            'assessmentCode' => $assessment->assessment_code,
             'title' => $assessment->title,
             'passingPercent' => $assessment->passing_percent,
             'questions' => $assessment->questions->map(function (AssessmentQuestion $question) use ($includeAnswers): array {

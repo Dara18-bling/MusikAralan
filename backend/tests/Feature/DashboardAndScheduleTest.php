@@ -112,6 +112,93 @@ class DashboardAndScheduleTest extends TestCase
             ->assertOk();
     }
 
+    public function test_class_can_have_multiple_assessments_with_isolated_questions_and_attempts(): void
+    {
+        $teacher = $this->createUser('multiple-assessments-teacher@example.test', 'teacher');
+        $student = $this->createUser('multiple-assessments-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Music class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $teacherToken = $teacher->createToken('assessments-teacher')->plainTextToken;
+
+        $firstAssessment = $this->withToken($teacherToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'Music Theory',
+                'passingPercent' => 70,
+                'questions' => [[
+                    'q' => 'Which clef is used for higher notes?',
+                    'o' => ['Treble', 'Bass'],
+                    'a' => 0,
+                    'type' => 'multiple',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('assessment.assessmentCode', 'A1')
+            ->assertJsonPath('assessment.title', 'Music Theory')
+            ->json('assessment.id');
+
+        Auth::forgetGuards();
+        $secondAssessment = $this->withToken($teacher->createToken('assessments-teacher-2')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'Music In Practice',
+                'passingPercent' => 60,
+                'questions' => [[
+                    'q' => 'Name the first note of the C major scale.',
+                    'answer' => 'C',
+                    'type' => 'identification',
+                ]],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('assessment.assessmentCode', 'A2')
+            ->assertJsonPath('assessment.questions.0.q', 'Name the first note of the C major scale.')
+            ->json('assessment.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/assessments")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.1.assessmentCode', 'A2');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-detail')->plainTextToken)
+            ->getJson("/api/assessments/{$secondAssessment}")
+            ->assertOk()
+            ->assertJsonMissingPath('assessment.questions.0.answer')
+            ->assertJsonPath('assessment.questions.0.q', 'Name the first note of the C major scale.');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-submit')->plainTextToken)
+            ->postJson("/api/assessments/{$secondAssessment}/attempts", ['answers' => ['C']])
+            ->assertCreated()
+            ->assertJsonPath('attempt.score', 100)
+            ->assertJsonPath('attempt.passed', true);
+
+        $this->assertDatabaseHas('module_progress', [
+            'user_id' => $student->id,
+            'status' => 'in_progress',
+        ]);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-submit-first')->plainTextToken)
+            ->postJson("/api/assessments/{$firstAssessment}/attempts", ['answers' => ['0']])
+            ->assertCreated()
+            ->assertJsonPath('attempt.passed', true);
+
+        $this->assertDatabaseHas('module_progress', [
+            'user_id' => $student->id,
+            'status' => 'completed',
+        ]);
+
+        $this->assertDatabaseHas('assessment_attempts', [
+            'assessment_id' => $secondAssessment,
+            'student_id' => $student->id,
+            'score' => 100,
+        ]);
+    }
+
     private function createUser(string $email, string $role): User
     {
         return User::query()->create([

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { watchApi } from "./api";
 import { Card } from "./ui";
 import type { ClassCatalogItem } from "./classCatalog";
@@ -22,10 +23,13 @@ interface TeacherProps {
 }
 
 export default function Teacher({ view, userId, go }: TeacherProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const loggedInTeacherName = localStorage.getItem("name") || "Teacher User";
   const [teacherIdentity, setTeacherIdentity] = useState(loggedInTeacherName);
   const [assignedClasses, setAssignedClasses] = useState<ClassCatalogItem[]>([]);
   const [selectedClassId, setSelectedClassId] = useState("");
+  const requestedClassId = searchParams.get("classId") || "";
+  const assessmentId = searchParams.get("assessmentId") || "";
 
   useEffect(() => {
     if (!userId) return;
@@ -40,15 +44,43 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
     return watchApi<{ data: ClassCatalogItem[] }>(
       "/classes",
       ({ data }) => {
-        const teacherClasses = data.filter((item) => !item.deleted);
-        setAssignedClasses(teacherClasses);
-        setSelectedClassId((current) =>
-          teacherClasses.some((item) => item.id === current) ? current : teacherClasses[0]?.id || ""
-        );
+        setAssignedClasses(data.filter((item) => !item.deleted));
       },
       (error) => console.error("Could not load assigned classes:", error),
     );
   }, [teacherIdentity]);
+
+  useEffect(() => {
+    if (assignedClasses.length === 0) {
+      setSelectedClassId("");
+      return;
+    }
+    const nextClassId = assignedClasses.some((item) => item.id === requestedClassId)
+      ? requestedClassId
+      : assignedClasses.some((item) => item.id === selectedClassId)
+        ? selectedClassId
+        : assignedClasses[0].id;
+
+    setSelectedClassId(nextClassId);
+    if (view === "quiz" && requestedClassId !== nextClassId) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("classId", nextClassId);
+        next.delete("assessmentId");
+        return next;
+      }, { replace: true });
+    }
+  }, [assignedClasses, requestedClassId, selectedClassId, setSearchParams, view]);
+
+  const updateAssessmentId = useCallback((nextAssessmentId: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (selectedClassId) next.set("classId", selectedClassId);
+      if (nextAssessmentId) next.set("assessmentId", nextAssessmentId);
+      else next.delete("assessmentId");
+      return next;
+    }, { replace: true });
+  }, [selectedClassId, setSearchParams]);
 
   const selectedClass = assignedClasses.find((item) => item.id === selectedClassId);
 
@@ -89,6 +121,10 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
           classes={assignedClasses}
           onChooseAction={(classId, nextView) => {
             setSelectedClassId(classId);
+            if (nextView === "quiz") {
+              go(`quiz?classId=${encodeURIComponent(classId)}`);
+              return;
+            }
             go(nextView);
           }}
         />
@@ -99,7 +135,12 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
           studentIds={selectedClass?.enrolledStudentIds || []}
         />
       ) : view === "quiz" ? (
-        <Quiz className={selectedClass?.name} classId={selectedClass?.id} />
+        <Quiz
+          className={selectedClass?.name}
+          classId={selectedClass?.id}
+          assessmentId={assessmentId}
+          onAssessmentChange={updateAssessmentId}
+        />
       ) : view === "meet" ? (
         <Meet />
       ) : view === "alerts" ? (

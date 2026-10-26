@@ -49,6 +49,11 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/classes/{class}/assessment', [LearningController::class, 'assessment']);
         Route::put('/classes/{class}/assessment', [LearningController::class, 'publishAssessment']);
         Route::post('/classes/{class}/assessment/attempts', [LearningController::class, 'submitAssessment']);
+        Route::get('/classes/{class}/assessments', [LearningController::class, 'assessments']);
+        Route::post('/classes/{class}/assessments', [LearningController::class, 'createAssessment']);
+        Route::get('/assessments/{assessment}', [LearningController::class, 'showAssessment']);
+        Route::put('/assessments/{assessment}', [LearningController::class, 'updateAssessment']);
+        Route::post('/assessments/{assessment}/attempts', [LearningController::class, 'submitAssessmentAttempt']);
 
         Route::get('/announcements', [AnnouncementController::class, 'index']);
         Route::get('/chatbot-responses', [ChatbotController::class, 'index']);

@@ -228,7 +228,7 @@ class ImportFirestoreData extends Command
     private function importAssessment(Classroom $class, array $data): void
     {
         $assessment = Assessment::query()->updateOrCreate(
-            ['class_id' => $class->id],
+            ['class_id' => $class->id, 'assessment_code' => 'A1'],
             [
                 'title' => (string) ($data['title'] ?? 'Class assessment'),
                 'passing_percent' => max(0, min(100, (int) ($data['passingPercent'] ?? 70))),
@@ -333,8 +333,8 @@ class ImportFirestoreData extends Command
                         );
                     }
                 }
-                if (isset($progress['assessmentScore']) && $class->assessment()->exists()) {
-                    $assessment = $class->assessment()->first();
+                if (isset($progress['assessmentScore']) && $class->assessments()->exists()) {
+                    $assessment = $class->assessments()->orderBy('id')->first();
                     AssessmentAttempt::query()->updateOrCreate(
                         ['legacy_key' => $student->firebase_uid.':'.$legacyClassId],
                         [

@@ -10,34 +10,46 @@ import { isDataUrl, downloadDataUrl, ensureAbsoluteUrl, getDriveDownloadUrl } fr
 interface StudentMaterialsProps {
   userId: string;
   userName: string;
+  onViewAssessments: (classId: string, className: string) => void;
 }
 
-export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
+interface AssessmentSummary {
+  id: string;
+  assessmentCode: string;
+  title: string;
+  latestAttempt: { passed: boolean; score: number } | null;
+}
+
+export function StudentMaterials({ userId, userName, onViewAssessments }: StudentMaterialsProps) {
   const [section, setSection] = useState<"enrolled" | "available">("enrolled");
   const [classCatalog, setClassCatalog] = useState<ClassCatalogItem[]>([]);
   const [openClass, setOpenClass] = useState<ClassCatalogItem | null>(null);
   const [enrolledClassIds, setEnrolledClassIds] = useState<string[]>([]);
   const [classProgress, setClassProgress] = useState<Record<string, any>>({});
   const [classMaterials, setClassMaterials] = useState<any[]>([]);
-  const [classAssessment, setClassAssessment] = useState<any | null>(null);
+  const [classAssessments, setClassAssessments] = useState<AssessmentSummary[]>([]);
+  const [assessmentsLoaded, setAssessmentsLoaded] = useState(false);
   const [classmates, setClassmates] = useState<any[]>([]);
-  const [assessmentAnswers, setAssessmentAnswers] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!openClass) {
       setClassMaterials([]);
-      setClassAssessment(null);
+      setClassAssessments([]);
+      setAssessmentsLoaded(false);
       setClassmates([]);
-      setAssessmentAnswers({});
       return;
     }
     const classPath = `/classes/${openClass.id}`;
+    setClassMaterials([]);
+    setClassAssessments([]);
+    setAssessmentsLoaded(false);
     const stopMaterials = watchApi<{ data: any[] }>(`${classPath}/materials`, ({ data }) => {
       setClassMaterials(data);
     }, (error) => console.error("Could not load class materials:", error));
-    const stopAssessment = watchApi<{ assessment: any | null }>(`${classPath}/assessment`, ({ assessment }) => {
-      setClassAssessment(assessment);
-    }, (error) => console.error("Could not load class assessment:", error));
+    const stopAssessments = watchApi<{ data: AssessmentSummary[] }>(`${classPath}/assessments`, ({ data }) => {
+      setClassAssessments(data);
+      setAssessmentsLoaded(true);
+    }, (error) => console.error("Could not load class assessments:", error));
     const stopClassmates = watchApi<{ data: any[] }>(`${classPath}/students`, ({ data }) => {
       setClassmates(data);
     }, (error) => console.error("Could not load classmates:", error));
@@ -46,7 +58,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
     }, (error) => console.error("Could not load class progress:", error));
     return () => {
       stopMaterials();
-      stopAssessment();
+      stopAssessments();
       stopClassmates();
       stopProgress();
     };
@@ -88,10 +100,10 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   const completedMaterialIds: string[] = Array.isArray(currentClassProgress.completedMaterialIds)
     ? currentClassProgress.completedMaterialIds
     : [];
-  const assessmentPassed = currentClassProgress.assessmentPassed === true;
   const classFinished = classMaterials.length > 0
+    && assessmentsLoaded
     && classMaterials.every((material) => completedMaterialIds.includes(material.id))
-    && (!classAssessment || assessmentPassed);
+    && classAssessments.every((assessment) => assessment.latestAttempt?.passed === true);
 
   const markMaterialComplete = async (materialId: string) => {
     if (!openClass || !userId) return;
@@ -107,35 +119,6 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
     } catch (error) {
       console.error("Could not save material progress:", error);
       toast.error("Could not save your progress. Please try again.");
-    }
-  };
-
-  const submitAssessment = async () => {
-    if (!openClass || !classAssessment || !userId) return;
-    const questions = Array.isArray(classAssessment.questions) ? classAssessment.questions : [];
-    if (questions.some((question: any, index: number) => assessmentAnswers[index] === undefined || assessmentAnswers[index] === "")) {
-      toast.warning("Answer every question before submitting.");
-      return;
-    }
-    try {
-      const { attempt } = await apiPost<{ attempt: { score: number; passed: boolean } }>(
-        `/classes/${openClass.id}/assessment/attempts`,
-        { answers: questions.map((_: unknown, index: number) => assessmentAnswers[index]) },
-      );
-      setClassProgress((current) => ({
-        ...current,
-        [openClass.id]: {
-          ...current[openClass.id],
-          assessmentScore: attempt.score,
-          assessmentPassed: attempt.passed,
-        },
-      }));
-      (attempt.passed ? toast.success : toast.warning)(attempt.passed
-        ? `Assessment passed: ${attempt.score}%.`
-        : `Assessment score: ${attempt.score}%. Review the materials and try again.`);
-    } catch (error) {
-      console.error("Could not save assessment result:", error);
-      toast.error("Could not save your assessment result. Please try again.");
     }
   };
 
@@ -224,6 +207,25 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
             </div>
 
             <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-p1-soft/40 p-4">
+                  <div>
+                    <h3 className="font-display text-lg font-bold">Assessments</h3>
+                    <p className="mt-1 text-sm text-mute">
+                      {classAssessments.length
+                        ? `${classAssessments.length} assessment${classAssessments.length === 1 ? "" : "s"} available`
+                        : "No assessments have been published yet."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onViewAssessments(openClass.id, openClass.name)}
+                    className="rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white"
+                  >
+                    View assessments
+                  </button>
+                </div>
+              </div>
               <div>
                 <h3 className="font-display text-lg font-bold">Learning materials</h3>
                 {classMaterials.length === 0 ? <p className="mt-2 text-sm text-mute">No learning materials have been published yet.</p> : (
@@ -346,35 +348,8 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
               </div>
             </div>
 
-            {classAssessment && (
-              <div className="mt-6 rounded-2xl border border-line p-4">
-                <h3 className="font-display text-lg font-bold">{classAssessment.title || "Class assessment"}</h3>
-                <p className="mt-1 text-sm text-mute">Passing score: {classAssessment.passingPercent || 70}%{currentClassProgress.assessmentScore !== undefined ? ` · Your latest score: ${currentClassProgress.assessmentScore}%` : ""}</p>
-                <div className="mt-4 grid gap-4">
-                  {(classAssessment.questions || []).map((question: any, index: number) => (
-                    <fieldset key={index} className="rounded-xl bg-p1-soft/40 p-3">
-                      <legend className="font-semibold">{index + 1}. {question.q}</legend>
-                      {question.type === "identification" ? (
-                        <input value={assessmentAnswers[index] || ""} onChange={(event) => setAssessmentAnswers((current) => ({ ...current, [index]: event.target.value }))} placeholder="Your answer" className="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm" />
-                      ) : (
-                        <div className="mt-2 grid gap-2">
-                          {(question.o || []).map((option: string, optionIndex: number) => (
-                            <label key={optionIndex} className="flex items-center gap-2 text-sm">
-                              <input type="radio" name={`assessment-question-${index}`} checked={assessmentAnswers[index] === String(optionIndex)} onChange={() => setAssessmentAnswers((current) => ({ ...current, [index]: String(optionIndex) }))} />
-                              {option}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </fieldset>
-                  ))}
-                </div>
-                <button type="button" onClick={() => void submitAssessment()} className="mt-4 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white">Submit assessment</button>
-              </div>
-            )}
-
             <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-              <p className="text-sm text-mute">{classFinished ? "You completed all class requirements." : "Complete every learning material and pass the assessment to earn your certificate."}</p>
+              <p className="text-sm text-mute">{classFinished ? "You completed all class requirements." : "Complete every learning material and pass all assessments to earn your certificate."}</p>
               <button type="button" onClick={downloadCertificate} disabled={!classFinished} className="rounded-full bg-p1 px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Download certificate</button>
             </div>
           </section>

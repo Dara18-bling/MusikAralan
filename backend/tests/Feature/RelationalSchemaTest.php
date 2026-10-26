@@ -235,7 +235,8 @@ class RelationalSchemaTest extends TestCase
             'available_for_enrollment' => true,
         ]);
         $class->students()->attach($student->id, ['enrolled_at' => now()]);
-        $assessment = $class->assessment()->create([
+        $assessment = $class->assessments()->create([
+            'assessment_code' => 'A1',
             'title' => 'Private answer key',
             'passing_percent' => 70,
         ]);

@@ -63,7 +63,10 @@ export async function apiRequest<T>(
       localStorage.removeItem("uid");
       localStorage.removeItem("name");
       localStorage.removeItem("birthYear");
-      if (window.location.pathname !== "/login" && window.location.pathname !== "/reset-password") {
+      if (
+        window.location.pathname !== "/login" &&
+        window.location.pathname !== "/reset-password"
+      ) {
         window.location.assign("/login");
       }
     }
@@ -107,7 +110,7 @@ export function watchApi<T>(
   path: string,
   onData: (payload: T) => void,
   onError: (error: unknown) => void,
-  intervalMs = 30_000,
+  intervalMs = 120_000,
 ): () => void {
   let stopped = false;
   let running = false;

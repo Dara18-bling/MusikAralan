@@ -43,7 +43,7 @@ class DashboardController extends Controller
                 'students' => $studentCount,
                 'modules' => Module::query()->whereIn('class_id', $classIds)->count(),
                 'pendingAssessments' => Classroom::query()->whereIn('id', $classIds)
-                    ->whereDoesntHave('assessment')->count(),
+                    ->whereDoesntHave('assessments')->count(),
                 'schedules' => ScheduleEvent::query()->whereIn('class_id', $classIds)->count(),
             ]]);
         }

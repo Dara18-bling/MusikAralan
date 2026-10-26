@@ -145,7 +145,7 @@ class DatabaseSeeder extends Seeder
             }
 
             $assessment = Assessment::query()->updateOrCreate(
-                ['class_id' => $class->id],
+                ['class_id' => $class->id, 'assessment_code' => 'A1'],
                 ['module_id' => $module->id, 'title' => $class->name.' Knowledge Check', 'passing_percent' => 70],
             );
             $assessmentsByClass->put($class->id, $assessment);

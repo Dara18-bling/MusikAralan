@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Classroom extends Model
 {
@@ -48,9 +47,9 @@ class Classroom extends Model
         return $this->hasMany(Material::class, 'class_id');
     }
 
-    public function assessment(): HasOne
+    public function assessments(): HasMany
     {
-        return $this->hasOne(Assessment::class, 'class_id');
+        return $this->hasMany(Assessment::class, 'class_id');
     }
 
     public function modules(): HasMany
