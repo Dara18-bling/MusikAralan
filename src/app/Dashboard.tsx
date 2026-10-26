@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Menu, Moon, Sun } from "lucide-react";
+import { LoaderCircle, LogOut, Menu, Moon, Sun } from "lucide-react";
 
 import logo from "../assets/logo.png";
 import Student, { type StudentView } from "../Student";
 import Teacher, { type TeacherView } from "../Teacher";
 import Admin, { type AdminView } from "../Admin";
-import { apiPost, clearApiToken, hasApiToken } from "../api";
+import {
+  apiPost,
+  clearApiToken,
+  getActiveApiRequestCount,
+  hasApiToken,
+  subscribeToApiActivity,
+} from "../api";
 import { DASHBOARD_VIEW, NAV, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
@@ -29,6 +35,36 @@ export function Dashboard() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
   const { primaryColor } = useSystemAppearance(darkMode);
   const [menu, setMenu] = useState(false);
+  const [pageLoadState, setPageLoadState] = useState(() => ({
+    pathname: location.pathname,
+    loading: true,
+  }));
+  const isPageLoading =
+    pageLoadState.pathname !== location.pathname || pageLoadState.loading;
+
+  useEffect(() => {
+    let active = true;
+    let idleTimer: number | undefined;
+    setPageLoadState({ pathname: location.pathname, loading: true });
+
+    const updateLoadingState = (activeRequests: number) => {
+      window.clearTimeout(idleTimer);
+      if (activeRequests > 0) return;
+
+      idleTimer = window.setTimeout(() => {
+        if (active && getActiveApiRequestCount() === 0) {
+          setPageLoadState({ pathname: location.pathname, loading: false });
+        }
+      }, 120);
+    };
+
+    const unsubscribe = subscribeToApiActivity(updateLoadingState);
+    return () => {
+      active = false;
+      window.clearTimeout(idleTimer);
+      unsubscribe();
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     document.documentElement.style.fontSize = big ? "18px" : "";
@@ -193,25 +229,40 @@ export function Dashboard() {
           </div>
         </div>
 
-        <main className={`mx-auto max-w-6xl px-5 py-8 md:px-10 ${role === "student" || role === "admin" ? "pb-32" : ""}`}>
-          {view === "profile" ? (
-            <ProfileView role={role} name={userName} primaryColor={primaryColor} secondaryColor={primaryColor} />
-          ) : (
-            <>
-              {role === "student" && (
-                <Student
-                  view={view as StudentView}
-                  go={go}
-                  age={computedAgeMode}
-                  userName={userName}
-                  userId={localStorage.getItem("uid") || ""}
-                />
-              )}
-              {role === "teacher" && (
-                <Teacher view={view as TeacherView} userId={localStorage.getItem("uid") || ""} go={go} />
-              )}
-              {role === "admin" && <Admin view={view as AdminView} />}
-            </>
+        <main className={`relative mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-5 py-8 md:px-10 ${role === "student" || role === "admin" ? "pb-32" : ""}`}>
+          <div aria-hidden={isPageLoading} inert={isPageLoading}>
+            {view === "profile" ? (
+              <ProfileView role={role} name={userName} primaryColor={primaryColor} secondaryColor={primaryColor} />
+            ) : (
+              <>
+                {role === "student" && (
+                  <Student
+                    view={view as StudentView}
+                    go={go}
+                    age={computedAgeMode}
+                    userName={userName}
+                    userId={localStorage.getItem("uid") || ""}
+                  />
+                )}
+                {role === "teacher" && (
+                  <Teacher view={view as TeacherView} userId={localStorage.getItem("uid") || ""} go={go} />
+                )}
+                {role === "admin" && <Admin view={view as AdminView} />}
+              </>
+            )}
+          </div>
+          {isPageLoading && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 z-20 grid place-items-center bg-[var(--app-bg)]/95 backdrop-blur-sm"
+            >
+              <div className="flex flex-col items-center gap-3 rounded-2xl border border-line bg-white/80 px-10 py-8 text-center shadow-lg">
+                <LoaderCircle className="h-10 w-10 animate-spin text-p1" />
+                <p className="font-display text-xl">Loading your workspace</p>
+                <p className="text-sm text-mute">Preparing your content…</p>
+              </div>
+            </div>
           )}
         </main>
       </div>

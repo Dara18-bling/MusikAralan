@@ -4,6 +4,29 @@ const API_BASE_URL = (
 ).replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "musikAralanApiToken";
 
+let activeApiRequests = 0;
+const apiActivityListeners = new Set<(activeRequests: number) => void>();
+
+function notifyApiActivity() {
+  for (const listener of apiActivityListeners) {
+    listener(activeApiRequests);
+  }
+}
+
+export function getActiveApiRequestCount() {
+  return activeApiRequests;
+}
+
+export function subscribeToApiActivity(
+  listener: (activeRequests: number) => void,
+) {
+  apiActivityListeners.add(listener);
+  listener(activeApiRequests);
+  return () => {
+    apiActivityListeners.delete(listener);
+  };
+}
+
 export function setApiToken(token: string) {
   sessionStorage.setItem(AUTH_TOKEN_KEY, token);
 }
@@ -32,55 +55,63 @@ export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-  if (init.body && !(init.body instanceof FormData)) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  try {
+    activeApiRequests += 1;
+    notifyApiActivity();
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers,
-  });
-  const responseText = await response.text();
-  let payload: unknown;
-  if (responseText) {
-    try {
-      payload = JSON.parse(responseText);
-    } catch {
-      throw new ApiError(
-        `The API returned an invalid response (${response.status}). Check the API URL and server configuration.`,
-        response.status,
-      );
+    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (init.body && !(init.body instanceof FormData)) {
+      headers.set("Content-Type", "application/json");
     }
-  }
-  if (!response.ok) {
-    if (response.status === 401 && token) {
-      clearApiToken();
-      localStorage.removeItem("role");
-      localStorage.removeItem("uid");
-      localStorage.removeItem("name");
-      localStorage.removeItem("birthYear");
-      if (
-        window.location.pathname !== "/login" &&
-        window.location.pathname !== "/reset-password"
-      ) {
-        window.location.assign("/login");
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+    });
+    const responseText = await response.text();
+    let payload: unknown;
+    if (responseText) {
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        throw new ApiError(
+          `The API returned an invalid response (${response.status}). Check the API URL and server configuration.`,
+          response.status,
+        );
       }
     }
-    const body =
-      payload && typeof payload === "object"
-        ? (payload as { message?: string; code?: string })
-        : {};
-    throw new ApiError(
-      body.message || `Request failed with status ${response.status}.`,
-      response.status,
-      body.code,
-    );
+    if (!response.ok) {
+      if (response.status === 401 && token) {
+        clearApiToken();
+        localStorage.removeItem("role");
+        localStorage.removeItem("uid");
+        localStorage.removeItem("name");
+        localStorage.removeItem("birthYear");
+        if (
+          window.location.pathname !== "/login" &&
+          window.location.pathname !== "/reset-password"
+        ) {
+          window.location.assign("/login");
+        }
+      }
+      const body =
+        payload && typeof payload === "object"
+          ? (payload as { message?: string; code?: string })
+          : {};
+      throw new ApiError(
+        body.message || `Request failed with status ${response.status}.`,
+        response.status,
+        body.code,
+      );
+    }
+    return payload as T;
+  } finally {
+    activeApiRequests -= 1;
+    notifyApiActivity();
   }
-  return payload as T;
 }
 
 export function apiGet<T>(path: string): Promise<T> {
