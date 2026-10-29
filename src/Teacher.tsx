@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { watchApi } from "./api";
+import { POLL_INTERVAL_DAY, watchApi } from "./api";
 import { Card } from "./ui";
 import type { ClassCatalogItem } from "./classCatalog";
 import Notifications from "./Notifications";
@@ -26,6 +26,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const loggedInTeacherName = localStorage.getItem("name") || "Teacher User";
   const [teacherIdentity, setTeacherIdentity] = useState(loggedInTeacherName);
+  const [teacherAccessUntil, setTeacherAccessUntil] = useState<string | null>(null);
   const [assignedClasses, setAssignedClasses] = useState<ClassCatalogItem[]>(
     [],
   );
@@ -35,25 +36,30 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
 
   useEffect(() => {
     if (!userId) return;
-    return watchApi<{ user: { name?: string; email?: string } }>(
+    return watchApi<{ user: { name?: string; email?: string; accessUntil?: string | null } }>(
       "/me",
-      ({ user }) =>
+      ({ user }) => {
         setTeacherIdentity(
           String(user.name || user.email || loggedInTeacherName).trim(),
-        ),
+        );
+        setTeacherAccessUntil(user.accessUntil || null);
+      },
       (error) => console.error("Could not load teacher profile:", error),
+      POLL_INTERVAL_DAY,
     );
   }, [userId, loggedInTeacherName]);
 
   useEffect(() => {
+    if (!userId) return;
     return watchApi<{ data: ClassCatalogItem[] }>(
       "/classes",
       ({ data }) => {
         setAssignedClasses(data.filter((item) => !item.deleted));
       },
       (error) => console.error("Could not load assigned classes:", error),
+      POLL_INTERVAL_DAY,
     );
-  }, [teacherIdentity]);
+  }, [userId]);
 
   useEffect(() => {
     if (assignedClasses.length === 0) {
@@ -111,7 +117,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
   return (
     <>
       {(view === "dash" || view === "classes") && (
-        <ExpiryBanner teacherName={loggedInTeacherName} userId={userId} />
+        <ExpiryBanner teacherName={teacherIdentity} accessUntil={teacherAccessUntil} />
       )}
       {view === "dash" ? (
         <Dashboard />
@@ -141,7 +147,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
           onAssessmentChange={updateAssessmentId}
         />
       ) : view === "meet" ? (
-        <Meet />
+        <Meet classes={assignedClasses} />
       ) : view === "alerts" ? (
         <Notifications role="teacher" />
       ) : (

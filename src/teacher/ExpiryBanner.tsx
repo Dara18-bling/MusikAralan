@@ -1,33 +1,22 @@
 import { useEffect, useState } from "react";
-import { watchApi } from "../api";
 
 interface ExpiryBannerProps {
   teacherName?: string;
-  userId: string;
+  accessUntil: string | null;
 }
 
 export function ExpiryBanner({
   teacherName = "Teacher",
-  userId,
+  accessUntil,
 }: ExpiryBannerProps) {
-  const [accessUntil, setAccessUntil] = useState("");
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!userId) return;
-    return watchApi<{ user: { accessUntil?: string | null } }>(
-      "/me",
-      ({ user }) => setAccessUntil(String(user.accessUntil || "")),
-      (error) => console.error("Could not load teacher access end date:", error),
-    );
-  }, [userId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const dateParts = accessUntil.split("-").map(Number);
+  const dateParts = (accessUntil || "").split("-").map(Number);
   const expiryDate =
     dateParts.length === 3 && dateParts.every(Number.isFinite)
       ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2], 23, 59, 59)

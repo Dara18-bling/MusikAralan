@@ -4,13 +4,19 @@ import { CircleCheck } from "lucide-react";
 import { apiGet, apiPatch, apiPut } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import { Field } from "./Field";
-import { LITURGICAL_PALETTES } from "./AppTypes";
+import type { LiturgicalPalette } from "./AppTypes";
 
 interface ProfileViewProps {
   role: string;
   name: string;
   primaryColor: string;
   secondaryColor: string;
+  palettes: LiturgicalPalette[];
+  onAppearanceSaved: (appearance: {
+    primaryColor: string;
+    secondaryColor: string;
+    palettes?: LiturgicalPalette[];
+  }) => void;
 }
 
 export function ProfileView({
@@ -18,6 +24,8 @@ export function ProfileView({
   name,
   primaryColor,
   secondaryColor,
+  palettes,
+  onAppearanceSaved,
 }: ProfileViewProps) {
   const [fullName, setFullName] = useState(name);
   const [email, setEmail] = useState("");
@@ -26,16 +34,14 @@ export function ProfileView({
   const [accountStatus, setAccountStatus] = useState("approved");
   const [profileSaving, setProfileSaving] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
-  const [selectedPalette, setSelectedPalette] = useState(
-    () => LITURGICAL_PALETTES.find((palette) => palette.primary === primaryColor) ?? LITURGICAL_PALETTES[0]
-  );
+  const [selectedPalette, setSelectedPalette] = useState<LiturgicalPalette | null>(null);
   useEffect(() => {
     setSelectedPalette(
-      LITURGICAL_PALETTES.find(
+      palettes.find(
         (palette) => palette.primary === primaryColor && palette.secondary === secondaryColor
-      ) ?? LITURGICAL_PALETTES[0]
+      ) ?? null
     );
-  }, [primaryColor, secondaryColor]);
+  }, [palettes, primaryColor, secondaryColor]);
 
   useEffect(() => {
     apiGet<{ user: {
@@ -82,11 +88,18 @@ export function ProfileView({
     if (role !== "admin") return;
     setColorSaving(true);
     try {
-      await apiPut("/settings/appearance", {
-        primaryColor: selectedPalette.primary,
-        secondaryColor: selectedPalette.secondary,
-        paletteName: selectedPalette.name,
+      const { appearance } = await apiPut<{
+        appearance: {
+          primaryColor: string;
+          secondaryColor: string;
+          palettes?: LiturgicalPalette[];
+        };
+      }>("/settings/appearance", {
+        primaryColor: selectedPalette?.primary,
+        secondaryColor: selectedPalette?.secondary,
+        paletteName: selectedPalette?.name,
       });
+      onAppearanceSaved(appearance);
       toast.success("System interface color saved for all users.");
     } catch (error) {
       console.error("Could not save system appearance:", error);
@@ -125,28 +138,30 @@ export function ProfileView({
                 <Label>Liturgical color palette for all users</Label>
                 <p className="mt-1 text-sm text-mute">Choose a season or feast palette. It updates the login and signup background and system gradients.</p>
                 <div className="mt-3 flex flex-wrap gap-3" role="radiogroup" aria-label="Liturgical color palette">
-                  {LITURGICAL_PALETTES.map((palette) => (
+                  {palettes.map((palette) => (
                     <button
                       key={palette.name}
                       type="button"
                       role="radio"
-                      aria-checked={selectedPalette.name === palette.name}
+                      aria-checked={selectedPalette?.name === palette.name}
                       aria-label={palette.name}
                       title={palette.name}
                       onClick={() => setSelectedPalette(palette)}
                       className={`h-11 w-11 rounded-full bg-gradient-to-br ring-offset-2 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p1 ${
-                        selectedPalette.name === palette.name ? "ring-2 ring-p1" : "ring-1 ring-black/10"
+                        selectedPalette?.name === palette.name ? "ring-2 ring-p1" : "ring-1 ring-black/10"
                       }`}
                       style={{ backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})` }}
                     />
                   ))}
                 </div>
                 <div className="mt-2 flex items-center gap-3">
-                  <span className="text-sm font-medium">{selectedPalette.name}</span>
+                  <span className="text-sm font-medium">
+                    {selectedPalette?.name || (palettes.length ? "Select a palette" : "No palettes are configured")}
+                  </span>
                   <button
                     type="button"
                     onClick={saveSystemColor}
-                    disabled={colorSaving}
+                    disabled={colorSaving || !selectedPalette}
                     className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                   >
                     {colorSaving ? "Saving..." : "Save system color"}

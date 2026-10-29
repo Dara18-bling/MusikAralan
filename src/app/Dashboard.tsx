@@ -33,7 +33,7 @@ export function Dashboard() {
 
   const [big, setBig] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
-  const { primaryColor } = useSystemAppearance(darkMode);
+  const { primaryColor, secondaryColor, palettes, applySavedAppearance } = useSystemAppearance(darkMode);
   const [menu, setMenu] = useState(false);
   const [pageLoadState, setPageLoadState] = useState(() => ({
     pathname: location.pathname,
@@ -232,7 +232,14 @@ export function Dashboard() {
         <main className={`relative mx-auto min-h-[calc(100vh-4rem)] max-w-6xl px-5 py-8 md:px-10 ${role === "student" || role === "admin" ? "pb-32" : ""}`}>
           <div aria-hidden={isPageLoading} inert={isPageLoading}>
             {view === "profile" ? (
-              <ProfileView role={role} name={userName} primaryColor={primaryColor} secondaryColor={primaryColor} />
+              <ProfileView
+                role={role}
+                name={userName}
+                primaryColor={primaryColor}
+                secondaryColor={secondaryColor}
+                palettes={palettes}
+                onAppearanceSaved={applySavedAppearance}
+              />
             ) : (
               <>
                 {role === "student" && (

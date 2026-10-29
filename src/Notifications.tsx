@@ -1,7 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Bell, Megaphone } from "lucide-react";
 import { Card, Label, Title } from "./ui";
-import { apiPatch, apiPost, watchApi } from "./api";
+import {
+  apiPatch,
+  apiPost,
+  POLL_INTERVAL_DAY,
+  POLL_INTERVAL_TEN_MINUTES,
+  watchApi,
+} from "./api";
 
 type Notice = {
   id: string;
@@ -48,7 +54,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }, (listenerError) => {
       console.error("Could not load announcements:", listenerError);
       setError("Announcements are unavailable right now.");
-    });
+    }, POLL_INTERVAL_TEN_MINUTES);
 
     const unsubscribeSavedNotifications = watchApi<{ data: any[] }>("/notifications", ({ data }) => {
       setSavedNotifications(data.map((item) => ({
@@ -68,7 +74,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }, (listenerError) => {
       console.error("Could not load saved notifications:", listenerError);
       setError("Saved notifications are unavailable right now.");
-    });
+    }, POLL_INTERVAL_TEN_MINUTES);
 
     const unsubscribeClasses = watchApi<{ data: any[] }>("/classes", ({ data }) => {
       if (role === "teacher") {
@@ -100,7 +106,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }, (listenerError) => {
       console.error("Could not load class notifications:", listenerError);
       setError("Class updates are unavailable right now.");
-    });
+    }, POLL_INTERVAL_DAY);
     return () => {
       unsubscribeAnnouncements();
       unsubscribeSavedNotifications();

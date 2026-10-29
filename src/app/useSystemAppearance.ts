@@ -1,19 +1,23 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { watchApi } from "../api";
+import type { LiturgicalPalette } from "./AppTypes";
 
 export function useSystemAppearance(darkMode: boolean) {
   const [primaryColor, setPrimaryColor] = useState("#e88faf");
   const [secondaryColor, setSecondaryColor] = useState("#7ea9d2");
+  const [palettes, setPalettes] = useState<LiturgicalPalette[]>([]);
 
   useEffect(() => {
     const apply = (appearance: {
       primaryColor?: string;
       secondaryColor?: string;
+      palettes?: LiturgicalPalette[];
     } | null) => {
-        const color = appearance?.primaryColor;
-        if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) setPrimaryColor(color);
-        const secondary = appearance?.secondaryColor;
-        if (typeof secondary === "string" && /^#[0-9a-f]{6}$/i.test(secondary)) setSecondaryColor(secondary);
+      const color = appearance?.primaryColor;
+      if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) setPrimaryColor(color);
+      const secondary = appearance?.secondaryColor;
+      if (typeof secondary === "string" && /^#[0-9a-f]{6}$/i.test(secondary)) setSecondaryColor(secondary);
+      if (Array.isArray(appearance?.palettes)) setPalettes(appearance.palettes);
     };
     return watchApi<{ appearance: Parameters<typeof apply>[0] }>(
       "/settings/appearance",
@@ -21,6 +25,19 @@ export function useSystemAppearance(darkMode: boolean) {
       (error) => console.error("Could not load system appearance:", error),
     );
   }, []);
+
+  const applySavedAppearance = useCallback(
+    (appearance: {
+      primaryColor: string;
+      secondaryColor: string;
+      palettes?: LiturgicalPalette[];
+    }) => {
+      setPrimaryColor(appearance.primaryColor);
+      setSecondaryColor(appearance.secondaryColor);
+      if (appearance.palettes) setPalettes(appearance.palettes);
+    },
+    [],
+  );
 
   useEffect(() => {
     const root = document.documentElement;
@@ -36,5 +53,5 @@ export function useSystemAppearance(darkMode: boolean) {
     );
   }, [primaryColor, secondaryColor, darkMode]);
 
-  return { primaryColor, secondaryColor };
+  return { primaryColor, secondaryColor, palettes, applySavedAppearance };
 }

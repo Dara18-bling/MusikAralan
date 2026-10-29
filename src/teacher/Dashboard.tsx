@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { watchApi } from "../api";
+import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import { Card, Label, Title } from "../ui";
 
 export function Dashboard() {
@@ -16,6 +16,7 @@ export function Dashboard() {
       console.error("Could not load teacher dashboard:", listenerError);
       setError("Dashboard data is unavailable right now.");
     },
+    POLL_INTERVAL_TWO_MINUTES,
   ), []);
 
   return (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Video } from "lucide-react";
 import { Btn, Card, Title } from "../ui";
-import { watchApi } from "../api";
+import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 
 interface ScheduleItem {
   id: string;
@@ -22,7 +22,7 @@ export function StudentLive() {
   }, (listenerError) => {
     console.error("Could not load scheduled sessions:", listenerError);
     setError("Scheduled sessions are unavailable right now.");
-  }), []);
+  }, POLL_INTERVAL_TWO_MINUTES), []);
 
   return (
     <>

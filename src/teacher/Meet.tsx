@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { apiPost, watchApi } from "../api";
+import { apiPost, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 
@@ -11,8 +11,11 @@ interface ScheduleItem {
   joinUrl: string | null;
 }
 
-export function Meet() {
-  const [classes, setClasses] = useState<ClassCatalogItem[]>([]);
+interface MeetProps {
+  classes: ClassCatalogItem[];
+}
+
+export function Meet({ classes }: MeetProps) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [classId, setClassId] = useState("");
   const [title, setTitle] = useState("");
@@ -22,24 +25,24 @@ export function Meet() {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    const stopClasses = watchApi<{ data: ClassCatalogItem[] }>("/classes", ({ data }) => {
-      setClasses(data.filter((item) => !item.deleted));
-      setClassId((current) => data.some((item) => item.id === current) ? current : data[0]?.id || "");
-    }, (listenerError) => {
-      console.error("Could not load classes for scheduling:", listenerError);
-      setError("Your classes could not be loaded.");
-    });
     const stopSchedules = watchApi<{ data: ScheduleItem[] }>("/schedules", ({ data }) => {
       setSchedules(data);
     }, (listenerError) => {
       console.error("Could not load scheduled meetings:", listenerError);
       setError("Scheduled sessions could not be loaded.");
-    });
+    }, POLL_INTERVAL_TWO_MINUTES);
     return () => {
-      stopClasses();
       stopSchedules();
     };
   }, []);
+
+  useEffect(() => {
+    setClassId((current) =>
+      classes.some((item) => item.id === current)
+        ? current
+        : classes[0]?.id || "",
+    );
+  }, [classes]);
 
   async function scheduleSession(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

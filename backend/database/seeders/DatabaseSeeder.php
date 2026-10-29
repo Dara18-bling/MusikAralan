@@ -276,10 +276,22 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        $appearancePalettes = [
+            ['name' => 'Advent & Lent · Violet', 'primary' => '#6842a6', 'secondary' => '#a855a0'],
+            ['name' => 'Easter & Christmas · White and gold', 'primary' => '#c28b22', 'secondary' => '#f2d477'],
+            ['name' => 'Ordinary Time · Green', 'primary' => '#287653', 'secondary' => '#79a94b'],
+            ['name' => 'Feasts · Red', 'primary' => '#a8323b', 'secondary' => '#e16c48'],
+            ['name' => 'Marian · Pink and blue', 'primary' => '#e88faf', 'secondary' => '#7ea9d2'],
+        ];
         DB::table('settings')->updateOrInsert(
             ['key' => 'appearance'],
             [
-                'value' => json_encode(['primaryColor' => '#6842a6', 'secondaryColor' => '#a855a0', 'paletteName' => 'Advent & Lent · Violet'], JSON_THROW_ON_ERROR),
+                'value' => json_encode([
+                    'primaryColor' => $appearancePalettes[0]['primary'],
+                    'secondaryColor' => $appearancePalettes[0]['secondary'],
+                    'paletteName' => $appearancePalettes[0]['name'],
+                    'palettes' => $appearancePalettes,
+                ], JSON_THROW_ON_ERROR),
                 'created_at' => now(),
                 'updated_at' => now(),
             ],

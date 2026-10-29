@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, CalendarDays, Music, Trophy } from "lucide-react";
 import { Card, Label, Title } from "../ui";
-import { watchApi } from "../api";
+import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import type { StudentView } from "./studentTypes";
 
 interface StudentDashboard {
@@ -46,14 +46,14 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
     }, (listenerError) => {
       console.error("Could not load student dashboard:", listenerError);
       setError("Dashboard data is unavailable right now.");
-    });
+    }, POLL_INTERVAL_TWO_MINUTES);
     const stopSchedules = watchApi<{ data: ScheduleItem[] }>("/schedules", ({ data }) => {
       setSchedules(data.filter((item) => new Date(item.startsAt).getTime() >= Date.now()));
       setSchedulesLoaded(true);
     }, (listenerError) => {
       console.error("Could not load upcoming sessions:", listenerError);
       setError("Upcoming sessions are unavailable right now.");
-    });
+    }, POLL_INTERVAL_TWO_MINUTES);
     return () => {
       stopDashboard();
       stopSchedules();

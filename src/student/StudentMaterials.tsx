@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, Music } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { toast } from "react-toastify";
-import { apiPost, watchApi } from "../api";
+import { apiPost, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import { Card, Label, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import { isDataUrl, downloadDataUrl, ensureAbsoluteUrl, getDriveDownloadUrl } from "../utils/mediaUrlHelper";
@@ -45,17 +45,17 @@ export function StudentMaterials({ userId, userName, onViewAssessments }: Studen
     setAssessmentsLoaded(false);
     const stopMaterials = watchApi<{ data: any[] }>(`${classPath}/materials`, ({ data }) => {
       setClassMaterials(data);
-    }, (error) => console.error("Could not load class materials:", error));
+    }, (error) => console.error("Could not load class materials:", error), POLL_INTERVAL_TWO_MINUTES);
     const stopAssessments = watchApi<{ data: AssessmentSummary[] }>(`${classPath}/assessments`, ({ data }) => {
       setClassAssessments(data);
       setAssessmentsLoaded(true);
-    }, (error) => console.error("Could not load class assessments:", error));
+    }, (error) => console.error("Could not load class assessments:", error), POLL_INTERVAL_TWO_MINUTES);
     const stopClassmates = watchApi<{ data: any[] }>(`${classPath}/students`, ({ data }) => {
       setClassmates(data);
-    }, (error) => console.error("Could not load classmates:", error));
+    }, (error) => console.error("Could not load classmates:", error), POLL_INTERVAL_TWO_MINUTES);
     const stopProgress = watchApi<{ progress: Record<string, any> }>(`${classPath}/progress`, ({ progress }) => {
       setClassProgress({ [openClass.id]: progress });
-    }, (error) => console.error("Could not load class progress:", error));
+    }, (error) => console.error("Could not load class progress:", error), POLL_INTERVAL_TWO_MINUTES);
     return () => {
       stopMaterials();
       stopAssessments();

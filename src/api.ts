@@ -4,6 +4,10 @@ const API_BASE_URL = (
 ).replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "musikAralanApiToken";
 
+export const POLL_INTERVAL_DAY = 24 * 60 * 60 * 1000;
+export const POLL_INTERVAL_TEN_MINUTES = 10 * 60 * 1000;
+export const POLL_INTERVAL_TWO_MINUTES = 2 * 60 * 1000;
+
 let activeApiRequests = 0;
 const apiActivityListeners = new Set<(activeRequests: number) => void>();
 
@@ -141,7 +145,7 @@ export function watchApi<T>(
   path: string,
   onData: (payload: T) => void,
   onError: (error: unknown) => void,
-  intervalMs = 120_000,
+  intervalMs = POLL_INTERVAL_DAY,
 ): () => void {
   let stopped = false;
   let running = false;

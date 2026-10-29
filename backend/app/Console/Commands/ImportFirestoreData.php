@@ -295,10 +295,19 @@ class ImportFirestoreData extends Command
         if (! $document) {
             return;
         }
+        $existingSetting = DB::table('settings')->where('key', 'appearance')->first();
+        $existingAppearance = $existingSetting
+            ? json_decode($existingSetting->value, true)
+            : [];
+        $appearance = $document['data'];
+        if (is_array($existingAppearance['palettes'] ?? null)) {
+            $appearance['palettes'] = $existingAppearance['palettes'];
+        }
+
         DB::table('settings')->updateOrInsert(
             ['key' => 'appearance'],
             [
-                'value' => json_encode($document['data'], JSON_THROW_ON_ERROR),
+                'value' => json_encode($appearance, JSON_THROW_ON_ERROR),
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
