@@ -1,7 +1,6 @@
 import {
   Bell,
   BookOpen,
-  ClipboardCheck,
   BookHeart,
   Home,
   LayoutDashboard,
@@ -34,8 +33,6 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
     ["home", Home, "Dashboard"],
     ["materials", BookOpen, "Classes"],
     ["notes", Music, "Exercise Tools"],
-    ["live", Video, "Live Sessions"],
-    ["exams", ClipboardCheck, "Assessments"],
     ["alerts", Bell, "Notifications"],
     ["help", LifeBuoy, "Help Guides"],
     ["profile", User, "My Profile"],

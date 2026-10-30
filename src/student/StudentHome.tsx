@@ -101,7 +101,7 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
                 Open session
               </a>
             )}
-            <button type="button" onClick={() => go("live")} className="mt-4 block text-sm font-semibold text-p1">View all sessions</button>
+            <button type="button" onClick={() => go("materials")} className="mt-4 block text-sm font-semibold text-p1">View class sessions</button>
           </Card>
           <div className="grid gap-5 sm:grid-cols-3">
             {stats.map(({ label, value, detail, icon: Icon }) => (
@@ -118,7 +118,7 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
           <Card>
             <div className="flex items-center justify-between gap-3">
               <Label>Upcoming sessions</Label>
-              <button type="button" onClick={() => go("live")} className="text-sm font-semibold text-p1">View all</button>
+              <button type="button" onClick={() => go("materials")} className="text-sm font-semibold text-p1">View class sessions</button>
             </div>
             {schedules.length ? (
               <ul className="mt-3 divide-y divide-line">

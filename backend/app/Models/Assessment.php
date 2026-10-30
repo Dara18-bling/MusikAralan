@@ -8,7 +8,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Assessment extends Model
 {
-    protected $fillable = ['class_id', 'module_id', 'assessment_code', 'title', 'passing_percent'];
+    protected $fillable = ['class_id', 'module_id', 'assessment_code', 'title', 'passing_percent', 'allows_retakes'];
+
+    protected function casts(): array
+    {
+        return [
+            'allows_retakes' => 'boolean',
+        ];
+    }
 
     public function classroom(): BelongsTo
     {

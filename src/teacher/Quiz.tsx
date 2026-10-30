@@ -16,6 +16,7 @@ interface AssessmentSummary {
   assessmentCode: string;
   title: string;
   passingPercent: number;
+  allowsRetakes: boolean;
   questionCount: number;
 }
 
@@ -49,6 +50,7 @@ export function Quiz({
   const [qs, setQs] = useState<Question[]>([emptyQuestion()]);
   const [title, setTitle] = useState("");
   const [passingPercent, setPassingPercent] = useState(70);
+  const [allowsRetakes, setAllowsRetakes] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -56,6 +58,7 @@ export function Quiz({
     setAssessmentCode("");
     setTitle("");
     setPassingPercent(70);
+    setAllowsRetakes(true);
     setQs([emptyQuestion()]);
   };
 
@@ -66,6 +69,7 @@ export function Quiz({
       setAssessmentCode("");
       setTitle("");
       setPassingPercent(70);
+      setAllowsRetakes(true);
       setQs([emptyQuestion()]);
       return;
     }
@@ -115,6 +119,7 @@ export function Quiz({
         setAssessmentCode(assessment.assessmentCode);
         setTitle(assessment.title);
         setPassingPercent(assessment.passingPercent);
+        setAllowsRetakes(assessment.allowsRetakes ?? true);
         setQs(
           assessment.questions.length
             ? assessment.questions.map((question) => ({
@@ -176,7 +181,12 @@ export function Quiz({
 
     setSaving(true);
     try {
-      const payload = { title: title.trim(), questions: qs, passingPercent };
+      const payload = {
+        title: title.trim(),
+        questions: qs,
+        passingPercent,
+        allowsRetakes,
+      };
       const response = assessmentId
         ? await apiPut<{ assessment: AssessmentDetails }>(
             `/assessments/${assessmentId}`,
@@ -191,6 +201,7 @@ export function Quiz({
       onAssessmentChange(assessment.id);
       setTitle(assessment.title);
       setPassingPercent(assessment.passingPercent);
+      setAllowsRetakes(assessment.allowsRetakes ?? true);
       setQs(
         assessment.questions.map((question) => ({
           ...question,
@@ -204,6 +215,7 @@ export function Quiz({
           assessmentCode: assessment.assessmentCode,
           title: assessment.title,
           passingPercent: assessment.passingPercent,
+          allowsRetakes: assessment.allowsRetakes,
           questionCount: assessment.questions.length,
         };
         return existing
@@ -283,6 +295,14 @@ export function Quiz({
                 setPassingPercent(Number(event.target.value))
               }
             />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={allowsRetakes}
+              onChange={(event) => setAllowsRetakes(event.target.checked)}
+            />
+            Allow students to retake this assessment
           </label>
         </Card>
 

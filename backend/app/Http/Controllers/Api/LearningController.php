@@ -95,9 +95,15 @@ class LearningController extends Controller
 
         return response()->json([
             'data' => $assessments->map(function (Assessment $assessment) use ($user): array {
-                $latestAttempt = $user->role === 'student'
-                    ? $assessment->attempts()->where('student_id', $user->id)->latest('submitted_at')->first()
-                    : null;
+                $attempts = $user->role === 'student'
+                    ? $assessment->attempts()
+                        ->where('student_id', $user->id)
+                        ->latest('submitted_at')
+                        ->orderByDesc('id')
+                        ->limit(10)
+                        ->get()
+                    : collect();
+                $latestAttempt = $attempts->first();
 
                 return [
                     'id' => (string) $assessment->id,
@@ -105,11 +111,18 @@ class LearningController extends Controller
                     'title' => $assessment->title,
                     'passingPercent' => $assessment->passing_percent,
                     'questionCount' => $assessment->questions_count,
+                    'allowsRetakes' => $assessment->allows_retakes,
                     'latestAttempt' => $latestAttempt ? [
                         'score' => $latestAttempt->score,
                         'passed' => $latestAttempt->passed,
                         'submittedAt' => $latestAttempt->submitted_at?->toISOString(),
                     ] : null,
+                    'recentAttempts' => $attempts->map(fn (QuizAttempt $attempt): array => [
+                        'id' => (string) $attempt->id,
+                        'score' => $attempt->score,
+                        'passed' => $attempt->passed,
+                        'submittedAt' => $attempt->submitted_at?->toISOString(),
+                    ])->values(),
                 ];
             })->values(),
         ]);
@@ -171,6 +184,7 @@ class LearningController extends Controller
             ],
             'title' => ['required', 'string', 'max:255'],
             'passingPercent' => ['required', 'integer', 'between:0,100'],
+            'allowsRetakes' => ['sometimes', 'boolean'],
             'questions' => ['required', 'array', 'min:1'],
             'questions.*.q' => ['required', 'string'],
             'questions.*.type' => ['required', Rule::in(['multiple', 'truefalse', 'identification'])],
@@ -202,6 +216,7 @@ class LearningController extends Controller
             $assessment->module()->associate($module);
             $assessment->title = $data['title'];
             $assessment->passing_percent = $data['passingPercent'];
+            $assessment->allows_retakes = $data['allowsRetakes'] ?? true;
             $assessment->save();
             $assessment->questions()->delete();
             foreach (array_values($data['questions']) as $position => $question) {
@@ -259,6 +274,12 @@ class LearningController extends Controller
 
     private function gradeAssessment(Request $request, Assessment $assessment, $user): JsonResponse
     {
+        abort_if(
+            ! $assessment->allows_retakes
+                && $assessment->attempts()->where('student_id', $user->id)->exists(),
+            403,
+            'This assessment does not allow retakes.',
+        );
         $data = $request->validate(['answers' => ['required', 'array', 'min:1']]);
         $assessment->load('questions', 'classroom');
         $class = $assessment->classroom;
@@ -392,6 +413,7 @@ class LearningController extends Controller
             'assessmentCode' => $assessment->assessment_code,
             'title' => $assessment->title,
             'passingPercent' => $assessment->passing_percent,
+            'allowsRetakes' => $assessment->allows_retakes,
             'questions' => $assessment->questions->map(function (AssessmentQuestion $question) use ($includeAnswers): array {
                 $payload = [
                     'id' => (string) $question->id,

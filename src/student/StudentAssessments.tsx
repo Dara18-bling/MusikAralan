@@ -10,7 +10,19 @@ interface AssessmentSummary {
   title: string;
   passingPercent: number;
   questionCount: number;
-  latestAttempt: { score: number; passed: boolean; submittedAt: string } | null;
+  allowsRetakes: boolean;
+  latestAttempt: {
+    id?: string;
+    score: number;
+    passed: boolean;
+    submittedAt: string;
+  } | null;
+  recentAttempts: {
+    id: string;
+    score: number;
+    passed: boolean;
+    submittedAt: string;
+  }[];
 }
 
 interface AssessmentQuestion {
@@ -27,13 +39,11 @@ interface AssessmentDetails extends AssessmentSummary {
 interface StudentAssessmentsProps {
   classId: string;
   className: string;
-  onBack: () => void;
 }
 
 export function StudentAssessments({
   classId,
   className,
-  onBack,
 }: StudentAssessmentsProps) {
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
   const [selectedAssessment, setSelectedAssessment] =
@@ -41,6 +51,7 @@ export function StudentAssessments({
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedScores, setExpandedScores] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -103,13 +114,23 @@ export function StudentAssessments({
         answers: selectedAssessment.questions.map((_, index) => answers[index]),
       });
       const latestAttempt = {
+        id: attempt.id,
         score: attempt.score,
         passed: attempt.passed,
         submittedAt: attempt.submittedAt,
       };
       setAssessments((current) =>
         current.map((item) =>
-          item.id === selectedAssessment.id ? { ...item, latestAttempt } : item,
+          item.id === selectedAssessment.id
+            ? {
+                ...item,
+                latestAttempt,
+                recentAttempts: [
+                  latestAttempt,
+                  ...(item.recentAttempts || []).filter((recent) => recent.id !== latestAttempt.id),
+                ].slice(0, 10),
+              }
+            : item,
         ),
       );
       toast[attempt.passed ? "success" : "warning"](
@@ -207,31 +228,21 @@ export function StudentAssessments({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-p1"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Back to classes
-      </button>
       <Title
         kicker={className}
         title="Assessments"
-        sub="Choose an assessment to view its questions and submit your answers."
+        sub="Take an assessment, review your recent scores, or retake an assessment when allowed."
       />
       <div className="mt-5 grid gap-3">
         {assessments.map((assessment) => (
-          <Card
-            key={assessment.id}
-            className="flex flex-wrap items-center justify-between gap-4"
-          >
-            <div className="flex items-start gap-3">
-              <ClipboardCheck
-                className="mt-1 h-5 w-5 shrink-0 text-p1"
-                aria-hidden="true"
-              />
-              <div>
+          <Card key={assessment.id}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <ClipboardCheck
+                  className="mt-1 h-5 w-5 shrink-0 text-p1"
+                  aria-hidden="true"
+                />
+                <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-p1">
                   {assessment.assessmentCode}
                 </p>
@@ -242,17 +253,53 @@ export function StudentAssessments({
                   {assessment.questionCount} questions · Pass at{" "}
                   {assessment.passingPercent}%
                   {assessment.latestAttempt &&
-                    ` · Latest score ${assessment.latestAttempt.score}% (${assessment.latestAttempt.passed ? "Passed" : "Retry needed"})`}
+                    ` · Latest score ${assessment.latestAttempt.score}% (${assessment.latestAttempt.passed ? "Passed" : "Not passed"})`}
                 </p>
+                <p className="mt-1 text-xs text-mute">
+                  {assessment.allowsRetakes ? "Retakes allowed" : "One attempt only"}
+                </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(!assessment.latestAttempt || assessment.allowsRetakes) && (
+                  <button
+                    type="button"
+                    onClick={() => void openAssessment(assessment.id)}
+                    className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
+                  >
+                    {assessment.latestAttempt ? "Retake assessment" : "Take assessment"}
+                  </button>
+                )}
+                {assessment.recentAttempts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedScores((current) =>
+                        current === assessment.id ? "" : assessment.id,
+                      )
+                    }
+                    className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
+                  >
+                    {expandedScores === assessment.id ? "Hide recent scores" : "View recent scores"}
+                  </button>
+                )}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => void openAssessment(assessment.id)}
-              className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
-            >
-              Open assessment
-            </button>
+            {expandedScores === assessment.id && (
+              <ul className="mt-4 divide-y divide-line border-t border-line">
+                {assessment.recentAttempts.map((attempt) => (
+                  <li
+                    key={attempt.id}
+                    className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                  >
+                    <span>{new Date(attempt.submittedAt).toLocaleString()}</span>
+                    <span className="font-semibold">
+                      {attempt.score}% · {attempt.passed ? "Passed" : "Not passed"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         ))}
         {!loading && assessments.length === 0 && (

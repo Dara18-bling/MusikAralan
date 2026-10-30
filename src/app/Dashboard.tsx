@@ -79,7 +79,10 @@ export function Dashboard() {
 
   const pathParts = location.pathname.split("/");
   const pathRole = pathParts[1] as Role;
-  const view = pathParts[2] || DASHBOARD_VIEW[role];
+  const view =
+    role === "student" && pathParts[2] === "classes"
+      ? "materials"
+      : pathParts[2] || DASHBOARD_VIEW[role];
 
   if (pathRole !== role) return <Navigate to={`/${role}/${DASHBOARD_VIEW[role]}`} replace />;
   if (role === "student" && view === "store") return <Navigate to="/student/materials" replace />;

@@ -44,6 +44,92 @@ class DashboardAndScheduleTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_teacher_can_edit_and_delete_their_scheduled_session(): void
+    {
+        $teacher = $this->createUser('schedule-edit-teacher@example.test', 'teacher');
+        $student = $this->createUser('schedule-edit-student@example.test', 'student');
+        $class = Classroom::query()->create(['name' => 'Original class', 'teacher_id' => $teacher->id]);
+        $anotherClass = Classroom::query()->create(['name' => 'Updated class', 'teacher_id' => $teacher->id]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $token = $teacher->createToken('schedule-edit')->plainTextToken;
+
+        $scheduleId = $this->withToken($token)
+            ->postJson('/api/schedules', [
+                'classId' => $class->id,
+                'title' => 'Original meeting',
+                'description' => 'Original details',
+                'startsAt' => now()->addDays(2)->toISOString(),
+                'joinUrl' => 'https://meet.google.com/original',
+            ])
+            ->assertCreated()
+            ->json('schedule.id');
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('schedule-read')->plainTextToken)
+            ->getJson('/api/schedules')
+            ->assertOk()
+            ->assertJsonPath('data.0.canManage', true);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('schedule-update')->plainTextToken)
+            ->putJson("/api/schedules/{$scheduleId}", [
+                'classId' => $anotherClass->id,
+                'title' => 'Updated meeting',
+                'description' => 'Updated details',
+                'startsAt' => now()->addDays(3)->toISOString(),
+                'joinUrl' => 'https://meet.google.com/updated',
+            ])
+            ->assertOk()
+            ->assertJsonPath('schedule.className', 'Updated class')
+            ->assertJsonPath('schedule.title', 'Updated meeting')
+            ->assertJsonPath('schedule.description', 'Updated details')
+            ->assertJsonPath('schedule.joinUrl', 'https://meet.google.com/updated');
+        $this->assertDatabaseHas('schedule_events', [
+            'id' => $scheduleId,
+            'class_id' => $anotherClass->id,
+            'title' => 'Updated meeting',
+            'description' => 'Updated details',
+        ]);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('schedule-delete')->plainTextToken)
+            ->deleteJson("/api/schedules/{$scheduleId}")
+            ->assertOk();
+        $this->assertDatabaseMissing('schedule_events', ['id' => $scheduleId]);
+    }
+
+    public function test_schedule_edits_and_deletes_are_restricted_to_managers(): void
+    {
+        $teacher = $this->createUser('schedule-owner-teacher@example.test', 'teacher');
+        $otherTeacher = $this->createUser('schedule-other-teacher@example.test', 'teacher');
+        $student = $this->createUser('schedule-unauthorized-student@example.test', 'student');
+        $class = Classroom::query()->create(['name' => 'Owner class', 'teacher_id' => $otherTeacher->id]);
+
+        $scheduleId = $this->withToken($otherTeacher->createToken('schedule-owner')->plainTextToken)
+            ->postJson('/api/schedules', [
+                'classId' => $class->id,
+                'title' => 'Protected session',
+                'startsAt' => now()->addDays(2)->toISOString(),
+            ])
+            ->assertCreated()
+            ->json('schedule.id');
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('schedule-non-owner-update')->plainTextToken)
+            ->putJson("/api/schedules/{$scheduleId}", [
+                'classId' => $class->id,
+                'title' => 'Unauthorized update',
+                'startsAt' => now()->addDays(3)->toISOString(),
+            ])
+            ->assertForbidden();
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('schedule-student-delete')->plainTextToken)
+            ->deleteJson("/api/schedules/{$scheduleId}")
+            ->assertForbidden();
+        $this->assertDatabaseHas('schedule_events', ['id' => $scheduleId, 'title' => 'Protected session']);
+    }
+
     public function test_dashboard_metrics_and_quiz_attempt_history_are_database_backed(): void
     {
         $this->seed();
@@ -144,6 +230,7 @@ class DashboardAndScheduleTest extends TestCase
             ->postJson("/api/classes/{$class->id}/assessments", [
                 'title' => 'Music In Practice',
                 'passingPercent' => 60,
+                'allowsRetakes' => false,
                 'questions' => [[
                     'q' => 'Name the first note of the C major scale.',
                     'answer' => 'C',
@@ -160,7 +247,10 @@ class DashboardAndScheduleTest extends TestCase
             ->getJson("/api/classes/{$class->id}/assessments")
             ->assertOk()
             ->assertJsonCount(2, 'data')
-            ->assertJsonPath('data.1.assessmentCode', 'A2');
+            ->assertJsonPath('data.0.allowsRetakes', true)
+            ->assertJsonPath('data.1.assessmentCode', 'A2')
+            ->assertJsonPath('data.1.allowsRetakes', false)
+            ->assertJsonCount(0, 'data.1.recentAttempts');
 
         Auth::forgetGuards();
         $this->withToken($student->createToken('assessments-student-detail')->plainTextToken)
@@ -176,6 +266,12 @@ class DashboardAndScheduleTest extends TestCase
             ->assertJsonPath('attempt.score', 100)
             ->assertJsonPath('attempt.passed', true);
 
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-no-retake')->plainTextToken)
+            ->postJson("/api/assessments/{$secondAssessment}/attempts", ['answers' => ['C']])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This assessment does not allow retakes.');
+
         $this->assertDatabaseHas('module_progress', [
             'user_id' => $student->id,
             'status' => 'in_progress',
@@ -186,6 +282,19 @@ class DashboardAndScheduleTest extends TestCase
             ->postJson("/api/assessments/{$firstAssessment}/attempts", ['answers' => ['0']])
             ->assertCreated()
             ->assertJsonPath('attempt.passed', true);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-retake-allowed')->plainTextToken)
+            ->postJson("/api/assessments/{$firstAssessment}/attempts", ['answers' => ['1']])
+            ->assertCreated()
+            ->assertJsonPath('attempt.passed', false);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-history')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/assessments")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.0.recentAttempts')
+            ->assertJsonPath('data.0.latestAttempt.passed', false);
 
         $this->assertDatabaseHas('module_progress', [
             'user_id' => $student->id,

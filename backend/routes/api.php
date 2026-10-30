@@ -33,6 +33,8 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/gospel-verses', [GospelVerseController::class, 'index']);
         Route::get('/schedules', [ScheduleController::class, 'index']);
         Route::post('/schedules', [ScheduleController::class, 'store']);
+        Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->whereNumber('schedule');
+        Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->whereNumber('schedule');
         Route::get('/quiz-attempts', [QuizAttemptController::class, 'index']);
         Route::get('/notifications', [UserNotificationController::class, 'index']);
         Route::patch('/notifications/{notificationId}/read', [UserNotificationController::class, 'markRead']);
