@@ -75,6 +75,93 @@ class RelationalSchemaTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
+    public function test_student_roster_response_only_returns_classmate_count(): void
+    {
+        $teacher = User::query()->create([
+            'name' => 'Roster Teacher',
+            'email' => 'roster-teacher@example.test',
+            'password' => bcrypt('Password123!'),
+            'role' => 'teacher',
+            'status' => 'approved',
+        ]);
+        $student = User::query()->create([
+            'name' => 'Current Student',
+            'email' => 'current-student@example.test',
+            'password' => bcrypt('Password123!'),
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+        $classmate = User::query()->create([
+            'name' => 'Private Classmate',
+            'email' => 'private-classmate@example.test',
+            'password' => bcrypt('Password123!'),
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+        $pendingStudent = User::query()->create([
+            'name' => 'Pending Student',
+            'email' => 'pending-student@example.test',
+            'password' => bcrypt('Password123!'),
+            'role' => 'student',
+            'status' => 'pending',
+        ]);
+        $class = Classroom::query()->create([
+            'name' => 'Roster Class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach([
+            $student->id => ['enrolled_at' => now()],
+            $classmate->id => ['enrolled_at' => now()],
+            $pendingStudent->id => ['enrolled_at' => now()],
+        ]);
+
+        $this->withToken($student->createToken('student-roster')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/students")
+            ->assertOk()
+            ->assertExactJson(['count' => 1]);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('teacher-roster')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/students")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['email' => 'private-classmate@example.test']);
+    }
+
+    public function test_gospel_references_are_migrated_to_translation_book_ids(): void
+    {
+        DB::table('gospel_verses')->insert([
+            [
+                'book' => 'john',
+                'chapter' => 4,
+                'verse' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'book' => 'not-in-translation',
+                'chapter' => 1,
+                'verse' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $migration = require database_path(
+            'migrations/2026_10_31_000001_update_gospel_verse_book_ids_for_tgl_bib.php',
+        );
+        $migration->up();
+
+        $this->assertDatabaseHas('gospel_verses', [
+            'book' => 'JHN',
+            'chapter' => 4,
+            'verse' => 1,
+        ]);
+        $this->assertDatabaseMissing('gospel_verses', [
+            'book' => 'not-in-translation',
+        ]);
+    }
+
     public function test_login_issues_a_sanctum_token_and_logout_revokes_it(): void
     {
         $user = User::query()->create([

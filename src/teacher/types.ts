@@ -1,1 +1,1 @@
-export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students" | "alerts";
+export type TeacherView = "dash" | "classes" | "upload" | "quiz" | "meet" | "students" | "materials" | "alerts";

@@ -75,31 +75,28 @@ class ClassController extends Controller
         $user = $request->attributes->get('app_user');
         if ($user->role === 'student') {
             abort_unless($class->students()->where('users.id', $user->id)->exists(), 403);
+            $classmateCount = $class->students()
+                ->where('users.status', 'approved')
+                ->where('users.id', '!=', $user->id)
+                ->count();
+
+            return response()->json(['count' => $classmateCount]);
         } else {
             $this->ensureAssignedTeacher($request, $class);
         }
         $studentsQuery = $class->students()->where('users.status', 'approved');
-        if ($user->role === 'student') {
-            $studentsQuery->where('users.id', '!=', $user->id);
-        }
         $students = $studentsQuery->orderBy('users.name')->get();
 
-        $data = $students->map(function (User $student) use ($class, $user): array {
-            $payload = [
+        $data = $students->map(function (User $student) use ($class): array {
+            return [
                 'id' => (string) $student->id,
                 'name' => $student->name,
                 'email' => $student->email,
+                'birthday' => $student->birthday?->format('Y-m-d'),
+                'birthYear' => $student->birth_year,
+                'status' => $student->status,
+                'classProgress' => $this->studentProgress($student, $class),
             ];
-            if ($user->role !== 'student') {
-                $payload += [
-                    'birthday' => $student->birthday?->format('Y-m-d'),
-                    'birthYear' => $student->birth_year,
-                    'status' => $student->status,
-                    'classProgress' => $this->studentProgress($student, $class),
-                ];
-            }
-
-            return $payload;
         });
 
         return response()->json(['data' => $data]);

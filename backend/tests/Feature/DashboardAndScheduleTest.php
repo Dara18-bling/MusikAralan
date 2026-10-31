@@ -160,7 +160,7 @@ class DashboardAndScheduleTest extends TestCase
 
         $this->withToken($studentToken)
             ->postJson('/api/gospel-verses', [
-                'book' => 'john',
+                'book' => 'JHN',
                 'chapter' => 3,
                 'verse' => 16,
             ])
@@ -169,20 +169,29 @@ class DashboardAndScheduleTest extends TestCase
         Auth::forgetGuards();
         $createdVerse = $this->withToken($adminToken)
             ->postJson('/api/gospel-verses', [
-                'book' => 'john',
+                'book' => 'JHN',
                 'chapter' => 1,
                 'verse' => 1,
             ])
             ->assertCreated()
-            ->assertJsonPath('verse.book', 'john')
+            ->assertJsonPath('verse.book', 'JHN')
             ->json('verse.id');
 
         Auth::forgetGuards();
         $this->withToken($admin->createToken('gospel-admin-duplicate')->plainTextToken)
             ->postJson('/api/gospel-verses', [
-                'book' => 'john',
+                'book' => 'JHN',
                 'chapter' => 1,
                 'verse' => 1,
+            ])
+            ->assertUnprocessable();
+
+        Auth::forgetGuards();
+        $this->withToken($admin->createToken('gospel-admin-invalid-book')->plainTextToken)
+            ->postJson('/api/gospel-verses', [
+                'book' => 'john',
+                'chapter' => 1,
+                'verse' => 2,
             ])
             ->assertUnprocessable();
 

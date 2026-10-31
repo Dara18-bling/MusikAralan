@@ -49,12 +49,6 @@ type Schedule = {
   joinUrl: string | null;
 };
 
-type Classmate = {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-};
-
 type Progress = {
   completedMaterialIds: string[];
 };
@@ -95,7 +89,7 @@ export function StudentClassWorkspace({
 }: StudentClassWorkspaceProps) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
-  const [classmates, setClassmates] = useState<Classmate[]>([]);
+  const [classmateCount, setClassmateCount] = useState(0);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [progress, setProgress] = useState<Progress>({
     completedMaterialIds: [],
@@ -131,10 +125,10 @@ export function StudentClassWorkspace({
       reportError("Could not load class assessments:"),
       POLL_INTERVAL_TWO_MINUTES,
     );
-    const stopClassmates = watchApi<{ data: Classmate[] }>(
+    const stopClassmates = watchApi<{ count: number }>(
       `${classPath}/students`,
-      ({ data }) => {
-        setClassmates(data);
+      ({ count }) => {
+        setClassmateCount(count);
         setLoading(false);
       },
       reportError("Could not load classmates:"),
@@ -337,7 +331,7 @@ export function StudentClassWorkspace({
               <Card>
                 <Label>Classmates</Label>
                 <p className="mt-2 flex items-center gap-2 font-display text-3xl">
-                  <Users className="h-6 w-6 text-p1" /> {classmates.length}
+                  <Users className="h-6 w-6 text-p1" /> {classmateCount}
                 </p>
               </Card>
             </div>

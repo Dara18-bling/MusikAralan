@@ -13,6 +13,7 @@ import { TeacherClasses } from "./teacher/TeacherClasses";
 import { Upload } from "./teacher/Upload";
 import { Quiz } from "./teacher/Quiz";
 import { Meet } from "./teacher/Meet";
+import { TeacherMaterials } from "./teacher/TeacherMaterials";
 
 export type { TeacherView };
 
@@ -130,9 +131,24 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
               go(`quiz?classId=${encodeURIComponent(classId)}`);
               return;
             }
+            if (nextView === "materials") {
+              go(`materials?classId=${encodeURIComponent(classId)}`);
+              return;
+            }
             go(nextView);
           }}
         />
+      ) : view === "materials" ? (
+        selectedClass ? (
+          <TeacherMaterials
+            classId={selectedClass.id}
+            className={selectedClass.name}
+          />
+        ) : (
+          <Card className="animate-pulse py-12 text-center text-mute">
+            Loading class materials…
+          </Card>
+        )
       ) : view === "students" ? (
         <StudentList
           className={selectedClass?.name}

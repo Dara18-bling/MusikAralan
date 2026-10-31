@@ -99,36 +99,6 @@ CREATE UNIQUE INDEX "enrollments_class_id_student_id_unique" on "enrollments"(
   "class_id",
   "student_id"
 );
-CREATE TABLE "materials"(
-  "id" integer primary key autoincrement not null,
-  "class_id" integer not null,
-  "legacy_id" varchar,
-  "teacher_id" integer,
-  "title" varchar not null,
-  "description" text not null,
-  "kind" varchar not null,
-  "media_url" text,
-  "stream_url" text,
-  "storage_path" varchar,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("class_id") references "classes"("id") on delete cascade,
-  foreign key("teacher_id") references "users"("id") on delete set null
-);
-CREATE UNIQUE INDEX "materials_class_id_legacy_id_unique" on "materials"(
-  "class_id",
-  "legacy_id"
-);
-CREATE TABLE "assessments"(
-  "id" integer primary key autoincrement not null,
-  "class_id" integer not null,
-  "title" varchar not null,
-  "passing_percent" integer not null default '70',
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("class_id") references "classes"("id") on delete cascade
-);
-CREATE UNIQUE INDEX "assessments_class_id_unique" on "assessments"("class_id");
 CREATE TABLE "assessment_questions"(
   "id" integer primary key autoincrement not null,
   "assessment_id" integer not null,
@@ -143,24 +113,6 @@ CREATE TABLE "assessment_questions"(
 CREATE UNIQUE INDEX "assessment_questions_assessment_id_position_unique" on "assessment_questions"(
   "assessment_id",
   "position"
-);
-CREATE TABLE "assessment_attempts"(
-  "id" integer primary key autoincrement not null,
-  "assessment_id" integer not null,
-  "student_id" integer not null,
-  "legacy_key" varchar,
-  "score" integer not null,
-  "passed" tinyint(1) not null,
-  "submitted_at" datetime not null default CURRENT_TIMESTAMP,
-  foreign key("assessment_id") references "assessments"("id") on delete cascade,
-  foreign key("student_id") references "users"("id") on delete cascade
-);
-CREATE INDEX "assessment_attempts_student_id_assessment_id_index" on "assessment_attempts"(
-  "student_id",
-  "assessment_id"
-);
-CREATE UNIQUE INDEX "assessment_attempts_legacy_key_unique" on "assessment_attempts"(
-  "legacy_key"
 );
 CREATE TABLE "assessment_attempt_answers"(
   "id" integer primary key autoincrement not null,
@@ -187,19 +139,6 @@ CREATE UNIQUE INDEX "material_completions_student_id_material_id_unique" on "mat
   "student_id",
   "material_id"
 );
-CREATE TABLE "announcements"(
-  "id" integer primary key autoincrement not null,
-  "legacy_id" varchar,
-  "author_id" integer,
-  "title" varchar not null,
-  "content" text not null,
-  "created_at" datetime,
-  "updated_at" datetime,
-  foreign key("author_id") references "users"("id") on delete set null
-);
-CREATE UNIQUE INDEX "announcements_legacy_id_unique" on "announcements"(
-  "legacy_id"
-);
 CREATE TABLE "chatbot_responses"(
   "id" integer primary key autoincrement not null,
   "legacy_key" varchar,
@@ -219,27 +158,6 @@ CREATE TABLE "settings"(
   "updated_at" datetime,
   primary key("key")
 );
-CREATE TABLE "users"(
-  "id" integer primary key autoincrement not null,
-  "firebase_uid" varchar,
-  "name" varchar not null default(''),
-  "email" varchar not null,
-  "email_verified_at" datetime,
-  "birthday" date,
-  "birth_year" integer,
-  "phone_number" varchar,
-  "phone_verified" tinyint(1) not null default('0'),
-  "messenger_link" varchar,
-  "role" varchar not null default('student'),
-  "status" varchar not null default('pending'),
-  "access_until" date,
-  "date_requested" datetime,
-  "created_at" datetime,
-  "updated_at" datetime,
-  "password" varchar
-);
-CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
-CREATE UNIQUE INDEX "users_firebase_uid_unique" on "users"("firebase_uid");
 CREATE TABLE "personal_access_tokens"(
   "id" integer primary key autoincrement not null,
   "tokenable_type" varchar not null,
@@ -262,6 +180,219 @@ CREATE UNIQUE INDEX "personal_access_tokens_token_unique" on "personal_access_to
 CREATE INDEX "personal_access_tokens_expires_at_index" on "personal_access_tokens"(
   "expires_at"
 );
+CREATE TABLE "voice_groups"(
+  "id" integer primary key autoincrement not null,
+  "name" varchar not null,
+  "description" text,
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "voice_groups_name_unique" on "voice_groups"("name");
+CREATE TABLE "user_voice_group"(
+  "user_id" integer not null,
+  "voice_group_id" integer not null,
+  "voice_part" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("user_id") references "users"("id") on delete cascade,
+  foreign key("voice_group_id") references "voice_groups"("id") on delete cascade,
+  primary key("user_id", "voice_group_id")
+);
+CREATE TABLE "modules"(
+  "id" integer primary key autoincrement not null,
+  "class_id" integer,
+  "title" varchar not null,
+  "category" varchar,
+  "description" text,
+  "created_by" integer,
+  "requires_practice" tinyint(1) not null default '0',
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("class_id") references "classes"("id") on delete set null,
+  foreign key("created_by") references "users"("id") on delete set null
+);
+CREATE INDEX "modules_class_id_created_at_index" on "modules"(
+  "class_id",
+  "created_at"
+);
+CREATE TABLE "materials"(
+  "id" integer primary key autoincrement not null,
+  "class_id" integer not null,
+  "legacy_id" varchar,
+  "teacher_id" integer,
+  "title" varchar not null,
+  "description" text not null,
+  "kind" varchar not null,
+  "media_url" text,
+  "stream_url" text,
+  "storage_path" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "module_id" integer,
+  "voice_group_id" integer,
+  foreign key("teacher_id") references "users"("id") on delete set null on update no action,
+  foreign key("class_id") references "classes"("id") on delete cascade on update no action,
+  foreign key("module_id") references "modules"("id") on delete set null,
+  foreign key("voice_group_id") references "voice_groups"("id") on delete set null
+);
+CREATE UNIQUE INDEX "materials_class_id_legacy_id_unique" on "materials"(
+  "class_id",
+  "legacy_id"
+);
+CREATE TABLE "assessments"(
+  "id" integer primary key autoincrement not null,
+  "class_id" integer not null,
+  "title" varchar not null,
+  "passing_percent" integer not null default('70'),
+  "created_at" datetime,
+  "updated_at" datetime,
+  "module_id" integer,
+  "assessment_code" varchar not null default 'A1',
+  foreign key("class_id") references "classes"("id") on delete cascade on update no action,
+  foreign key("module_id") references "modules"("id") on delete set null
+);
+CREATE TABLE "announcements"(
+  "id" integer primary key autoincrement not null,
+  "legacy_id" varchar,
+  "author_id" integer,
+  "title" varchar not null,
+  "content" text not null,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "target_group_id" integer,
+  foreign key("author_id") references "users"("id") on delete set null on update no action,
+  foreign key("target_group_id") references "voice_groups"("id") on delete set null
+);
+CREATE UNIQUE INDEX "announcements_legacy_id_unique" on "announcements"(
+  "legacy_id"
+);
+CREATE TABLE "users"(
+  "id" integer primary key autoincrement not null,
+  "firebase_uid" varchar,
+  "name" varchar not null default(''),
+  "email" varchar not null,
+  "email_verified_at" datetime,
+  "birthday" date,
+  "birth_year" integer,
+  "phone_number" varchar,
+  "phone_verified" tinyint(1) not null default('0'),
+  "messenger_link" varchar,
+  "role" varchar not null default('student'),
+  "status" varchar not null default('pending'),
+  "access_until" date,
+  "date_requested" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  "password" varchar,
+  "approved_by" integer,
+  "approved_at" datetime,
+  foreign key("approved_by") references "users"("id") on delete set null
+);
+CREATE UNIQUE INDEX "users_email_unique" on "users"("email");
+CREATE UNIQUE INDEX "users_firebase_uid_unique" on "users"("firebase_uid");
+CREATE TABLE "module_progress"(
+  "id" integer primary key autoincrement not null,
+  "user_id" integer not null,
+  "module_id" integer not null,
+  "status" varchar not null default 'not_started',
+  "completed_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("user_id") references "users"("id") on delete cascade,
+  foreign key("module_id") references "modules"("id") on delete cascade
+);
+CREATE UNIQUE INDEX "module_progress_user_id_module_id_unique" on "module_progress"(
+  "user_id",
+  "module_id"
+);
+CREATE TABLE "assessment_attempts"(
+  "id" integer primary key autoincrement not null,
+  "assessment_id" integer not null,
+  "student_id" integer not null,
+  "legacy_key" varchar,
+  "score" integer not null,
+  "passed" tinyint(1) not null,
+  "submitted_at" datetime not null default(CURRENT_TIMESTAMP),
+  "module_progress_id" integer,
+  "status" varchar not null default 'failed',
+  foreign key("student_id") references "users"("id") on delete cascade on update no action,
+  foreign key("assessment_id") references "assessments"("id") on delete cascade on update no action,
+  foreign key("module_progress_id") references "module_progress"("id") on delete set null
+);
+CREATE UNIQUE INDEX "assessment_attempts_legacy_key_unique" on "assessment_attempts"(
+  "legacy_key"
+);
+CREATE INDEX "assessment_attempts_student_id_assessment_id_index" on "assessment_attempts"(
+  "student_id",
+  "assessment_id"
+);
+CREATE INDEX "assessment_attempts_module_progress_id_status_index" on "assessment_attempts"(
+  "module_progress_id",
+  "status"
+);
+CREATE TABLE "practice_sessions"(
+  "id" integer primary key autoincrement not null,
+  "module_progress_id" integer not null,
+  "practice_type" varchar not null,
+  "score" integer,
+  "completed_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("module_progress_id") references "module_progress"("id") on delete cascade
+);
+CREATE INDEX "practice_sessions_module_progress_id_practice_type_index" on "practice_sessions"(
+  "module_progress_id",
+  "practice_type"
+);
+CREATE TABLE "notifications"(
+  "id" varchar not null,
+  "type" varchar not null,
+  "notifiable_type" varchar not null,
+  "notifiable_id" integer not null,
+  "data" text not null,
+  "read_at" datetime,
+  "created_at" datetime,
+  "updated_at" datetime,
+  primary key("id")
+);
+CREATE INDEX "notifications_notifiable_type_notifiable_id_index" on "notifications"(
+  "notifiable_type",
+  "notifiable_id"
+);
+CREATE TABLE "schedule_events"(
+  "id" integer primary key autoincrement not null,
+  "class_id" integer,
+  "created_by" integer not null,
+  "title" varchar not null,
+  "description" text,
+  "starts_at" datetime not null,
+  "join_url" varchar,
+  "created_at" datetime,
+  "updated_at" datetime,
+  foreign key("class_id") references "classes"("id") on delete cascade,
+  foreign key("created_by") references "users"("id") on delete cascade
+);
+CREATE INDEX "schedule_events_class_id_starts_at_index" on "schedule_events"(
+  "class_id",
+  "starts_at"
+);
+CREATE TABLE "gospel_verses"(
+  "id" integer primary key autoincrement not null,
+  "book" varchar not null,
+  "chapter" integer not null,
+  "verse" integer not null,
+  "created_at" datetime,
+  "updated_at" datetime
+);
+CREATE UNIQUE INDEX "gospel_verses_book_chapter_verse_unique" on "gospel_verses"(
+  "book",
+  "chapter",
+  "verse"
+);
+CREATE UNIQUE INDEX "assessments_class_id_assessment_code_unique" on "assessments"(
+  "class_id",
+  "assessment_code"
+);
 
 INSERT INTO migrations VALUES(1,'0001_01_01_000000_create_users_table',1);
 INSERT INTO migrations VALUES(2,'0001_01_01_000001_create_cache_table',1);
@@ -269,3 +400,9 @@ INSERT INTO migrations VALUES(3,'0001_01_01_000002_create_jobs_table',1);
 INSERT INTO migrations VALUES(4,'2026_10_21_000001_create_learning_tables',1);
 INSERT INTO migrations VALUES(5,'2026_10_21_000002_add_password_authentication_to_users',1);
 INSERT INTO migrations VALUES(6,'2026_10_21_145031_create_personal_access_tokens_table',1);
+INSERT INTO migrations VALUES(7,'2026_10_22_000001_integrate_voice_groups_modules_and_progress',2);
+INSERT INTO migrations VALUES(8,'2026_10_22_000002_create_notifications_table',2);
+INSERT INTO migrations VALUES(9,'2026_10_23_000001_create_schedule_events_table',2);
+INSERT INTO migrations VALUES(10,'2026_10_24_000001_create_gospel_verses_table',2);
+INSERT INTO migrations VALUES(11,'2026_10_26_000001_allow_multiple_class_assessments',2);
+INSERT INTO migrations VALUES(12,'2026_10_27_000001_add_liturgical_palettes_to_appearance_setting',3);

@@ -13,9 +13,9 @@ import {
 interface StudentMaterialViewerProps {
   className: string;
   material: Material;
-  completed: boolean;
   onBack: () => void;
-  onMarkComplete: () => Promise<boolean>;
+  completed?: boolean;
+  onMarkComplete?: () => Promise<boolean>;
 }
 
 function getFileExtension(url: string) {
@@ -25,8 +25,8 @@ function getFileExtension(url: string) {
 export function StudentMaterialViewer({
   className,
   material,
-  completed,
   onBack,
+  completed = false,
   onMarkComplete,
 }: StudentMaterialViewerProps) {
   const [saving, setSaving] = useState(false);
@@ -56,6 +56,7 @@ export function StudentMaterialViewer({
   const driveDownloadUrl = getDriveDownloadUrl(source);
 
   const handleMarkComplete = async () => {
+    if (!onMarkComplete) return;
     setSaving(true);
     await onMarkComplete();
     setSaving(false);
@@ -195,19 +196,21 @@ export function StudentMaterialViewer({
             Open attached link
           </a>
         ))}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <p className="text-sm text-mute">
-            {completed ? "You have marked this material as complete." : "Finish reviewing this material, then mark it complete."}
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleMarkComplete()}
-            disabled={completed || saving}
-            className={`rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${completed ? "bg-emerald-600" : "bg-p1"}`}
-          >
-            {saving ? "Saving…" : completed ? "Completed" : "Mark as Complete"}
-          </button>
-        </div>
+        {onMarkComplete && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            <p className="text-sm text-mute">
+              {completed ? "You have marked this material as complete." : "Finish reviewing this material, then mark it complete."}
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleMarkComplete()}
+              disabled={completed || saving}
+              className={`rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${completed ? "bg-emerald-600" : "bg-p1"}`}
+            >
+              {saving ? "Saving…" : completed ? "Completed" : "Mark as Complete"}
+            </button>
+          </div>
+        )}
       </Card>
     </>
   );

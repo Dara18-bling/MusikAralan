@@ -6,9 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\GospelVerse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class GospelVerseController extends Controller
 {
+    private const SUPPORTED_BOOK_IDS = [
+        'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT',
+        '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH',
+        'EST', 'JOB', 'PSA', 'PRO', 'ECC', 'SNG', 'ISA', 'JER',
+        'LAM', 'EZK', 'DAN', 'HOS', 'JOL', 'AMO', 'OBA', 'JON',
+        'MIC', 'NAM', 'HAB', 'ZEP', 'HAG', 'ZEC', 'MAL', 'MAT',
+        'MRK', 'LUK', 'JHN', 'ACT', 'ROM', '1CO', '2CO', 'GAL',
+        'EPH', 'PHP', 'COL', '1TH', '2TH', '1TI', '2TI', 'TIT',
+        'PHM', 'HEB', 'JAS', '1PE', '2PE', '1JN', '2JN', '3JN',
+        'JUD', 'REV',
+    ];
+
     public function index(): JsonResponse
     {
         return response()->json([
@@ -21,7 +34,7 @@ class GospelVerseController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'book' => ['required', 'string', 'max:40', 'regex:/^[a-z]+(?:-[a-z]+)*$/'],
+            'book' => ['required', 'string', Rule::in(self::SUPPORTED_BOOK_IDS)],
             'chapter' => ['required', 'integer', 'min:1', 'max:150'],
             'verse' => ['required', 'integer', 'min:1', 'max:176'],
         ]);
