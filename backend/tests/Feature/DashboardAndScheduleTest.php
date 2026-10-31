@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Classroom;
+use App\Models\Material;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class DashboardAndScheduleTest extends TestCase
@@ -314,6 +317,208 @@ class DashboardAndScheduleTest extends TestCase
             'assessment_id' => $secondAssessment,
             'student_id' => $student->id,
             'score' => 100,
+        ]);
+    }
+
+    public function test_uploaded_materials_use_the_configured_disk_and_current_disk_url(): void
+    {
+        config()->set('filesystems.material_uploads_signed_urls', false);
+        $teacher = $this->createUser('material-storage-teacher@example.test', 'teacher');
+        $class = Classroom::query()->create([
+            'name' => 'Storage class',
+            'teacher_id' => $teacher->id,
+        ]);
+        config()->set('filesystems.disks.material-uploads', [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/material-uploads'),
+            'url' => 'https://old-cdn.example.test/materials',
+            'visibility' => 'public',
+            'throw' => false,
+        ]);
+        Storage::fake('material-uploads');
+        config()->set('filesystems.material_uploads_disk', 'material-uploads');
+
+        $materialId = $this->withToken($teacher->createToken('material-upload')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials", [
+                'title' => 'Lesson notes',
+                'description' => 'Uploaded lesson notes.',
+                'kind' => 'Module',
+                'mediaUrl' => 'data:application/pdf;base64,SGVsbG8=',
+                'streamUrl' => 'data:application/pdf;base64,SGVsbG8=',
+            ])
+            ->assertCreated()
+            ->json('material.id');
+
+        $material = Material::query()->findOrFail($materialId);
+        $this->assertNotNull($material->storage_path);
+        Storage::disk('material-uploads')->assertExists($material->storage_path);
+
+        config()->set('filesystems.disks.material-uploads-next', [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/material-uploads-next'),
+            'url' => 'https://cdn.example.test/materials',
+            'visibility' => 'public',
+            'throw' => false,
+        ]);
+        config()->set('filesystems.material_uploads_disk', 'material-uploads-next');
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('material-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk()
+            ->assertJsonPath(
+                'data.0.mediaUrl',
+                'https://cdn.example.test/materials/'.$material->storage_path,
+            )
+            ->assertJsonPath(
+                'data.0.streamUrl',
+                'https://cdn.example.test/materials/'.$material->storage_path,
+            );
+    }
+
+    public function test_private_material_urls_are_signed_and_remain_class_authorized(): void
+    {
+        $teacher = $this->createUser('private-material-teacher@example.test', 'teacher');
+        $otherTeacher = $this->createUser('private-material-other@example.test', 'teacher');
+        $class = Classroom::query()->create([
+            'name' => 'Private storage class',
+            'teacher_id' => $teacher->id,
+        ]);
+        Material::query()->create([
+            'class_id' => $class->id,
+            'teacher_id' => $teacher->id,
+            'title' => 'Private lesson',
+            'description' => 'Material shared with enrolled class members.',
+            'kind' => 'Module',
+            'media_url' => 'https://old-public-cdn.example.test/materials/lesson.pdf',
+            'stream_url' => 'https://old-public-cdn.example.test/materials/lesson.pdf',
+            'storage_path' => 'materials/lesson.pdf',
+        ]);
+        config()->set('filesystems.disks.s3-compatible', [
+            'driver' => 's3-compatible',
+            'key' => 'test-key',
+            'secret' => 'test-secret',
+            'region' => 'auto',
+            'bucket' => 'course-materials',
+            'url' => 'https://public-cdn.example.test',
+            'endpoint' => 'https://s3.filebase.test',
+            'use_path_style_endpoint' => true,
+            'visibility' => 'private',
+            'throw' => false,
+        ]);
+        config()->set('filesystems.material_uploads_disk', 's3-compatible');
+        config()->set('filesystems.material_uploads_signed_urls', true);
+        config()->set('filesystems.material_signed_url_ttl_minutes', 20);
+        Storage::forgetDisk('s3-compatible');
+
+        $response = $this->withToken($teacher->createToken('private-material-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk();
+        $signedUrl = $response->json('data.0.mediaUrl');
+        parse_str((string) parse_url($signedUrl, PHP_URL_QUERY), $query);
+
+        $this->assertSame('s3.filebase.test', parse_url($signedUrl, PHP_URL_HOST));
+        $this->assertStringContainsString('/course-materials/materials/lesson.pdf', (string) parse_url($signedUrl, PHP_URL_PATH));
+        $this->assertArrayHasKey('X-Amz-Signature', $query);
+        $this->assertGreaterThanOrEqual(1140, (int) $query['X-Amz-Expires']);
+        $this->assertLessThanOrEqual(1200, (int) $query['X-Amz-Expires']);
+        $this->assertSame($signedUrl, $response->json('data.0.streamUrl'));
+
+        Auth::forgetGuards();
+        $this->withToken($otherTeacher->createToken('unauthorized-private-material')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertForbidden();
+    }
+
+    public function test_teacher_can_soft_delete_their_upload_and_student_history_shows_deleted_notice(): void
+    {
+        config()->set('filesystems.material_uploads_signed_urls', false);
+        $teacher = $this->createUser('material-delete-teacher@example.test', 'teacher');
+        $student = $this->createUser('material-delete-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Material deletion class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+
+        config()->set('filesystems.disks.material-delete-test', [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/material-delete-test'),
+            'url' => 'https://cdn.example.test',
+            'visibility' => 'public',
+            'throw' => false,
+        ]);
+        Storage::fake('material-delete-test');
+        config()->set('filesystems.material_uploads_disk', 'material-delete-test');
+        $path = 'materials/lesson.pdf';
+        Storage::disk('material-delete-test')->put($path, '%PDF test');
+        $material = Material::query()->create([
+            'class_id' => $class->id,
+            'teacher_id' => $teacher->id,
+            'title' => 'Lesson notes',
+            'description' => 'Notes students completed.',
+            'kind' => 'Module',
+            'media_url' => 'https://cdn.example.test/'.$path,
+            'stream_url' => 'https://cdn.example.test/'.$path,
+            'storage_path' => $path,
+        ]);
+        DB::table('material_completions')->insert([
+            'student_id' => $student->id,
+            'material_id' => $material->id,
+            'completed_at' => now(),
+        ]);
+
+        $this->withToken($teacher->createToken('material-delete')->plainTextToken)
+            ->deleteJson("/api/classes/{$class->id}/materials/{$material->id}")
+            ->assertOk()
+            ->assertJsonPath('deleted', true)
+            ->assertJsonPath('fileDeleted', true);
+
+        $this->assertSoftDeleted('materials', ['id' => $material->id]);
+        $this->assertDatabaseHas('material_completions', [
+            'student_id' => $student->id,
+            'material_id' => $material->id,
+        ]);
+        Storage::disk('material-delete-test')->assertMissing($path);
+
+        Auth::forgetGuards();
+        $studentToken = $student->createToken('material-delete-progress')->plainTextToken;
+        $this->withToken($studentToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('material-delete-progress-history')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/progress")
+            ->assertOk()
+            ->assertJsonPath('progress.completedMaterialIds', [])
+            ->assertJsonPath('progress.deletedCompletedMaterials.0.title', 'Lesson notes')
+            ->assertJsonPath('progress.deletedCompletedMaterials.0.id', (string) $material->id);
+    }
+
+    public function test_teacher_cannot_delete_a_material_uploaded_by_another_teacher(): void
+    {
+        $classTeacher = $this->createUser('material-owner-teacher@example.test', 'teacher');
+        $uploadingTeacher = $this->createUser('material-uploader-teacher@example.test', 'teacher');
+        $class = Classroom::query()->create([
+            'name' => 'Other uploader class',
+            'teacher_id' => $classTeacher->id,
+        ]);
+        $material = Material::query()->create([
+            'class_id' => $class->id,
+            'teacher_id' => $uploadingTeacher->id,
+            'title' => 'Other teacher notes',
+            'description' => 'Not owned by the class teacher.',
+            'kind' => 'Module',
+        ]);
+
+        $this->withToken($classTeacher->createToken('material-not-uploader')->plainTextToken)
+            ->deleteJson("/api/classes/{$class->id}/materials/{$material->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('materials', [
+            'id' => $material->id,
+            'deleted_at' => null,
         ]);
     }
 

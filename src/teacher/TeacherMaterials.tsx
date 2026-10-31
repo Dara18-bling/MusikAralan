@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Video } from "lucide-react";
-import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { toast } from "react-toastify";
+import { apiDelete, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import { Card, Title } from "../ui";
 import { StudentMaterialViewer } from "../student/StudentMaterialViewer";
 import type { Material } from "../student/StudentClassWorkspace";
@@ -53,6 +54,27 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
       },
       { replace: true },
     );
+  };
+
+  const deleteMaterial = async (material: Material) => {
+    if (
+      !window.confirm(
+        `Delete "${material.title}" from this class? Its completion history will be retained.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiDelete(`/classes/${classId}/materials/${encodeURIComponent(material.id)}`);
+      setMaterials((current) => current.filter((item) => item.id !== material.id));
+      if (selectedMaterialId === material.id) selectMaterial("");
+      toast.success("Material deleted. Completion history was retained.");
+    } catch (error) {
+      console.error("Could not delete class material:", error);
+      const details = error as { message?: string };
+      toast.error(details.message || "Could not delete this material.");
+    }
   };
 
   if (selectedMaterialId) {
@@ -126,13 +148,24 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
               {material.teacherName && (
                 <p className="mt-3 text-xs text-mute">Shared by {material.teacherName}</p>
               )}
-              <button
-                type="button"
-                onClick={() => selectMaterial(material.id)}
-                className="mt-auto rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1 transition hover:bg-[var(--p1)] hover:text-white"
-              >
-                View material
-              </button>
+              <div className="mt-auto flex flex-wrap gap-2 pt-4">
+                <button
+                  type="button"
+                  onClick={() => selectMaterial(material.id)}
+                  className="flex-1 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1 transition hover:bg-[var(--p1)] hover:text-white"
+                >
+                  View material
+                </button>
+                {material.canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => void deleteMaterial(material)}
+                    className="rounded-full border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </Card>
           ))}
         </div>

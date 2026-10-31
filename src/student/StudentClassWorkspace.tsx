@@ -20,6 +20,7 @@ export type Material = {
   mediaUrl?: string | null;
   streamUrl?: string | null;
   teacherName?: string | null;
+  canDelete?: boolean;
   files?: { name: string; url: string }[];
   links?: { url: string }[];
 };
@@ -51,6 +52,11 @@ type Schedule = {
 
 type Progress = {
   completedMaterialIds: string[];
+  deletedCompletedMaterials?: {
+    id: string;
+    title: string;
+    completedAt: string | null;
+  }[];
 };
 
 export type WorkspaceTab =
@@ -164,6 +170,7 @@ export function StudentClassWorkspace({
   }, [classInfo.id]);
 
   const completedMaterialIds = progress.completedMaterialIds || [];
+  const deletedCompletedMaterials = progress.deletedCompletedMaterials || [];
   const incompleteMaterials = materials.filter(
     (material) => !completedMaterialIds.includes(material.id),
   );
@@ -480,6 +487,24 @@ export function StudentClassWorkspace({
                   <p className="mt-3 text-sm text-mute">All learning materials are complete.</p>
                 )}
               </Card>
+              {deletedCompletedMaterials.length > 0 && (
+                <Card>
+                  <Label>Historical completion records</Label>
+                  <ul className="mt-3 space-y-3 text-sm">
+                    {deletedCompletedMaterials.map((material) => (
+                      <li key={material.id} className="rounded-lg bg-slate-50 p-3">
+                        <p className="font-semibold">{material.title}</p>
+                        <p className="mt-1 text-mute">This material has been deleted</p>
+                        {material.completedAt && (
+                          <p className="mt-1 text-xs text-mute">
+                            Completed {new Date(material.completedAt).toLocaleDateString()}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
               <Card>
                 <Label>To be graded</Label>
                 {unpassedAssessments.length ? (

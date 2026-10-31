@@ -204,7 +204,7 @@ class ImportFirestoreData extends Command
                 if ($storagePath === null) {
                     $storagePath = $this->storeDataUrl($url);
                 }
-                $url = Storage::disk('public')->url($storagePath);
+                $url = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
             }
         }
         unset($url);
@@ -480,7 +480,7 @@ class ImportFirestoreData extends Command
             default => explode('/', $matches[1])[1],
         };
         $path = 'materials/imported/'.bin2hex(random_bytes(16)).'.'.$extension;
-        if (! Storage::disk('public')->put($path, $contents)) {
+        if (! Storage::disk(config('filesystems.material_uploads_disk', 'public'))->put($path, $contents)) {
             throw new \RuntimeException('Could not store an imported Firestore material file.');
         }
         $this->createdFiles[] = $path;
@@ -509,7 +509,7 @@ class ImportFirestoreData extends Command
     private function removeCreatedFiles(): void
     {
         foreach ($this->createdFiles as $path) {
-            if (! Storage::disk('public')->delete($path)) {
+            if (! Storage::disk(config('filesystems.material_uploads_disk', 'public'))->delete($path)) {
                 $this->warn("Could not remove temporary imported file {$path}.");
             }
         }

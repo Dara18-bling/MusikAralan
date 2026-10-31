@@ -10,9 +10,11 @@ use App\Models\Material;
 use App\Models\Module;
 use App\Models\ModuleProgress;
 use App\Models\QuizAttempt;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -23,7 +25,7 @@ class LearningController extends Controller
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
         $items = $class->materials()->with('classroom')->orderByDesc('created_at')->get()
-            ->map(fn (Material $material) => $this->materialPayload($material));
+            ->map(fn (Material $material) => $this->materialPayload($material, $user));
 
         return response()->json(['data' => $items]);
     }
@@ -51,12 +53,12 @@ class LearningController extends Controller
         foreach (['mediaUrl' => &$mediaUrl, 'streamUrl' => &$streamUrl] as &$candidate) {
             if (is_string($candidate) && str_starts_with($candidate, 'data:')) {
                 if ($storagePath !== null) {
-                    $candidate = Storage::disk('public')->url($storagePath);
+                    $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
 
                     continue;
                 }
                 $storagePath = $this->storeDataUrl($candidate);
-                $candidate = Storage::disk('public')->url($storagePath);
+                $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
             }
         }
         unset($candidate);
@@ -73,7 +75,67 @@ class LearningController extends Controller
             'storage_path' => $storagePath,
         ]);
 
-        return response()->json(['material' => $this->materialPayload($material)], 201);
+        return response()->json(['material' => $this->materialPayload($material, $user)], 201);
+    }
+
+    public function deleteMaterial(Request $request, Classroom $class, string $material): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless(
+            $user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id,
+            403,
+        );
+
+        $item = $class->materials()->withTrashed()->findOrFail($material);
+        abort_unless((int) $item->teacher_id === (int) $user->id, 403);
+
+        $fileDeleted = false;
+        if (is_string($item->storage_path) && $item->storage_path !== '') {
+            $pathInUse = Material::query()
+                ->where('storage_path', $item->storage_path)
+                ->where('id', '<>', $item->id)
+                ->exists();
+            if (! $pathInUse) {
+                $diskName = config('filesystems.material_uploads_disk', 'public');
+                try {
+                    $fileDeleted = Storage::disk($diskName)->delete($item->storage_path);
+                } catch (\Throwable $exception) {
+                    Log::error('Could not delete soft-deleted class material file.', [
+                        'disk' => $diskName,
+                        'material_id' => $item->id,
+                        'path' => $item->storage_path,
+                        'exception' => $exception::class,
+                        'reason' => $exception->getMessage(),
+                    ]);
+
+                    return response()->json(['message' => 'The file could not be removed from storage. The material was not deleted.'], 500);
+                }
+                if (! $fileDeleted) {
+                    Log::error('Could not delete soft-deleted class material file; storage disk returned false.', [
+                        'disk' => $diskName,
+                        'material_id' => $item->id,
+                        'path' => $item->storage_path,
+                    ]);
+
+                    return response()->json(['message' => 'The file could not be removed from storage. The material was not deleted.'], 500);
+                }
+            }
+        }
+
+        if (! $item->trashed() && ! $item->delete()) {
+            Log::error('Could not soft-delete class material after deleting its stored file.', [
+                'material_id' => $item->id,
+            ]);
+
+            return response()->json([
+                'message' => 'The file was removed, but the material record could not be deleted. Please retry.',
+            ], 500);
+        }
+
+        return response()->json([
+            'deleted' => true,
+            'fileDeleted' => $fileDeleted,
+        ]);
     }
 
     public function assessment(Request $request, Classroom $class): JsonResponse
@@ -353,8 +415,26 @@ class LearningController extends Controller
             ->join('materials', 'materials.id', '=', 'material_completions.material_id')
             ->where('material_completions.student_id', $user->id)
             ->where('materials.class_id', $class->id)
+            ->whereNull('materials.deleted_at')
             ->pluck('material_completions.material_id')
             ->map(fn ($id) => (string) $id)
+            ->all();
+        $deletedCompletedMaterials = DB::table('material_completions')
+            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+            ->where('material_completions.student_id', $user->id)
+            ->where('materials.class_id', $class->id)
+            ->whereNotNull('materials.deleted_at')
+            ->orderBy('material_completions.completed_at')
+            ->get([
+                'materials.id',
+                'materials.title',
+                'material_completions.completed_at',
+            ])
+            ->map(fn ($material) => [
+                'id' => (string) $material->id,
+                'title' => $material->title,
+                'completedAt' => $material->completed_at,
+            ])
             ->all();
         $attempt = DB::table('assessment_attempts')
             ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
@@ -367,6 +447,7 @@ class LearningController extends Controller
 
         return response()->json(['progress' => [
             'completedMaterialIds' => $completed,
+            'deletedCompletedMaterials' => $deletedCompletedMaterials,
             'assessmentScore' => $attempt?->score,
             'assessmentPassed' => (bool) ($attempt?->passed ?? false),
             'moduleProgress' => $module
@@ -381,6 +462,7 @@ class LearningController extends Controller
         abort_unless(
             $user->role === 'student'
                 && (int) $material->class_id === (int) $class->id
+                && ! $material->trashed()
                 && $class->students()->where('users.id', $user->id)->exists(),
             403,
         );
@@ -392,16 +474,18 @@ class LearningController extends Controller
         return response()->json(['completed' => true]);
     }
 
-    private function materialPayload(Material $material): array
+    private function materialPayload(Material $material, ?User $user = null): array
     {
         return [
             'id' => (string) $material->id,
             'title' => $material->title,
             'description' => $material->description,
             'kind' => $material->kind,
-            'mediaUrl' => $this->safeStoredUrl($material->media_url),
-            'streamUrl' => $this->safeStoredUrl($material->stream_url),
+            'mediaUrl' => $this->materialUrl($material->media_url, $material->storage_path),
+            'streamUrl' => $this->materialUrl($material->stream_url, $material->storage_path),
             'teacherName' => $material->teacher?->name,
+            'canDelete' => $user?->role === 'teacher'
+                && (int) $material->teacher_id === (int) $user->id,
             'createdAt' => $material->created_at?->toISOString(),
         ];
     }
@@ -500,11 +584,54 @@ class LearningController extends Controller
             default => explode('/', $matches[1])[1],
         };
         $path = 'materials/'.now()->format('Y/m').'/'.bin2hex(random_bytes(16)).'.'.$extension;
-        if (! Storage::disk('public')->put($path, $contents)) {
+        $diskName = config('filesystems.material_uploads_disk', 'public');
+        try {
+            $stored = Storage::disk($diskName)->put($path, $contents);
+        } catch (\Throwable $exception) {
+            Log::error('Could not save uploaded class material.', [
+                'disk' => $diskName,
+                'path' => $path,
+                'exception' => $exception::class,
+                'reason' => $exception->getMessage(),
+            ]);
+
+            abort(500, 'The uploaded media could not be saved. Check server logs for storage provider details.');
+        }
+        if (! $stored) {
+            Log::error('Could not save uploaded class material; storage disk returned false.', [
+                'disk' => $diskName,
+                'path' => $path,
+            ]);
+
             abort(500, 'The uploaded media could not be saved.');
         }
 
         return $path;
+    }
+
+    private function materialUrl(?string $url, ?string $storagePath): ?string
+    {
+        if (is_string($url) && is_string($storagePath)) {
+            $urlPath = parse_url($url, PHP_URL_PATH);
+            if (
+                is_string($urlPath)
+                && str_ends_with(trim(rawurldecode($urlPath), '/'), ltrim($storagePath, '/'))
+            ) {
+                $disk = Storage::disk(config('filesystems.material_uploads_disk', 'public'));
+                if (config('filesystems.material_uploads_signed_urls')) {
+                    $expiresInMinutes = min(
+                        1440,
+                        max(1, (int) config('filesystems.material_signed_url_ttl_minutes', 60)),
+                    );
+
+                    return $disk->temporaryUrl($storagePath, now()->addMinutes($expiresInMinutes));
+                }
+
+                return $disk->url($storagePath);
+            }
+        }
+
+        return $this->safeStoredUrl($url);
     }
 
     private function isSafeExternalUrl(string $url): bool

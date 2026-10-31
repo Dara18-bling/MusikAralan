@@ -1,5 +1,18 @@
 <?php
 
+$s3Disk = [
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'region' => env('AWS_DEFAULT_REGION'),
+    'bucket' => env('AWS_BUCKET'),
+    'url' => env('AWS_URL'),
+    'endpoint' => env('AWS_ENDPOINT'),
+    'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+    'visibility' => env('AWS_DEFAULT_VISIBILITY', 'public'),
+    'throw' => false,
+    'report' => false,
+];
+
 return [
 
     /*
@@ -14,6 +27,9 @@ return [
     */
 
     'default' => env('FILESYSTEM_DISK', 'local'),
+    'material_uploads_disk' => env('MATERIAL_UPLOADS_DISK', 'public'),
+    'material_uploads_signed_urls' => env('MATERIAL_UPLOADS_SIGNED_URLS', false),
+    'material_signed_url_ttl_minutes' => env('MATERIAL_SIGNED_URL_TTL_MINUTES', 60),
 
     /*
     |--------------------------------------------------------------------------
@@ -24,7 +40,7 @@ return [
     | may even configure multiple disks for the same driver. Examples for
     | most supported storage drivers are configured here for reference.
     |
-    | Supported drivers: "local", "ftp", "sftp", "s3"
+    | Supported drivers: "local", "ftp", "sftp", "s3", "s3-compatible"
     |
     */
 
@@ -47,18 +63,8 @@ return [
             'report' => false,
         ],
 
-        's3' => [
-            'driver' => 's3',
-            'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
-            'url' => env('AWS_URL'),
-            'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
-            'report' => false,
-        ],
+        's3' => array_merge(['driver' => 's3'], $s3Disk),
+        's3-compatible' => array_merge(['driver' => 's3-compatible'], $s3Disk, ['throw' => true]),
 
     ],
 

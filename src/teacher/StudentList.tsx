@@ -67,7 +67,15 @@ export function StudentList({ className, classId, studentIds = [] }: StudentList
                 <tr key={s.id}>
                   <td className="py-4 font-semibold">{s.name || s.email || "Student"}</td>
                   <td className="py-4">{ageGroup}</td>
-                  <td className="py-4">{completedCount} / {materialCount} completed</td>
+                  <td className="py-4">
+                    <p>{completedCount} / {materialCount} completed</p>
+                    {Array.isArray(progress.deletedCompletedMaterials) &&
+                      progress.deletedCompletedMaterials.map((material: { id: string; title: string }) => (
+                        <p key={material.id} className="mt-1 text-xs text-mute">
+                          {material.title}: This material has been deleted
+                        </p>
+                      ))}
+                  </td>
                   <td className="py-4">
                     {progress.assessmentScore === undefined
                       ? "Not attempted"

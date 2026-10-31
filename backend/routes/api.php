@@ -46,6 +46,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/classes/{class}/students', [ClassController::class, 'students']);
         Route::get('/classes/{class}/materials', [LearningController::class, 'materials']);
         Route::post('/classes/{class}/materials', [LearningController::class, 'createMaterial']);
+        Route::delete('/classes/{class}/materials/{material}', [LearningController::class, 'deleteMaterial'])->whereNumber('material');
         Route::post('/classes/{class}/materials/{material}/complete', [LearningController::class, 'completeMaterial']);
         Route::get('/classes/{class}/progress', [LearningController::class, 'progress']);
         Route::get('/classes/{class}/assessment', [LearningController::class, 'assessment']);

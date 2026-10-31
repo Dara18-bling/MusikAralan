@@ -197,8 +197,26 @@ class ClassController extends Controller
             ->join('materials', 'materials.id', '=', 'material_completions.material_id')
             ->where('material_completions.student_id', $student->id)
             ->where('materials.class_id', $class->id)
+            ->whereNull('materials.deleted_at')
             ->pluck('material_completions.material_id')
             ->map(fn ($id) => (string) $id)
+            ->all();
+        $deletedCompletedMaterials = DB::table('material_completions')
+            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+            ->where('material_completions.student_id', $student->id)
+            ->where('materials.class_id', $class->id)
+            ->whereNotNull('materials.deleted_at')
+            ->orderBy('material_completions.completed_at')
+            ->get([
+                'materials.id',
+                'materials.title',
+                'material_completions.completed_at',
+            ])
+            ->map(fn ($material) => [
+                'id' => (string) $material->id,
+                'title' => $material->title,
+                'completedAt' => $material->completed_at,
+            ])
             ->all();
         $attempt = DB::table('assessment_attempts')
             ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
@@ -209,6 +227,7 @@ class ClassController extends Controller
 
         return [
             'completedMaterialIds' => $completed,
+            'deletedCompletedMaterials' => $deletedCompletedMaterials,
             'assessmentScore' => $attempt?->score,
             'assessmentPassed' => (bool) ($attempt?->passed ?? false),
         ];
