@@ -132,6 +132,22 @@ Configure these for the actual deployment, in addition to the storage values:
   APP_URL=https://<backend-domain>
   FRONTEND_URL=https://<frontend-domain>
 
+Configure outbound email so password recovery codes can be delivered:
+
+  MAIL_MAILER=smtp
+  MAIL_SCHEME=tls
+  MAIL_HOST=<SMTP_HOST>
+  MAIL_PORT=587
+  MAIL_USERNAME=<SMTP_USERNAME>
+  MAIL_PASSWORD=<SMTP_PASSWORD>
+  MAIL_FROM_ADDRESS=<VERIFIED_SENDER_ADDRESS>
+  MAIL_FROM_NAME=MusikAralan
+
+The backend .env.example uses MAIL_MAILER=log for local development; with
+that setting, messages are written to the backend log rather than delivered.
+Use your email provider's SMTP settings in production and keep its password
+in the host's secret store. Password reset codes are valid for 15 minutes.
+
 Set the database connection variables for the production database
 (DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD).
 Use the production host's secure secret store for database and S3 credentials.

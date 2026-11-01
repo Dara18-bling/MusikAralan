@@ -18,8 +18,8 @@ Route::get('/settings/appearance', [SettingController::class, 'appearance']);
 
 Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:register');
-Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset');
-Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset');
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset-request');
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset-confirm');
 
 Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -28,6 +28,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
     Route::middleware('approved')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
+        Route::patch('/me/password', [AuthController::class, 'changePassword']);
         Route::patch('/me/phone', [AuthController::class, 'updatePhone']);
         Route::get('/dashboard', [DashboardController::class, 'show']);
         Route::get('/gospel-verses', [GospelVerseController::class, 'index']);

@@ -4,11 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -85,32 +89,73 @@ class AuthController extends Controller
 
     public function forgotPassword(Request $request): JsonResponse
     {
-        $request->validate(['email' => ['required', 'email']]);
-        Password::sendResetLink(['email' => strtolower($request->string('email')->toString())]);
+        $data = $request->validate(['email' => ['required', 'email', 'max:255']]);
+        $email = strtolower(trim($data['email']));
+        $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
+
+        if ($user) {
+            $code = Str::upper(Str::random(8));
+            DB::table('password_reset_tokens')->updateOrInsert(
+                ['email' => $user->email],
+                [
+                    'token' => Hash::make($code),
+                    'created_at' => now(),
+                ],
+            );
+            $user->notify(new PasswordResetCodeNotification($code));
+        }
 
         return response()->json([
-            'message' => 'If an account exists for that email, a password reset link has been sent.',
+            'message' => 'If an account exists for that email, a verification code has been sent.',
         ]);
     }
 
     public function resetPassword(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'token' => ['required', 'string'],
-            'email' => ['required', 'email'],
+            'code' => ['required', 'string', 'size:8', 'alpha_num'],
+            'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S+$/'],
         ]);
-        $status = Password::reset(
-            $data,
-            function (User $user, string $password): void {
-                $user->forceFill(['password' => Hash::make($password)])->save();
-                $user->tokens()->delete();
-            },
-        );
+        $email = strtolower(trim($data['email']));
+        $status = DB::transaction(function () use ($data, $email): bool {
+            $user = User::query()
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->first();
+            if (! $user) {
+                return false;
+            }
 
-        return response()->json([
-            'message' => __($status),
-        ], $status === Password::PASSWORD_RESET ? 200 : 422);
+            $reset = DB::table('password_reset_tokens')
+                ->where('email', $user->email)
+                ->lockForUpdate()
+                ->first();
+            if (
+                ! $reset
+                || ! $reset->created_at
+                || now()->greaterThan(
+                    Carbon::parse($reset->created_at)
+                        ->addMinutes((int) config('auth.passwords.users.expire', 15)),
+                )
+                || ! Hash::check($data['code'], $reset->token)
+            ) {
+                return false;
+            }
+
+            $user->forceFill(['password' => Hash::make($data['password'])])->save();
+            $user->tokens()->delete();
+            DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+
+            return true;
+        });
+
+        if (! $status) {
+            return response()->json([
+                'message' => 'The verification code is invalid or has expired.',
+            ], 422);
+        }
+
+        return response()->json(['message' => 'Your password has been reset.']);
     }
 
     public function me(Request $request): JsonResponse
@@ -128,6 +173,29 @@ class AuthController extends Controller
         $user->save();
 
         return response()->json(['user' => $this->userPayload($user)]);
+    }
+
+    public function changePassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'currentPassword' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S+$/'],
+        ]);
+        $user = $request->attributes->get('app_user');
+
+        if (! $user->password || ! Hash::check($data['currentPassword'], $user->password)) {
+            return response()->json(['message' => 'The current password is incorrect.'], 422);
+        }
+
+        $user->forceFill(['password' => Hash::make($data['password'])])->save();
+        $currentToken = $request->user()->currentAccessToken();
+        $tokens = $user->tokens();
+        if ($currentToken instanceof PersonalAccessToken) {
+            $tokens->whereKeyNot($currentToken->getKey());
+        }
+        $tokens->delete();
+
+        return response()->json(['message' => 'Your password has been changed.']);
     }
 
     public function updatePhone(Request $request): JsonResponse

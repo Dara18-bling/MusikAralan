@@ -14,11 +14,23 @@ class SettingController extends Controller
     public function appearance(): JsonResponse
     {
         $setting = DB::table('settings')->where('key', 'appearance')->first();
-        $appearance = $setting ? json_decode($setting->value, true) : null;
+        $palettes = config('appearance.palettes', []);
+        $defaultPalette = $palettes[0] ?? null;
+        $appearance = $setting ? json_decode($setting->value, true) : [];
+        $appearance = is_array($appearance) ? $appearance : [];
+        $appearance = array_replace([
+            'primaryColor' => $defaultPalette['primary'] ?? '#e88faf',
+            'secondaryColor' => $defaultPalette['secondary'] ?? '#7ea9d2',
+            'paletteName' => $defaultPalette['name'] ?? null,
+            'palettes' => $palettes,
+        ], $appearance);
+        if (! is_array($appearance['palettes'] ?? null)) {
+            $appearance['palettes'] = $palettes;
+        }
 
         return response()->json([
             'appearance' => $appearance,
-            'palettes' => is_array($appearance['palettes'] ?? null) ? $appearance['palettes'] : [],
+            'palettes' => $appearance['palettes'],
         ]);
     }
 

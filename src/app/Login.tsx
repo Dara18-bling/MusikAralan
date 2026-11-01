@@ -139,22 +139,6 @@ export function Login() {
     }
   };
 
-  const handleForgot = async () => {
-    if (!email) {
-      toast.warning("Please enter your email address in the field first.");
-      return;
-    }
-    try {
-      const response = await apiPost<{ message: string }>(
-        "/auth/forgot-password",
-        { email },
-      );
-      toast.info(response.message);
-    } catch (err: any) {
-      toast.error("Error: " + err.message);
-    }
-  };
-
   return (
     <div className="relative grid min-h-screen overflow-hidden bg-ink lg:grid-cols-[1.1fr_1fr]">
       <img
@@ -281,7 +265,7 @@ export function Login() {
                 <div className="text-right">
                   <button
                     type="button"
-                    onClick={handleForgot}
+                    onClick={() => navigate("/forgot-password")}
                     className="text-sm font-semibold text-p1 hover:underline"
                   >
                     Forgot password?

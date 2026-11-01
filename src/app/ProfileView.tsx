@@ -33,6 +33,10 @@ export function ProfileView({
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [accountStatus, setAccountStatus] = useState("approved");
   const [profileSaving, setProfileSaving] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
   const [selectedPalette, setSelectedPalette] = useState<LiturgicalPalette | null>(null);
   useEffect(() => {
@@ -82,6 +86,34 @@ export function ProfileView({
       toast.error("Could not save profile information.");
     }
     setProfileSaving(false);
+  };
+
+  const changePassword = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (newPassword !== passwordConfirmation) {
+      toast.warning("The new passwords do not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const { message } = await apiPatch<{ message: string }>("/me/password", {
+        currentPassword,
+        password: newPassword,
+        password_confirmation: passwordConfirmation,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setPasswordConfirmation("");
+      toast.success(message);
+    } catch (error) {
+      console.error("Could not change password:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Could not change the password.",
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   const saveSystemColor = async () => {
@@ -190,6 +222,47 @@ export function ProfileView({
             {profileSaving ? "Saving..." : "Save Changes"}
           </Btn>
         </div>
+      </Card>
+      <Card className={`mt-5 w-full ${role === "admin" ? "max-w-none" : "max-w-xl"}`}>
+        <Label>Change password</Label>
+        <p className="mt-1 text-sm text-mute">
+          Use at least 8 characters, including a letter, a number, and a special character.
+        </p>
+        <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={(event) => void changePassword(event)}>
+          <Field label="Current password">
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              required
+            />
+          </Field>
+          <span aria-hidden="true" className="hidden sm:block" />
+          <Field label="New password">
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              minLength={8}
+              required
+            />
+          </Field>
+          <Field label="Confirm new password">
+            <Input
+              type="password"
+              autoComplete="new-password"
+              value={passwordConfirmation}
+              onChange={(event) => setPasswordConfirmation(event.target.value)}
+              minLength={8}
+              required
+            />
+          </Field>
+          <Btn className="w-fit sm:col-span-2" disabled={passwordSaving}>
+            {passwordSaving ? "Changing password..." : "Change password"}
+          </Btn>
+        </form>
       </Card>
     </>
   );

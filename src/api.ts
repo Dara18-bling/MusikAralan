@@ -97,7 +97,8 @@ export async function apiRequest<T>(
         localStorage.removeItem("birthYear");
         if (
           window.location.pathname !== "/login" &&
-          window.location.pathname !== "/reset-password"
+          window.location.pathname !== "/reset-password" &&
+          window.location.pathname !== "/forgot-password"
         ) {
           window.location.assign("/login");
         }

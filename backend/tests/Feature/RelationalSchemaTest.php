@@ -8,7 +8,7 @@ use App\Models\Classroom;
 use App\Models\Material;
 use App\Models\QuizAttempt;
 use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
+use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -232,18 +232,26 @@ class RelationalSchemaTest extends TestCase
 
         $this->postJson('/api/auth/forgot-password', ['email' => $user->email])
             ->assertOk()
-            ->assertJsonPath('message', 'If an account exists for that email, a password reset link has been sent.');
+            ->assertJsonPath('message', 'If an account exists for that email, a verification code has been sent.');
 
-        $resetToken = null;
-        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use (&$resetToken): bool {
-            $resetToken = $notification->token;
+        $resetCode = null;
+        Notification::assertSentTo($user, PasswordResetCodeNotification::class, function ($notification) use (&$resetCode): bool {
+            $resetCode = $notification->code;
 
             return true;
         });
-        $this->assertIsString($resetToken);
+        $this->assertIsString($resetCode);
+        $this->assertMatchesRegularExpression('/^[A-Z0-9]{8}$/', $resetCode);
 
         $this->postJson('/api/auth/reset-password', [
-            'token' => $resetToken,
+            'code' => 'INVALID1',
+            'email' => $user->email,
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/auth/reset-password', [
+            'code' => $resetCode,
             'email' => $user->email,
             'password' => 'NewPassword123!',
             'password_confirmation' => 'NewPassword123!',
@@ -251,6 +259,112 @@ class RelationalSchemaTest extends TestCase
 
         $this->assertTrue(Hash::check('NewPassword123!', $user->fresh()->password));
         $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->assertDatabaseMissing('password_reset_tokens', ['email' => $user->email]);
+    }
+
+    public function test_password_reset_code_expires_after_fifteen_minutes(): void
+    {
+        Notification::fake();
+        $user = User::query()->create([
+            'name' => 'Expired Reset',
+            'email' => 'expired-reset@example.test',
+            'password' => Hash::make('OldPassword123!'),
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+
+        $this->postJson('/api/auth/forgot-password', ['email' => $user->email])->assertOk();
+        $resetCode = null;
+        Notification::assertSentTo($user, PasswordResetCodeNotification::class, function ($notification) use (&$resetCode): bool {
+            $resetCode = $notification->code;
+
+            return true;
+        });
+
+        $this->travel(16)->minutes();
+        $this->postJson('/api/auth/reset-password', [
+            'code' => $resetCode,
+            'email' => $user->email,
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ])->assertUnprocessable();
+        $this->assertTrue(Hash::check('OldPassword123!', $user->fresh()->password));
+    }
+
+    public function test_forgot_password_requests_are_rate_limited_per_email(): void
+    {
+        $payload = ['email' => 'unknown-reset@example.test'];
+        $this->postJson('/api/auth/forgot-password', $payload)->assertOk();
+        $this->postJson('/api/auth/forgot-password', $payload)->assertOk();
+        $this->postJson('/api/auth/forgot-password', $payload)->assertOk();
+        $this->postJson('/api/auth/forgot-password', $payload)->assertTooManyRequests();
+    }
+
+    public function test_password_reset_code_submissions_are_rate_limited_per_email(): void
+    {
+        $payload = [
+            'email' => 'unknown-confirm@example.test',
+            'code' => 'INVALID1',
+            'password' => 'NewPassword123!',
+            'password_confirmation' => 'NewPassword123!',
+        ];
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $this->postJson('/api/auth/reset-password', $payload)->assertUnprocessable();
+        }
+
+        $this->postJson('/api/auth/reset-password', $payload)->assertTooManyRequests();
+    }
+
+    public function test_approved_users_can_change_password_and_other_tokens_are_revoked(): void
+    {
+        foreach (['student', 'teacher', 'admin'] as $role) {
+            $user = User::query()->create([
+                'name' => ucfirst($role),
+                'email' => "{$role}-password-change@example.test",
+                'password' => Hash::make('OldPassword123!'),
+                'role' => $role,
+                'status' => 'approved',
+            ]);
+            $issuedToken = $user->createToken('current');
+            $currentToken = $issuedToken->accessToken;
+            $user->createToken('other');
+
+            $this->withToken($issuedToken->plainTextToken)
+                ->patchJson('/api/me/password', [
+                    'currentPassword' => 'OldPassword123!',
+                    'password' => 'UpdatedPassword123!',
+                    'password_confirmation' => 'UpdatedPassword123!',
+                ])
+                ->assertOk()
+                ->assertJsonPath('message', 'Your password has been changed.');
+
+            $this->assertTrue(Hash::check('UpdatedPassword123!', $user->fresh()->password));
+            $this->assertSame(1, $user->tokens()->count());
+            $this->assertDatabaseHas('personal_access_tokens', ['id' => $currentToken->id]);
+        }
+    }
+
+    public function test_password_change_rejects_an_incorrect_current_password(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Password User',
+            'email' => 'wrong-current-password@example.test',
+            'password' => Hash::make('OldPassword123!'),
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+        $token = $user->createToken('current')->plainTextToken;
+
+        $this->withToken($token)
+            ->patchJson('/api/me/password', [
+                'currentPassword' => 'WrongPassword123!',
+                'password' => 'UpdatedPassword123!',
+                'password_confirmation' => 'UpdatedPassword123!',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The current password is incorrect.');
+
+        $this->assertTrue(Hash::check('OldPassword123!', $user->fresh()->password));
     }
 
     public function test_default_appearance_is_available_without_sign_in(): void

@@ -4,7 +4,6 @@ namespace App\Providers;
 
 use App\Filesystem\S3CompatibleAdapter;
 use Aws\S3\S3Client;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Filesystem\AwsS3V3Adapter as LaravelS3Adapter;
 use Illuminate\Http\Request;
@@ -68,13 +67,13 @@ class AppServiceProvider extends ServiceProvider
             strtolower((string) $request->input('email')).'|'.$request->ip(),
         ));
         RateLimiter::for('register', fn (Request $request) => Limit::perMinute(5)->by($request->ip()));
-        RateLimiter::for('password-reset', fn (Request $request) => Limit::perMinute(3)->by(
-            strtolower((string) $request->input('email')).'|'.$request->ip(),
-        ));
-
-        ResetPassword::createUrlUsing(fn ($user, string $token): string => rtrim(
-            (string) config('app.frontend_url'),
-            '/',
-        ).'/reset-password?token='.urlencode($token).'&email='.urlencode($user->getEmailForPasswordReset()));
+        RateLimiter::for('password-reset-request', fn (Request $request) => [
+            Limit::perMinute(3)->by('email:'.strtolower(trim((string) $request->input('email')))),
+            Limit::perMinute(10)->by('ip:'.$request->ip()),
+        ]);
+        RateLimiter::for('password-reset-confirm', fn (Request $request) => [
+            Limit::perMinute(5)->by('email:'.strtolower(trim((string) $request->input('email')))),
+            Limit::perMinute(20)->by('ip:'.$request->ip()),
+        ]);
     }
 }
