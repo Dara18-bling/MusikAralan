@@ -58,6 +58,25 @@ class ClassController extends Controller
         return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))]);
     }
 
+    public function updateCertificateAccess(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id, 403);
+
+        $data = $request->validate([
+            'certificatesUnlocked' => ['required', 'boolean'],
+        ]);
+        $class->certificates_unlocked = $data['certificatesUnlocked'];
+        $class->save();
+
+        return response()->json([
+            'class' => $this->payload(
+                $class->load('teacher')->loadCount('students'),
+                $user,
+            ),
+        ]);
+    }
+
     public function enrollment(Request $request, Classroom $class): JsonResponse
     {
         $student = $request->attributes->get('app_user');
@@ -167,6 +186,7 @@ class ClassController extends Controller
             'age' => $class->age_group,
             'description' => $class->description ?? '',
             'availableForEnrollment' => $class->available_for_enrollment,
+            'certificatesUnlocked' => $class->certificates_unlocked,
             'deleted' => $class->deleted,
             'enrolledStudentIds' => $studentIds,
             'enrolledCount' => $class->students_count ?? $class->students()->count(),

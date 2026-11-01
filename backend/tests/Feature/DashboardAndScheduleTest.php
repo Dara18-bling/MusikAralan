@@ -15,6 +15,60 @@ class DashboardAndScheduleTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_assigned_teacher_can_lock_and_unlock_class_certificates(): void
+    {
+        $teacher = $this->createUser('certificate-teacher@example.test', 'teacher');
+        $student = $this->createUser('certificate-student@example.test', 'student');
+        $otherTeacher = $this->createUser('certificate-other-teacher@example.test', 'teacher');
+        $class = Classroom::query()->create([
+            'name' => 'Certificate class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $this->assertTrue($class->fresh()->certificates_unlocked);
+
+        $teacherToken = $teacher->createToken('certificate-lock')->plainTextToken;
+        $this->withToken($teacherToken)
+            ->patchJson("/api/classes/{$class->id}/certificate-access", [
+                'certificatesUnlocked' => false,
+            ])
+            ->assertOk()
+            ->assertJsonPath('class.certificatesUnlocked', false);
+        $this->assertDatabaseHas('classes', [
+            'id' => $class->id,
+            'certificates_unlocked' => false,
+        ]);
+
+        Auth::forgetGuards();
+        $studentToken = $student->createToken('certificate-status')->plainTextToken;
+        $this->withToken($studentToken)
+            ->getJson('/api/classes')
+            ->assertOk()
+            ->assertJsonPath('data.0.certificatesUnlocked', false);
+
+        Auth::forgetGuards();
+        $this->withToken($studentToken)
+            ->patchJson("/api/classes/{$class->id}/certificate-access", [
+                'certificatesUnlocked' => true,
+            ])
+            ->assertForbidden();
+
+        Auth::forgetGuards();
+        $this->withToken($otherTeacher->createToken('certificate-forbidden')->plainTextToken)
+            ->patchJson("/api/classes/{$class->id}/certificate-access", [
+                'certificatesUnlocked' => true,
+            ])
+            ->assertForbidden();
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('certificate-unlock')->plainTextToken)
+            ->patchJson("/api/classes/{$class->id}/certificate-access", [
+                'certificatesUnlocked' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('class.certificatesUnlocked', true);
+    }
+
     public function test_teacher_can_schedule_an_event_for_students_in_a_handled_class(): void
     {
         $teacher = $this->createUser('schedule-teacher@example.test', 'teacher');

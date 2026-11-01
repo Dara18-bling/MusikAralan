@@ -194,6 +194,8 @@ export function StudentClassWorkspace({
       )
     : 0;
   const classFinished = requirementCount > 0 && completedRequirements === requirementCount;
+  const certificateAvailable =
+    classFinished && classInfo.certificatesUnlocked !== false;
   const upcomingSessions = useMemo(
     () =>
       schedules
@@ -231,7 +233,7 @@ export function StudentClassWorkspace({
   };
 
   const downloadCertificate = () => {
-    if (!classFinished) return;
+    if (!certificateAvailable) return;
     const certificate = new jsPDF({ orientation: "landscape" });
     certificate.setFontSize(30);
     certificate.text("Certificate of Completion", 148, 55, { align: "center" });
@@ -529,15 +531,17 @@ export function StudentClassWorkspace({
               <div>
                 <Label>Certificate of completion</Label>
                 <p className="mt-1 text-sm text-mute">
-                  {classFinished
-                    ? "You have completed all class requirements."
-                    : "Complete all materials and pass all assessments to unlock your certificate."}
+                  {classInfo.certificatesUnlocked === false
+                    ? "Your teacher has locked certificates for this class."
+                    : classFinished
+                      ? "You have completed all class requirements."
+                      : "Complete all materials and pass all assessments to unlock your certificate."}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={downloadCertificate}
-                disabled={!classFinished}
+                disabled={!certificateAvailable}
                 className="inline-flex items-center gap-2 rounded-full bg-p1 px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <GraduationCap className="h-4 w-4" /> Download certificate

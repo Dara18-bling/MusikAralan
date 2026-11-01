@@ -41,6 +41,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::patch('/notifications/{notificationId}/read', [UserNotificationController::class, 'markRead']);
 
         Route::get('/classes', [ClassController::class, 'index']);
+        Route::patch('/classes/{class}/certificate-access', [ClassController::class, 'updateCertificateAccess']);
         Route::post('/classes/{class}/notifications', [UserNotificationController::class, 'notifyClass']);
         Route::get('/classes/{class}/enrollment-notice', [ClassController::class, 'enrollmentNotice']);
         Route::post('/classes/{class}/enroll', [ClassController::class, 'enrollment']);

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Music } from "lucide-react";
 import { toast } from "react-toastify";
-import { apiPost, POLL_INTERVAL_DAY, refreshApi, watchApi } from "../api";
+import {
+  apiPost,
+  POLL_INTERVAL_TWO_MINUTES,
+  refreshApi,
+  watchApi,
+} from "../api";
 import { Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import { StudentClassWorkspace, type WorkspaceTab } from "./StudentClassWorkspace";
@@ -56,7 +61,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
           setClassesLoaded(true);
           toast.error("Could not load your classes.");
         },
-        POLL_INTERVAL_DAY,
+        POLL_INTERVAL_TWO_MINUTES,
       ),
     [userId],
   );

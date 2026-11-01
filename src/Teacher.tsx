@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { POLL_INTERVAL_DAY, watchApi } from "./api";
+import { toast } from "react-toastify";
+import {
+  apiPatch,
+  POLL_INTERVAL_DAY,
+  POLL_INTERVAL_TWO_MINUTES,
+  refreshApi,
+  watchApi,
+} from "./api";
 import { Card } from "./ui";
 import type { ClassCatalogItem } from "./classCatalog";
 import Notifications from "./Notifications";
@@ -32,6 +39,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
     [],
   );
   const [selectedClassId, setSelectedClassId] = useState("");
+  const [savingCertificateClassId, setSavingCertificateClassId] = useState<string | null>(null);
   const requestedClassId = searchParams.get("classId") || "";
   const assessmentId = searchParams.get("assessmentId") || "";
 
@@ -58,7 +66,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
         setAssignedClasses(data.filter((item) => !item.deleted));
       },
       (error) => console.error("Could not load assigned classes:", error),
-      POLL_INTERVAL_DAY,
+      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [userId]);
 
@@ -115,6 +123,38 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
     (item) => item.id === selectedClassId,
   );
 
+  const toggleClassCertificates = async (
+    classId: string,
+    certificatesUnlocked: boolean,
+  ) => {
+    setSavingCertificateClassId(classId);
+    try {
+      const { class: updatedClass } = await apiPatch<{
+        class: ClassCatalogItem;
+      }>(`/classes/${encodeURIComponent(classId)}/certificate-access`, {
+        certificatesUnlocked,
+      });
+      setAssignedClasses((current) =>
+        current.map((item) => item.id === classId ? updatedClass : item),
+      );
+      refreshApi("/classes");
+      toast.success(
+        certificatesUnlocked
+          ? `Certificates unlocked for ${updatedClass.name}.`
+          : `Certificates locked for ${updatedClass.name}.`,
+      );
+    } catch (error) {
+      console.error("Could not update class certificate access:", error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update certificate access for this class.",
+      );
+    } finally {
+      setSavingCertificateClassId(null);
+    }
+  };
+
   return (
     <>
       {(view === "dash" || view === "classes") && (
@@ -125,6 +165,8 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
       ) : view === "classes" ? (
         <TeacherClasses
           classes={assignedClasses}
+          savingCertificateClassId={savingCertificateClassId}
+          onToggleCertificates={toggleClassCertificates}
           onChooseAction={(classId, nextView) => {
             setSelectedClassId(classId);
             if (nextView === "quiz") {

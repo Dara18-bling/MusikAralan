@@ -18,6 +18,7 @@ class Classroom extends Model
         'age_group',
         'description',
         'available_for_enrollment',
+        'certificates_unlocked',
         'deleted',
         'enrollment_updated_at',
     ];
@@ -26,6 +27,7 @@ class Classroom extends Model
     {
         return [
             'available_for_enrollment' => 'boolean',
+            'certificates_unlocked' => 'boolean',
             'deleted' => 'boolean',
             'enrollment_updated_at' => 'datetime',
         ];
