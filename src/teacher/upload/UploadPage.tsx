@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiPost, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../../api";
+import { apiPost, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../../api";
 import { Title } from "../../ui";
 import {
   ensureAbsoluteUrl,
@@ -127,6 +127,8 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
         streamUrl: finalStreamUrl,
         teacherName: teacherName || localStorage.getItem("name") || "Teacher",
       });
+      refreshApi(`/classes/${classId}/materials`);
+      refreshApi("/dashboard");
       setMediaUrlInput("");
       removeFile();
       toast.success("Material published successfully to class.");

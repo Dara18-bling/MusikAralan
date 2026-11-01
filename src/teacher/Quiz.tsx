@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiGet, apiPost, apiPut } from "../api";
+import { apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Input, Label, Pill, Title } from "../ui";
 
 export type Question = {
@@ -222,6 +222,7 @@ export function Quiz({
           ? current.map((item) => (item.id === assessment.id ? summary : item))
           : [...current, summary];
       });
+      refreshApi(`/classes/${classId}/assessments`);
       toast.success("Assessment saved to the class.");
     } catch (error) {
       console.error("Could not save class assessment:", error);

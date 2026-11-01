@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ClipboardCheck } from "lucide-react";
 import { toast } from "react-toastify";
-import { apiGet, apiPost } from "../api";
+import {
+  apiGet,
+  apiPost,
+  POLL_INTERVAL_TWO_MINUTES,
+  refreshApi,
+  watchApi,
+} from "../api";
 import { Card, Title } from "../ui";
 
 interface AssessmentSummary {
@@ -54,24 +60,20 @@ export function StudentAssessments({
   const [expandedScores, setExpandedScores] = useState("");
 
   useEffect(() => {
-    let active = true;
     setLoading(true);
-    void apiGet<{ data: AssessmentSummary[] }>(
+    return watchApi<{ data: AssessmentSummary[] }>(
       `/classes/${classId}/assessments`,
-    )
-      .then(({ data }) => {
-        if (active) setAssessments(data);
-      })
-      .catch((error: unknown) => {
+      ({ data }) => {
+        setAssessments(data);
+        setLoading(false);
+      },
+      (error) => {
         console.error("Could not load class assessments:", error);
-        if (active) toast.error("Could not load assessments for this class.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+        toast.error("Could not load assessments for this class.");
+        setLoading(false);
+      },
+      POLL_INTERVAL_TWO_MINUTES,
+    );
   }, [classId]);
 
   const openAssessment = async (assessmentId: string) => {
@@ -133,6 +135,11 @@ export function StudentAssessments({
             : item,
         ),
       );
+      refreshApi(`/classes/${classId}/assessments`);
+      refreshApi(`/classes/${classId}/progress`);
+      refreshApi(`/classes/${classId}/students`);
+      refreshApi("/quiz-attempts");
+      refreshApi("/dashboard");
       toast[attempt.passed ? "success" : "warning"](
         attempt.passed
           ? `Assessment passed: ${attempt.score}%.`

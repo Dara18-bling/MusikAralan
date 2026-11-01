@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiDelete, apiGet, apiPost, apiPut } from "../api";
+import { apiDelete, apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Label, Title } from "../ui";
 
 export function AdminNews() {
@@ -48,6 +48,7 @@ export function AdminNews() {
       setEditingId(null);
       setIsPreview(false);
       void fetchNews();
+      refreshApi("/announcements");
     } catch (err) {
       toast.error("Error saving announcement.");
     }
@@ -58,7 +59,8 @@ export function AdminNews() {
       return;
     try {
       await apiDelete(`/announcements/${id}`);
-      setAnnouncements(announcements.filter((a) => a.id !== id));
+      setAnnouncements((current) => current.filter((a) => a.id !== id));
+      refreshApi("/announcements");
       toast.success("Announcement deleted!");
     } catch (err) {
       toast.error("Error deleting announcement.");

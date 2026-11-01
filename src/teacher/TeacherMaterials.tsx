@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Video } from "lucide-react";
 import { toast } from "react-toastify";
-import { apiDelete, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { apiDelete, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
 import { Card, Title } from "../ui";
 import { StudentMaterialViewer } from "../student/StudentMaterialViewer";
 import type { Material } from "../student/StudentClassWorkspace";
@@ -68,6 +68,10 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
     try {
       await apiDelete(`/classes/${classId}/materials/${encodeURIComponent(material.id)}`);
       setMaterials((current) => current.filter((item) => item.id !== material.id));
+      refreshApi(`/classes/${classId}/materials`);
+      refreshApi(`/classes/${classId}/progress`);
+      refreshApi(`/classes/${classId}/students`);
+      refreshApi("/dashboard");
       if (selectedMaterialId === material.id) selectMaterial("");
       toast.success("Material deleted. Completion history was retained.");
     } catch (error) {

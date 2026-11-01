@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { apiDelete, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { apiDelete, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 
@@ -92,6 +92,8 @@ export function Meet({ classes }: MeetProps) {
       } else {
         await apiPost("/schedules", payload);
       }
+      refreshApi("/schedules");
+      refreshApi("/dashboard");
       resetForm();
     } catch (scheduleError) {
       console.error("Could not save scheduled session:", scheduleError);
@@ -108,6 +110,8 @@ export function Meet({ classes }: MeetProps) {
     try {
       await apiDelete(`/schedules/${encodeURIComponent(item.id)}`);
       setSchedules((current) => current.filter((schedule) => schedule.id !== item.id));
+      refreshApi("/schedules");
+      refreshApi("/dashboard");
       if (editingId === item.id) resetForm();
     } catch (deleteError) {
       console.error("Could not delete scheduled session:", deleteError);

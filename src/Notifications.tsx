@@ -6,6 +6,7 @@ import {
   apiPost,
   POLL_INTERVAL_DAY,
   POLL_INTERVAL_TEN_MINUTES,
+  refreshApi,
   watchApi,
 } from "./api";
 
@@ -145,6 +146,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         `/classes/${encodeURIComponent(selectedClassId)}/notifications`,
         { title: messageTitle, content: messageContent },
       );
+      refreshApi("/notifications");
       setSentMessage(`Notification sent to ${result.notified} student${result.notified === 1 ? "" : "s"}.`);
       setMessageTitle("");
       setMessageContent("");

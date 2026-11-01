@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiGet, apiPost, apiPut } from "../api";
+import { apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import type { ClassFilter } from "./adminTypes";
@@ -67,6 +67,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
           existing.id === id ? saved : existing
         )
       );
+      refreshApi("/classes");
+      refreshApi("/dashboard");
       setEditingClass(null);
       toast.success(`${item.name} saved.`);
     } catch (error) {
@@ -91,6 +93,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
           existing.id === item.id ? { ...existing, deleted: true } : existing
         )
       );
+      refreshApi("/classes");
+      refreshApi("/dashboard");
       if (editingClass?.id === item.id) setEditingClass(null);
     } catch (error) {
       console.error(error);
@@ -106,6 +110,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
           existing.id === item.id ? { ...existing, deleted: false } : existing
         )
       );
+      refreshApi("/classes");
+      refreshApi("/dashboard");
     } catch (error) {
       console.error(error);
       toast.error("Could not restore this class.");
@@ -130,6 +136,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
         ...current,
         created,
       ]);
+      refreshApi("/classes");
+      refreshApi("/dashboard");
       setNewClassName("");
       setNewClassTeacher("Unassigned");
       setNewClassAge("all");

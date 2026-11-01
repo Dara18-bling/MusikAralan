@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiDelete, apiGet, apiPost } from "../api";
+import { apiDelete, apiGet, apiPost, refreshApi } from "../api";
 import {
   BIBLE_ATTRIBUTION,
   BIBLE_LICENSE_URL,
@@ -149,6 +149,7 @@ export function AdminGospel() {
         },
       );
       setReferences((current) => [...current, created]);
+      refreshApi("/gospel-verses");
       setBook("");
       setChapter("");
       setVerse("");
@@ -167,6 +168,7 @@ export function AdminGospel() {
     try {
       await apiDelete(`/gospel-verses/${id}`);
       setReferences((current) => current.filter((item) => item.id !== id));
+      refreshApi("/gospel-verses");
       toast.success("Verse removed from the rotation.");
     } catch (error) {
       console.error("Could not remove Gospel verse:", error);

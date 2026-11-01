@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import {
   apiPost,
   POLL_INTERVAL_TWO_MINUTES,
+  refreshApi,
   watchApi,
 } from "../api";
 import { Card, Label, Title } from "../ui";
@@ -217,6 +218,9 @@ export function StudentClassWorkspace({
           ...new Set([...current.completedMaterialIds, materialId]),
         ],
       }));
+      refreshApi(`/classes/${classInfo.id}/progress`);
+      refreshApi(`/classes/${classInfo.id}/students`);
+      refreshApi("/dashboard");
       toast.success("Material marked as complete.");
       return true;
     } catch (requestError) {

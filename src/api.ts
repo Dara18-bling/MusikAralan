@@ -8,6 +8,7 @@ export const POLL_INTERVAL_DAY = 24 * 60 * 60 * 1000;
 export const POLL_INTERVAL_TEN_MINUTES = 10 * 60 * 1000;
 export const POLL_INTERVAL_TWO_MINUTES = 2 * 60 * 1000;
 
+const apiWatchers = new Map<string, Set<() => void>>();
 let activeApiRequests = 0;
 const apiActivityListeners = new Set<(activeRequests: number) => void>();
 
@@ -141,6 +142,10 @@ export function apiDelete<T>(path: string): Promise<T> {
   return apiRequest<T>(path, { method: "DELETE" });
 }
 
+export function refreshApi(path: string) {
+  apiWatchers.get(path)?.forEach((refresh) => refresh());
+}
+
 export function watchApi<T>(
   path: string,
   onData: (payload: T) => void,
@@ -149,8 +154,13 @@ export function watchApi<T>(
 ): () => void {
   let stopped = false;
   let running = false;
-  const load = async () => {
-    if (stopped || running) return;
+  let refreshPending = false;
+  const load = async (force = false) => {
+    if (stopped) return;
+    if (running) {
+      if (force) refreshPending = true;
+      return;
+    }
     running = true;
     try {
       const payload = await apiGet<T>(path);
@@ -159,12 +169,22 @@ export function watchApi<T>(
       if (!stopped) onError(error);
     } finally {
       running = false;
+      if (!stopped && refreshPending) {
+        refreshPending = false;
+        void load();
+      }
     }
   };
+  const refresh = () => void load(true);
+  const watchers = apiWatchers.get(path) || new Set<() => void>();
+  watchers.add(refresh);
+  apiWatchers.set(path, watchers);
   void load();
   const timer = window.setInterval(() => void load(), intervalMs);
   return () => {
     stopped = true;
     window.clearInterval(timer);
+    watchers.delete(refresh);
+    if (watchers.size === 0) apiWatchers.delete(path);
   };
 }

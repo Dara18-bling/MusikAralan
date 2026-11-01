@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Music } from "lucide-react";
 import { toast } from "react-toastify";
-import { apiPost, POLL_INTERVAL_DAY, watchApi } from "../api";
+import { apiPost, POLL_INTERVAL_DAY, refreshApi, watchApi } from "../api";
 import { Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import { StudentClassWorkspace, type WorkspaceTab } from "./StudentClassWorkspace";
@@ -94,6 +94,9 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
     try {
       await apiPost(`/classes/${item.id}/enroll`);
       setEnrolledClassIds((current) => [...new Set([...current, item.id])]);
+      refreshApi("/classes");
+      refreshApi(`/classes/${item.id}/students`);
+      refreshApi("/dashboard");
       setClassCatalog((current) =>
         current.map((classItem) =>
           classItem.id === item.id

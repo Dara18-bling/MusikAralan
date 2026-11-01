@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiDelete, apiGet, apiPost, apiPut } from "../api";
+import { apiDelete, apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ChatbotResponse } from "../chatbotResponses";
 
@@ -62,6 +62,7 @@ export function AdminChatbot() {
       } else {
         await apiPut(`/chatbot-responses/${encodeURIComponent(reply.id)}`, { ...data, deleted: false });
       }
+      refreshApi("/chatbot-responses");
       setEditingReplyId(null);
       toast.success("Chatbot response saved.");
     } catch (err) {
@@ -83,6 +84,7 @@ export function AdminChatbot() {
       };
       const { response: created } = await apiPost<{ response: ChatbotResponse }>("/chatbot-responses", data);
       setChatbotReplies((current) => [...current, created]);
+      refreshApi("/chatbot-responses");
       setNewReplyQuestion("");
       setNewReplyResponse("");
       setShowAddReply(false);
@@ -108,6 +110,7 @@ export function AdminChatbot() {
       }
       await apiDelete(`/chatbot-responses/${encodeURIComponent(reply.id)}`);
       setChatbotReplies((current) => current.filter((item) => item.id !== reply.id));
+      refreshApi("/chatbot-responses");
       if (editingReplyId === reply.id) setEditingReplyId(null);
     } catch (err) {
       console.error(err);
