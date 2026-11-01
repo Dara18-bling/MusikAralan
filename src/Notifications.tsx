@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Bell, Megaphone } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, Megaphone } from "lucide-react";
 import { Card, Label, Title } from "./ui";
 import {
   apiPatch,
@@ -19,7 +19,12 @@ type Notice = {
   notificationId?: string;
   readAt?: string | null;
   announcementId?: string | null;
+  classId?: string | null;
+  className?: string | null;
 };
+
+type NotificationTab = "announcements" | "notifications";
+type AnnouncementTab = "admin" | "classes";
 
 function timestampMillis(value: unknown): number {
   if (value instanceof Date) return value.getTime();
@@ -38,7 +43,13 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
   const [messageContent, setMessageContent] = useState("");
   const [sending, setSending] = useState(false);
   const [sentMessage, setSentMessage] = useState("");
-  const [previewAnnouncement, setPreviewAnnouncement] = useState<Notice | null>(null);
+  const [activeTab, setActiveTab] = useState<NotificationTab>("announcements");
+  const [activeAnnouncementTab, setActiveAnnouncementTab] =
+    useState<AnnouncementTab>("admin");
+  const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
+  const [collapsedClassIds, setCollapsedClassIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     const unsubscribeAnnouncements = watchApi<{ data: any[] }>("/announcements", ({ data }) => {
@@ -64,13 +75,18 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         announcementId: item.announcementId == null ? null : String(item.announcementId),
         title: item.title || "New notification",
         detail: item.content || "",
-        source: item.kind === "announcement"
-          ? "Admin announcement"
-          : item.kind === "schedule"
-            ? "Scheduled session"
-            : "Class notification",
+        source:
+          item.kind === "announcement"
+            ? "Admin announcement"
+            : item.kind === "class"
+              ? "Class announcement"
+              : item.kind === "schedule"
+                ? "Scheduled session"
+                : "Class notification",
         createdAt: timestampMillis(item.createdAt),
         readAt: item.readAt,
+        classId: item.classId == null ? null : String(item.classId),
+        className: item.className || null,
       })));
     }, (listenerError) => {
       console.error("Could not load saved notifications:", listenerError);
@@ -115,10 +131,41 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     };
   }, [role, age]);
 
-  const notifiedAnnouncementIds = new Set(savedNotifications.map((notice) => notice.announcementId).filter(Boolean));
-  const notices = [
-    ...savedNotifications,
-    ...announcements.filter((notice) => !notifiedAnnouncementIds.has(notice.id.replace("announcement-", ""))),
+  const notifiedAnnouncementIds = new Set(
+    savedNotifications.map((notice) => notice.announcementId).filter(Boolean),
+  );
+  const adminAnnouncements = [
+    ...savedNotifications.filter((notice) => notice.source === "Admin announcement"),
+    ...announcements.filter(
+      (notice) =>
+        !notifiedAnnouncementIds.has(notice.id.replace("announcement-", "")),
+    ),
+  ].sort((a, b) => b.createdAt - a.createdAt);
+  const groupedClassAnnouncements = Array.from(
+    savedNotifications
+      .filter(
+        (notice) =>
+          notice.source === "Class announcement" && notice.classId,
+      )
+      .reduce((groups, notice) => {
+        const classId = notice.classId!;
+        const className = notice.className || `Class ${classId}`;
+        const group = groups.get(classId) || { classId, className, notices: [] };
+        group.notices.push(notice);
+        groups.set(classId, group);
+        return groups;
+      }, new Map<string, { classId: string; className: string; notices: Notice[] }>())
+      .values(),
+  ).sort((a, b) => a.className.localeCompare(b.className));
+  groupedClassAnnouncements.forEach((group) =>
+    group.notices.sort((a, b) => b.createdAt - a.createdAt),
+  );
+  const otherNotifications = [
+    ...savedNotifications.filter(
+      (notice) =>
+        notice.source !== "Admin announcement" &&
+        notice.source !== "Class announcement",
+    ),
     ...classes,
   ].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -135,6 +182,20 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }
   }
 
+  function openNotice(notice: Notice) {
+    setSelectedNotice(notice);
+    void markRead(notice);
+  }
+
+  function toggleClassAnnouncements(classId: string) {
+    setCollapsedClassIds((current) => {
+      const next = new Set(current);
+      if (next.has(classId)) next.delete(classId);
+      else next.add(classId);
+      return next;
+    });
+  }
+
   async function sendClassNotification(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedClassId) return;
@@ -147,7 +208,9 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         { title: messageTitle, content: messageContent },
       );
       refreshApi("/notifications");
-      setSentMessage(`Notification sent to ${result.notified} student${result.notified === 1 ? "" : "s"}.`);
+      setSentMessage(
+        `Announcement posted for ${result.notified} student${result.notified === 1 ? "" : "s"}.`,
+      );
       setMessageTitle("");
       setMessageContent("");
     } catch (sendError) {
@@ -158,42 +221,162 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }
   }
 
+  const renderNoticeList = (items: Notice[]) => (
+    <ul className="divide-y divide-line">
+      {items.map((notice) => (
+        <li key={notice.id}>
+          <button
+            type="button"
+            onClick={() => openNotice(notice)}
+            className="flex w-full items-start gap-3 py-3 text-left hover:bg-p1-soft/40"
+          >
+            {notice.source === "Admin announcement" ||
+            notice.source === "Class announcement" ? (
+              <Megaphone className="mt-1 h-4 w-4 shrink-0 text-p1" />
+            ) : (
+              <Bell className="mt-1 h-4 w-4 shrink-0 text-p1" />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">{notice.title}</span>
+              <span className="mt-0.5 block text-xs text-mute">
+                {notice.createdAt > 0
+                  ? new Date(notice.createdAt).toLocaleString()
+                  : notice.source}
+              </span>
+            </span>
+            {notice.notificationId && !notice.readAt && (
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-p1" aria-label="Unread" />
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+
   return (
     <>
       <Title kicker="Notification center" title="Notifications" sub="Announcements and class updates." />
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <div className={role === "teacher" ? "grid gap-5 lg:grid-cols-[1.5fr_1fr]" : "block"}>
         <Card>
-          {notices.length === 0 ? (
-            <p className="py-8 text-center text-mute">No notifications yet.</p>
-          ) : (
-            <ul className="divide-y divide-line">
-              {notices.map((notice) => (
-                <li key={notice.id} className="flex items-start gap-3 py-3">
-                  {notice.source === "Admin announcement"
-                    ? <Megaphone className="mt-1 h-4 w-4 shrink-0 text-p1" />
-                    : <Bell className="mt-1 h-4 w-4 shrink-0 text-p1" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{notice.title}</p>
-                    <Label>{notice.source}</Label>
-                    {notice.detail && <p className={`mt-1 text-sm text-mute ${notice.source === "Admin announcement" ? "line-clamp-2" : "line-clamp-1"}`}>{notice.detail}</p>}
-                    {notice.createdAt > 0 && <time className="mt-1 block text-xs text-mute">{new Date(notice.createdAt).toLocaleString()}</time>}
-                  </div>
-                  {notice.source === "Admin announcement" && (
-                  <button type="button" onClick={() => { void markRead(notice); setPreviewAnnouncement(notice); }} className="shrink-0 rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-p1 hover:bg-p1-soft">Preview</button>
-                  )}
-                  {notice.notificationId && !notice.readAt && (
-                  <button type="button" onClick={() => void markRead(notice)} className="shrink-0 rounded-full border border-line px-3 py-1.5 text-sm font-semibold text-p1 hover:bg-p1-soft">Mark read</button>
-                  )}
-                </li>
+          <div className="mb-4 flex gap-2 border-b border-line" role="tablist" aria-label="Message categories">
+            {(["announcements", "notifications"] as const).map((tab) => (
+              <button
+                key={tab}
+                id={`${tab}-tab`}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab}
+                aria-controls={`${tab}-panel`}
+                onClick={() => setActiveTab(tab)}
+                className={`border-b-2 px-4 py-2 text-sm font-semibold capitalize ${
+                  activeTab === tab
+                    ? "border-p1 text-p1"
+                    : "border-transparent text-mute hover:text-ink"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div
+            id="announcements-panel"
+            role="tabpanel"
+            aria-labelledby="announcements-tab"
+            hidden={activeTab !== "announcements"}
+          >
+            <div className="mb-3 flex gap-2 border-b border-line" role="tablist" aria-label="Announcement types">
+              {(["admin", "classes"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  id={`announcement-${tab}-tab`}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeAnnouncementTab === tab}
+                  aria-controls={`announcement-${tab}-panel`}
+                  onClick={() => setActiveAnnouncementTab(tab)}
+                  className={`border-b-2 px-4 py-2 text-sm font-semibold ${
+                    activeAnnouncementTab === tab
+                      ? "border-p1 text-p1"
+                      : "border-transparent text-mute hover:text-ink"
+                  }`}
+                >
+                  {tab === "admin" ? "Admin Announcements" : "Class-specific"}
+                </button>
               ))}
-            </ul>
-          )}
+            </div>
+            <div
+              id="announcement-admin-panel"
+              role="tabpanel"
+              aria-labelledby="announcement-admin-tab"
+              hidden={activeAnnouncementTab !== "admin"}
+            >
+              {adminAnnouncements.length === 0 ? (
+                <p className="py-8 text-center text-mute">No admin announcements yet.</p>
+              ) : (
+                renderNoticeList(adminAnnouncements)
+              )}
+            </div>
+            <div
+              id="announcement-classes-panel"
+              role="tabpanel"
+              aria-labelledby="announcement-classes-tab"
+              hidden={activeAnnouncementTab !== "classes"}
+            >
+              {groupedClassAnnouncements.length === 0 ? (
+                <p className="py-8 text-center text-mute">No class announcements yet.</p>
+              ) : (
+                <div className="divide-y divide-line">
+                  {groupedClassAnnouncements.map((group) => (
+                    <section key={group.classId} className="py-2">
+                      <button
+                        type="button"
+                        id={`class-announcements-${group.classId}-toggle`}
+                        aria-expanded={!collapsedClassIds.has(group.classId)}
+                        aria-controls={`class-announcements-${group.classId}-content`}
+                        onClick={() => toggleClassAnnouncements(group.classId)}
+                        className="flex w-full items-center gap-2 py-2 text-left font-semibold hover:text-p1"
+                      >
+                        {collapsedClassIds.has(group.classId) ? (
+                          <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
+                        )}
+                        {group.className} Announcement
+                        <span className="ml-auto text-xs font-normal text-mute">
+                          {group.notices.length}
+                        </span>
+                      </button>
+                      <div
+                        id={`class-announcements-${group.classId}-content`}
+                        aria-labelledby={`class-announcements-${group.classId}-toggle`}
+                        hidden={collapsedClassIds.has(group.classId)}
+                      >
+                        {renderNoticeList(group.notices)}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div
+            id="notifications-panel"
+            role="tabpanel"
+            aria-labelledby="notifications-tab"
+            hidden={activeTab !== "notifications"}
+          >
+            {otherNotifications.length === 0 ? (
+              <p className="py-8 text-center text-mute">No notifications yet.</p>
+            ) : (
+              renderNoticeList(otherNotifications)
+            )}
+          </div>
         </Card>
         {role === "teacher" && (
           <Card>
-            <Label>Notify a handled class</Label>
-            <p className="mt-1 text-sm text-mute">Only approved students enrolled in your selected class will receive this message.</p>
+            <Label>Class announcement</Label>
+            <p className="mt-1 text-sm text-mute">Your announcement appears here and is sent to approved students in the selected class.</p>
             <form className="mt-4 space-y-3" onSubmit={(event) => void sendClassNotification(event)}>
               <label className="block text-sm font-semibold">
                 Class
@@ -211,22 +394,27 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
               </label>
               {sentMessage && <p role="status" className="text-sm text-green-700">{sentMessage}</p>}
               <button type="submit" disabled={sending || !selectedClassId} className="rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-                {sending ? "Sending…" : "Send notification"}
+                {sending ? "Posting…" : "Post announcement"}
               </button>
             </form>
           </Card>
         )}
       </div>
-      {previewAnnouncement && (
+      {selectedNotice && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setPreviewAnnouncement(null);
+          if (event.target === event.currentTarget) setSelectedNotice(null);
         }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="student-announcement-preview-title" className="w-full max-w-xl rounded-2xl border border-line bg-white p-6 shadow-2xl">
-            <Label>Announcement preview</Label>
-            <h2 id="student-announcement-preview-title" className="mt-2 font-display text-2xl font-bold">{previewAnnouncement.title}</h2>
-            <p className="mt-4 whitespace-pre-wrap text-ink">{previewAnnouncement.detail}</p>
+          <section role="dialog" aria-modal="true" aria-labelledby="notice-title" className="w-full max-w-xl rounded-2xl border border-line bg-white p-6 shadow-2xl">
+            <Label>{selectedNotice.source}</Label>
+            <h2 id="notice-title" className="mt-2 font-display text-2xl font-bold">{selectedNotice.title}</h2>
+            {selectedNotice.createdAt > 0 && (
+              <time className="mt-1 block text-xs text-mute">
+                {new Date(selectedNotice.createdAt).toLocaleString()}
+              </time>
+            )}
+            <p className="mt-4 whitespace-pre-wrap text-ink">{selectedNotice.detail || "There is no additional message."}</p>
             <div className="mt-6 flex justify-end">
-              <button type="button" onClick={() => setPreviewAnnouncement(null)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft">Close</button>
+              <button type="button" onClick={() => setSelectedNotice(null)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft">Close</button>
             </div>
           </section>
         </div>

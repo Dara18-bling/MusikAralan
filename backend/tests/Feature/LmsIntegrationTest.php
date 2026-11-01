@@ -62,6 +62,12 @@ class LmsIntegrationTest extends TestCase
 
         $this->assertSame(1, $student->fresh()->notifications()->count());
         $this->assertSame(0, $unrelated->fresh()->notifications()->count());
+        $this->withToken($token)
+            ->getJson('/api/notifications')
+            ->assertOk()
+            ->assertJsonPath('data.0.kind', 'class')
+            ->assertJsonPath('data.0.classId', $class->id)
+            ->assertJsonPath('data.0.className', 'Teacher class');
         $studentToken = $student->createToken('test')->plainTextToken;
         $notificationId = $student->fresh()->notifications()->firstOrFail()->id;
         Auth::forgetGuards();

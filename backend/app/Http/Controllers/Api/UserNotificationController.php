@@ -15,6 +15,14 @@ class UserNotificationController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $notifications = $user->notifications()->latest()->limit(50)->get();
+        $classIds = $notifications
+            ->map(fn ($notification) => $notification->data['classId'] ?? null)
+            ->filter(fn ($classId) => is_numeric($classId))
+            ->unique()
+            ->values();
+        $classNames = Classroom::query()
+            ->whereIn('id', $classIds)
+            ->pluck('name', 'id');
 
         return response()->json([
             'data' => $notifications->map(fn ($notification): array => [
@@ -24,6 +32,9 @@ class UserNotificationController extends Controller
                 'content' => $notification->data['content'] ?? '',
                 'announcementId' => $notification->data['announcementId'] ?? null,
                 'classId' => $notification->data['classId'] ?? null,
+                'className' => isset($notification->data['classId'])
+                    ? $classNames->get($notification->data['classId'])
+                    : null,
                 'readAt' => $notification->read_at?->toISOString(),
                 'createdAt' => $notification->created_at?->toISOString(),
             ]),
@@ -65,6 +76,13 @@ class UserNotificationController extends Controller
                 classId: $class->id,
             ));
         }
+
+        $sender->notify(new AppMessageNotification(
+            'class',
+            trim($data['title']),
+            trim($data['content']),
+            classId: $class->id,
+        ));
 
         return response()->json(['notified' => $recipients->count()], 201);
     }
