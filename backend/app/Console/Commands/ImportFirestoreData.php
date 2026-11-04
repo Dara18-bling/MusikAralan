@@ -148,7 +148,6 @@ class ImportFirestoreData extends Command
                     'birthday' => $birthday,
                     'birth_year' => isset($data['birthYear']) ? (int) $data['birthYear'] : ($birthday ? (int) substr($birthday, 0, 4) : null),
                     'phone_number' => $data['phoneNumber'] ?? null,
-                    'phone_verified' => (bool) ($data['phoneVerified'] ?? false),
                     'messenger_link' => $data['messengerLink'] ?? null,
                     'role' => $role,
                     'status' => $status,

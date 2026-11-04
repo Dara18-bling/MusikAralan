@@ -139,15 +139,15 @@ export function Gospel() {
           CC BY-SA 4.0
         </a>
       </p>
-      <p className="mt-3 text-xs font-semibold text-p1">
+      <p className="mt-3 text-xs font-semibold dark:text-black/70">
         <a
           href="https://www.awitatpapuri.com/"
-          className="bg-white/50 p-2 rounded-4xl"
+          className=" bg-white/50 p-2 rounded-4xl"
         >
           See more @ AwitAtPapuri.com
         </a>
       </p>
-      <p className="mt-3 text-xs font-semibold italic text-right text-p1/30">
+      <p className="mt-3 text-xs font-semibold italic text-right text-p1/50">
         <a href="https://bible.helloao.org/docs/">API by HelloAO</a> |
         <a href="https://helloao.org/"> Main Site</a>
       </p>

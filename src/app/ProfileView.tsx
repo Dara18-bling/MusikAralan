@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { CircleCheck } from "lucide-react";
-import { apiGet, apiPatch, apiPut } from "../api";
+import { apiGet, apiPatch, apiPost, apiPut } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import { Field } from "./Field";
 import type { LiturgicalPalette } from "./AppTypes";
@@ -27,39 +27,42 @@ export function ProfileView({
   palettes,
   onAppearanceSaved,
 }: ProfileViewProps) {
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState(name);
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [messengerLink, setMessengerLink] = useState("");
   const [accountStatus, setAccountStatus] = useState("approved");
   const [profileSaving, setProfileSaving] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [passwordConfirmation, setPasswordConfirmation] = useState("");
-  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordResetSending, setPasswordResetSending] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
-  const [selectedPalette, setSelectedPalette] = useState<LiturgicalPalette | null>(null);
+  const [selectedPalette, setSelectedPalette] =
+    useState<LiturgicalPalette | null>(null);
   useEffect(() => {
     setSelectedPalette(
       palettes.find(
-        (palette) => palette.primary === primaryColor && palette.secondary === secondaryColor
-      ) ?? null
+        (palette) =>
+          palette.primary === primaryColor &&
+          palette.secondary === secondaryColor,
+      ) ?? null,
     );
   }, [palettes, primaryColor, secondaryColor]);
 
   useEffect(() => {
-    apiGet<{ user: {
-      name?: string;
-      email?: string;
-      phoneNumber?: string;
-      phoneVerified?: boolean;
-      status?: string;
-    } }>("/me")
+    apiGet<{
+      user: {
+        name?: string;
+        email?: string;
+        phoneNumber?: string;
+        messengerLink?: string;
+        status?: string;
+      };
+    }>("/me")
       .then(({ user: data }) => {
         setFullName(data.name ?? name);
         setEmail(data.email ?? "");
         setPhone(data.phoneNumber ?? "");
-        setPhoneVerified(Boolean(data.phoneVerified));
+        setMessengerLink(data.messengerLink ?? "");
         setAccountStatus(data.status ?? "approved");
       })
       .catch((error) => console.error("Could not load profile:", error));
@@ -73,12 +76,10 @@ export function ProfileView({
     setProfileSaving(true);
     try {
       await apiPatch("/me", { name: fullName.trim() });
-      if (phone.trim()) {
-        const { user: updated } = await apiPatch<{ user: { phoneVerified?: boolean } }>("/me/phone", {
-          phoneNumber: phone.trim(),
-        });
-        setPhoneVerified(Boolean(updated.phoneVerified));
-      }
+      await apiPatch("/me/contact-details", {
+        phoneNumber: phone.trim() || null,
+        messengerLink: messengerLink.trim() || null,
+      });
       localStorage.setItem("name", fullName.trim());
       toast.success("Profile information saved.");
     } catch (error) {
@@ -88,31 +89,22 @@ export function ProfileView({
     setProfileSaving(false);
   };
 
-  const changePassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (newPassword !== passwordConfirmation) {
-      toast.warning("The new passwords do not match.");
-      return;
-    }
-
-    setPasswordSaving(true);
+  const sendPasswordResetInstructions = async () => {
+    setPasswordResetSending(true);
     try {
-      const { message } = await apiPatch<{ message: string }>("/me/password", {
-        currentPassword,
-        password: newPassword,
-        password_confirmation: passwordConfirmation,
+      await apiPost("/me/password-reset-code");
+      navigate("/forgot-password", {
+        state: { email, profileReset: true },
       });
-      setCurrentPassword("");
-      setNewPassword("");
-      setPasswordConfirmation("");
-      toast.success(message);
     } catch (error) {
-      console.error("Could not change password:", error);
+      console.error("Could not send password reset instructions:", error);
       toast.error(
-        error instanceof Error ? error.message : "Could not change the password.",
+        error instanceof Error
+          ? error.message
+          : "Could not send password reset instructions.",
       );
     } finally {
-      setPasswordSaving(false);
+      setPasswordResetSending(false);
     }
   };
 
@@ -136,40 +128,90 @@ export function ProfileView({
     } catch (error) {
       console.error("Could not save system appearance:", error);
       const details = error as { code?: string; message?: string };
-      toast.error(`Could not save the system color${details.code ? ` (${details.code})` : ""}: ${details.message || "Check the API and database connection."}`);
+      toast.error(
+        `Could not save the system color${details.code ? ` (${details.code})` : ""}: ${details.message || "Check the API and database connection."}`,
+      );
     }
     setColorSaving(false);
   };
 
   return (
     <>
-      <Title kicker="Account Settings" title="My Profile" sub="Edit information and manage verifications." />
-      <Card className={`mt-5 w-full ${role === "admin" ? "max-w-none [&_button]:text-base [&_input]:text-base [&_label>span]:text-base [&_p]:text-base" : "max-w-xl"}`}>
-        <div className={`grid gap-4 ${role === "admin" ? "lg:grid-cols-2" : ""}`}>
+      <Title
+        kicker="Account Settings"
+        title="My Profile"
+        sub="Edit your account information."
+      />
+      <Card
+        className={`mt-5 w-full ${role === "admin" ? "max-w-none [&_button]:text-base [&_input]:text-base [&_label>span]:text-base [&_p]:text-base" : "max-w-xl"}`}
+      >
+        <div
+          className={`grid gap-4 ${role === "admin" ? "lg:grid-cols-2" : ""}`}
+        >
           <Field label="Full Name">
-            <Input value={fullName} onChange={(event) => setFullName(event.target.value)} />
+            <Input
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+            />
           </Field>
           <Field label="Email Address">
             <Input type="email" value={email} readOnly />
           </Field>
           {role === "admin" && (
             <div className="grid grid-cols-2 gap-3 rounded-xl bg-p1-soft p-4 text-base lg:col-span-2">
-              <p><span className="font-semibold">Account role:</span> Administrator</p>
-              <p><span className="font-semibold">Account status:</span> {accountStatus}</p>
+              <p>
+                <span className="font-semibold">Account role:</span>{" "}
+                Administrator
+              </p>
+              <p>
+                <span className="font-semibold">Account status:</span>{" "}
+                {accountStatus}
+              </p>
             </div>
           )}
+          <Field label="Contact Number">
+            <Input
+              type="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              placeholder="09171234567"
+            />
+            <p className="mt-1 text-sm text-mute">For contact reference.</p>
+          </Field>
+          <Field label="Facebook Messenger Link">
+            <Input
+              type="url"
+              value={messengerLink}
+              onChange={(event) => setMessengerLink(event.target.value)}
+              placeholder="https://m.me/yourname"
+            />
+            <p className="mt-1 text-sm text-mute">For contact reference.</p>
+          </Field>
+
+          {role !== "admin" && (
+            <Field label="Birth Year (For auto-age assignment)">
+              <Input type="number" defaultValue="2005" />
+            </Field>
+          )}
+          <Btn
+            className={` w-fit ${role === "admin" ? "lg:col-span-2" : ""}`}
+            onClick={saveProfile}
+          >
+            {profileSaving ? "Saving..." : "Save Changes"}
+          </Btn>
           {role === "admin" && (
             <>
-              <Field label="Phone Number">
-                <Input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="09171234567" />
-              </Field>
-              <p className="text-mute lg:self-center">
-                {phoneVerified ? "Phone number verified." : "Changing the number clears its verified status."}
-              </p>
               <div className="border-t border-line pt-4 lg:col-span-2">
                 <Label>Liturgical color palette for all users</Label>
-                <p className="mt-1 text-sm text-mute">Choose a season or feast palette. It updates the login and signup background and system gradients.</p>
-                <div className="mt-3 flex flex-wrap gap-3" role="radiogroup" aria-label="Liturgical color palette">
+                <p className="mt-1 text-sm text-mute">
+                  Choose a season or feast palette. It updates the login and
+                  signup background and system gradients.
+                </p>
+                <div
+                  className="mt-3 flex flex-wrap gap-3"
+                  role="radiogroup"
+                  aria-label="Liturgical color palette"
+                >
                   {palettes.map((palette) => (
                     <button
                       key={palette.name}
@@ -180,16 +222,17 @@ export function ProfileView({
                       title={palette.name}
                       onClick={() => setSelectedPalette(palette)}
                       className={`h-11 w-11 rounded-full bg-gradient-to-br ring-offset-2 transition hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p1 ${
-                        selectedPalette?.name === palette.name ? "ring-2 ring-p1" : "ring-1 ring-black/10"
+                        selectedPalette?.name === palette.name
+                          ? "ring-2 ring-p1"
+                          : "ring-1 ring-black/10"
                       }`}
-                      style={{ backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})` }}
+                      style={{
+                        backgroundImage: `linear-gradient(135deg, ${palette.primary}, ${palette.secondary})`,
+                      }}
                     />
                   ))}
                 </div>
-                <div className="mt-2 flex items-center gap-3">
-                  <span className="text-sm font-medium">
-                    {selectedPalette?.name || (palettes.length ? "Select a palette" : "No palettes are configured")}
-                  </span>
+                <div className="mt-4 flex items-center gap-3">
                   <button
                     type="button"
                     onClick={saveSystemColor}
@@ -198,71 +241,33 @@ export function ProfileView({
                   >
                     {colorSaving ? "Saving..." : "Save system color"}
                   </button>
+                  <span className="text-sm font-medium">
+                    {selectedPalette?.name ||
+                      (palettes.length
+                        ? "Select a palette"
+                        : "No palettes are configured")}
+                  </span>
                 </div>
               </div>
             </>
           )}
-          {role !== "admin" && (
-            <Field label="Birth Year (For auto-age assignment)">
-              <Input type="number" defaultValue="2005" />
-            </Field>
-          )}
-          <div className={`pt-4 border-t border-line ${role === "admin" ? "lg:col-span-2" : ""}`}>
-            <Label>Phone verification</Label>
-            <p className={`mt-2 flex w-fit items-center gap-2 rounded-lg p-2 text-sm font-semibold ${phoneVerified ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>
-              <CircleCheck className="h-4 w-4" /> Phone {phoneVerified ? "verified" : "not verified"}
-            </p>
-            {role !== "admin" && (
-              <p className="mt-2 text-sm text-mute">
-                Email confirmation is handled by account recovery and is not currently required for access.
-              </p>
-            )}
-          </div>
-          <Btn className={`mt-4 w-fit ${role === "admin" ? "lg:col-span-2" : ""}`} onClick={saveProfile}>
-            {profileSaving ? "Saving..." : "Save Changes"}
-          </Btn>
         </div>
       </Card>
-      <Card className={`mt-5 w-full ${role === "admin" ? "max-w-none" : "max-w-xl"}`}>
+      <Card
+        className={`mt-5 w-full ${role === "admin" ? "max-w-none" : "max-w-xl"}`}
+      >
         <Label>Change password</Label>
         <p className="mt-1 text-sm text-mute">
-          Use at least 8 characters, including a letter, a number, and a special character.
+          We will email a verification code and password reset instructions to{" "}
+          {email || "your account email"}.
         </p>
-        <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={(event) => void changePassword(event)}>
-          <Field label="Current password">
-            <Input
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              required
-            />
-          </Field>
-          <span aria-hidden="true" className="hidden sm:block" />
-          <Field label="New password">
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-          </Field>
-          <Field label="Confirm new password">
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={passwordConfirmation}
-              onChange={(event) => setPasswordConfirmation(event.target.value)}
-              minLength={8}
-              required
-            />
-          </Field>
-          <Btn className="w-fit sm:col-span-2" disabled={passwordSaving}>
-            {passwordSaving ? "Changing password..." : "Change password"}
-          </Btn>
-        </form>
+        <Btn
+          className="mt-4 w-fit"
+          disabled={passwordResetSending || !email}
+          onClick={() => void sendPasswordResetInstructions()}
+        >
+          {passwordResetSending ? "Sending instructions..." : "Email reset instructions"}
+        </Btn>
       </Card>
     </>
   );

@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiPost } from "../api";
+import { apiPost, clearApiToken } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
 import { Field } from "./Field";
 
 export function ForgotPassword() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const navigationState = location.state as
+    | { email?: string; profileReset?: boolean }
+    | null;
+  const [email, setEmail] = useState(navigationState?.email ?? "");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
+  const [codeSent, setCodeSent] = useState(Boolean(navigationState?.profileReset));
   const [loading, setLoading] = useState(false);
 
   const requestCode = async () => {
@@ -46,6 +50,11 @@ export function ForgotPassword() {
         },
       );
       toast.success(message);
+      clearApiToken();
+      localStorage.removeItem("role");
+      localStorage.removeItem("uid");
+      localStorage.removeItem("name");
+      localStorage.removeItem("birthYear");
       navigate("/login", { replace: true });
     } catch (error) {
       toast.error(
@@ -82,6 +91,7 @@ export function ForgotPassword() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                readOnly={Boolean(navigationState?.profileReset)}
                 required
                 maxLength={255}
               />
@@ -101,6 +111,7 @@ export function ForgotPassword() {
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
+                readOnly={Boolean(navigationState?.profileReset)}
                 required
                 maxLength={255}
               />

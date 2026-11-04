@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
-use Laravel\Sanctum\PersonalAccessToken;
 
 class AuthController extends Controller
 {
@@ -94,19 +93,21 @@ class AuthController extends Controller
         $user = User::query()->whereRaw('LOWER(email) = ?', [$email])->first();
 
         if ($user) {
-            $code = Str::upper(Str::random(8));
-            DB::table('password_reset_tokens')->updateOrInsert(
-                ['email' => $user->email],
-                [
-                    'token' => Hash::make($code),
-                    'created_at' => now(),
-                ],
-            );
-            $user->notify(new PasswordResetCodeNotification($code));
+            $this->sendPasswordResetCode($user);
         }
 
         return response()->json([
             'message' => 'If an account exists for that email, a verification code has been sent.',
+        ]);
+    }
+
+    public function sendPasswordChangeCode(Request $request): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $this->sendPasswordResetCode($user);
+
+        return response()->json([
+            'message' => 'Password reset instructions have been sent to your account email.',
         ]);
     }
 
@@ -175,39 +176,15 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($user)]);
     }
 
-    public function changePassword(Request $request): JsonResponse
-    {
-        $data = $request->validate([
-            'currentPassword' => ['required', 'string'],
-            'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S+$/'],
-        ]);
-        $user = $request->attributes->get('app_user');
-
-        if (! $user->password || ! Hash::check($data['currentPassword'], $user->password)) {
-            return response()->json(['message' => 'The current password is incorrect.'], 422);
-        }
-
-        $user->forceFill(['password' => Hash::make($data['password'])])->save();
-        $currentToken = $request->user()->currentAccessToken();
-        $tokens = $user->tokens();
-        if ($currentToken instanceof PersonalAccessToken) {
-            $tokens->whereKeyNot($currentToken->getKey());
-        }
-        $tokens->delete();
-
-        return response()->json(['message' => 'Your password has been changed.']);
-    }
-
-    public function updatePhone(Request $request): JsonResponse
+    public function updateContactDetails(Request $request): JsonResponse
     {
         $user = $request->attributes->get('app_user');
         $data = $request->validate([
-            'phoneNumber' => ['required', 'regex:/^(?:\\d{11}|\\+[1-9]\\d{7,14})$/'],
+            'phoneNumber' => ['present', 'nullable', 'regex:/^(?:\\d{11}|\\+[1-9]\\d{7,14})$/'],
+            'messengerLink' => ['present', 'nullable', 'string', 'max:2048'],
         ]);
-        if ($user->phone_number !== $data['phoneNumber']) {
-            $user->phone_verified = false;
-        }
         $user->phone_number = $data['phoneNumber'];
+        $user->messenger_link = $data['messengerLink'];
         $user->save();
 
         return response()->json(['user' => $this->userPayload($user)]);
@@ -259,7 +236,6 @@ class AuthController extends Controller
             'birthday' => $user->birthday?->format('Y-m-d'),
             'birthYear' => $user->birth_year,
             'phoneNumber' => $user->phone_number,
-            'phoneVerified' => $user->phone_verified,
             'messengerLink' => $user->messenger_link,
             'role' => $user->role,
             'status' => $user->status,
@@ -268,5 +244,18 @@ class AuthController extends Controller
             'accessUntil' => $user->access_until?->format('Y-m-d'),
             'dateRequested' => $user->date_requested?->toISOString(),
         ];
+    }
+
+    private function sendPasswordResetCode(User $user): void
+    {
+        $code = Str::upper(Str::random(8));
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $user->email],
+            [
+                'token' => Hash::make($code),
+                'created_at' => now(),
+            ],
+        );
+        $user->notify(new PasswordResetCodeNotification($code));
     }
 }

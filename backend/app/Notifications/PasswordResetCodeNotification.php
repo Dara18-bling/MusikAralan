@@ -20,10 +20,11 @@ class PasswordResetCodeNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Your MusikAralan password reset code')
-            ->greeting('Password reset requested')
-            ->line('Enter this verification code to reset your MusikAralan password:')
+            ->subject('MusikAralan password reset instructions')
+            ->greeting('Reset your MusikAralan password')
+            ->line('Open MusikAralan and choose "Forgot password" on the login screen. Enter this account email, then the code below and your new password.')
             ->line($this->code)
+            ->line('Choose a new password with at least 8 characters, including a letter, a number, and a special character.')
             ->line('This code expires in 15 minutes. If you did not request a reset, you can ignore this email.');
     }
 }

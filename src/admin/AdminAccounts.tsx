@@ -4,6 +4,17 @@ import { apiGet, apiPatch } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 
+function getMessengerUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 interface AdminAccountsProps {
   allUsers: any[];
   setAllUsers: React.Dispatch<React.SetStateAction<any[]>>;
@@ -104,6 +115,8 @@ export function AdminAccounts({
     const searchableText = [
       user.name,
       user.email,
+      user.phoneNumber,
+      user.messengerLink,
       user.role,
       user.status,
       user.status === "approved" ? "activated active" : "",
@@ -116,6 +129,7 @@ export function AdminAccounts({
       .toLowerCase();
     return terms.every((term) => searchableText.includes(term));
   });
+  const selectedMessengerUrl = getMessengerUrl(selectedUser?.messengerLink);
 
   return (
     <>
@@ -190,6 +204,7 @@ export function AdminAccounts({
                 <tr className="border-b border-line text-mute">
                   <th className="pb-3 font-medium">Name</th>
                   <th className="pb-3 font-medium">Email</th>
+                  <th className="pb-3 font-medium">Messenger</th>
                   {activeFilter !== "pending" && (
                     <th className="pb-3 font-medium">Account type</th>
                   )}
@@ -205,10 +220,26 @@ export function AdminAccounts({
               <tbody className="divide-y divide-line">
                 {filteredUsers.map((u) => {
                   const currentRole = rolesToAssign[u.id] || u.role || "student";
+                  const messengerUrl = getMessengerUrl(u.messengerLink);
                   return (
                     <tr key={u.id}>
                       <td className="py-4 font-semibold">{u.name}</td>
                       <td className="py-4">{u.email}</td>
+                      <td className="max-w-48 truncate py-4">
+                        {messengerUrl ? (
+                          <a
+                            href={messengerUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-p1 underline"
+                            title={u.messengerLink}
+                          >
+                            {u.messengerLink}
+                          </a>
+                        ) : (
+                          u.messengerLink || "—"
+                        )}
+                      </td>
                       {activeFilter !== "pending" && (
                         <td className="py-4 capitalize">
                           {activeFilter === "all" && u.status === "pending"
@@ -318,7 +349,21 @@ export function AdminAccounts({
                 </p>
               )}
               <p><strong>Phone Number:</strong> {selectedUser.phoneNumber || "Not provided"}</p>
-              <p><strong>Messenger Link:</strong> {selectedUser.messengerLink || "Not provided"}</p>
+              <p>
+                <strong>Messenger Link:</strong>{" "}
+                {selectedMessengerUrl ? (
+                  <a
+                    href={selectedMessengerUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-p1 underline"
+                  >
+                    {selectedUser.messengerLink}
+                  </a>
+                ) : (
+                  selectedUser.messengerLink || "Not provided"
+                )}
+              </p>
               {selectedUser.dateRequested && (
                 <p>
                   <strong>Request Date:</strong>{" "}

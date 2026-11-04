@@ -75,6 +75,40 @@ class RelationalSchemaTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
+    public function test_authenticated_user_can_update_contact_details_without_verification_status(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Contact User',
+            'email' => 'contact@example.test',
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+        $token = $user->createToken('contact-update')->plainTextToken;
+
+        $this->withToken($token)
+            ->patchJson('/api/me/contact-details', [
+                'phoneNumber' => '09171234567',
+                'messengerLink' => 'https://m.me/contactuser',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.phoneNumber', '09171234567')
+            ->assertJsonPath('user.messengerLink', 'https://m.me/contactuser')
+            ->assertJsonMissingPath('user.phoneVerified');
+
+        $this->withToken($token)
+            ->patchJson('/api/me/contact-details', [
+                'phoneNumber' => '+639171234567',
+                'messengerLink' => null,
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.phoneNumber', '+639171234567')
+            ->assertJsonPath('user.messengerLink', null)
+            ->assertJsonMissingPath('user.phoneVerified');
+
+        $this->assertSame('+639171234567', $user->fresh()->phone_number);
+        $this->assertNull($user->fresh()->messenger_link);
+    }
+
     public function test_student_roster_response_only_returns_classmate_count(): void
     {
         $teacher = User::query()->create([
@@ -214,6 +248,7 @@ class RelationalSchemaTest extends TestCase
         ])->assertCreated()->assertJsonPath('user.status', 'pending');
 
         $user = User::query()->where('email', 'new-student@example.test')->firstOrFail();
+        $this->assertSame('09171234567', $user->phone_number);
         $this->assertNotSame('Password123!', $user->password);
         $this->assertTrue(Hash::check('Password123!', $user->password));
     }
@@ -315,8 +350,10 @@ class RelationalSchemaTest extends TestCase
         $this->postJson('/api/auth/reset-password', $payload)->assertTooManyRequests();
     }
 
-    public function test_approved_users_can_change_password_and_other_tokens_are_revoked(): void
+    public function test_approved_users_can_reset_password_through_email_instructions(): void
     {
+        Notification::fake();
+
         foreach (['student', 'teacher', 'admin'] as $role) {
             $user = User::query()->create([
                 'name' => ucfirst($role),
@@ -326,45 +363,45 @@ class RelationalSchemaTest extends TestCase
                 'status' => 'approved',
             ]);
             $issuedToken = $user->createToken('current');
-            $currentToken = $issuedToken->accessToken;
             $user->createToken('other');
 
+            Auth::forgetGuards();
             $this->withToken($issuedToken->plainTextToken)
-                ->patchJson('/api/me/password', [
-                    'currentPassword' => 'OldPassword123!',
-                    'password' => 'UpdatedPassword123!',
-                    'password_confirmation' => 'UpdatedPassword123!',
-                ])
+                ->postJson('/api/me/password-reset-code')
                 ->assertOk()
-                ->assertJsonPath('message', 'Your password has been changed.');
+                ->assertJsonPath(
+                    'message',
+                    'Password reset instructions have been sent to your account email.',
+                );
+
+            $resetCode = null;
+            Notification::assertSentTo(
+                $user,
+                PasswordResetCodeNotification::class,
+                function ($notification) use (&$resetCode): bool {
+                    $resetCode = $notification->code;
+
+                    return true;
+                },
+            );
+            $this->assertIsString($resetCode);
+            $this->assertMatchesRegularExpression('/^[A-Z0-9]{8}$/', $resetCode);
+
+            $this->postJson('/api/auth/reset-password', [
+                'email' => $user->email,
+                'code' => $resetCode,
+                'password' => 'UpdatedPassword123!',
+                'password_confirmation' => 'UpdatedPassword123!',
+            ])->assertOk();
 
             $this->assertTrue(Hash::check('UpdatedPassword123!', $user->fresh()->password));
-            $this->assertSame(1, $user->tokens()->count());
-            $this->assertDatabaseHas('personal_access_tokens', ['id' => $currentToken->id]);
+            $this->assertSame(0, $user->tokens()->count());
         }
     }
 
-    public function test_password_change_rejects_an_incorrect_current_password(): void
+    public function test_password_reset_instructions_require_authentication(): void
     {
-        $user = User::query()->create([
-            'name' => 'Password User',
-            'email' => 'wrong-current-password@example.test',
-            'password' => Hash::make('OldPassword123!'),
-            'role' => 'student',
-            'status' => 'approved',
-        ]);
-        $token = $user->createToken('current')->plainTextToken;
-
-        $this->withToken($token)
-            ->patchJson('/api/me/password', [
-                'currentPassword' => 'WrongPassword123!',
-                'password' => 'UpdatedPassword123!',
-                'password_confirmation' => 'UpdatedPassword123!',
-            ])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'The current password is incorrect.');
-
-        $this->assertTrue(Hash::check('OldPassword123!', $user->fresh()->password));
+        $this->postJson('/api/me/password-reset-code')->assertUnauthorized();
     }
 
     public function test_default_appearance_is_available_without_sign_in(): void

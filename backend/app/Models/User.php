@@ -21,7 +21,6 @@ use Laravel\Sanctum\HasApiTokens;
     'birthday',
     'birth_year',
     'phone_number',
-    'phone_verified',
     'messenger_link',
     'role',
     'status',
@@ -48,7 +47,6 @@ class User extends Authenticatable
             'access_until' => 'date:Y-m-d',
             'date_requested' => 'datetime',
             'approved_at' => 'datetime',
-            'phone_verified' => 'boolean',
         ];
     }
 

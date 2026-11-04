@@ -28,8 +28,9 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
     Route::middleware('approved')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
-        Route::patch('/me/password', [AuthController::class, 'changePassword']);
-        Route::patch('/me/phone', [AuthController::class, 'updatePhone']);
+        Route::post('/me/password-reset-code', [AuthController::class, 'sendPasswordChangeCode'])
+            ->middleware('throttle:password-reset-request');
+        Route::patch('/me/contact-details', [AuthController::class, 'updateContactDetails']);
         Route::get('/dashboard', [DashboardController::class, 'show']);
         Route::get('/gospel-verses', [GospelVerseController::class, 'index']);
         Route::get('/schedules', [ScheduleController::class, 'index']);
