@@ -284,7 +284,6 @@ class DatabaseSeeder extends Seeder
                     'primaryColor' => $appearancePalettes[0]['primary'],
                     'secondaryColor' => $appearancePalettes[0]['secondary'],
                     'paletteName' => $appearancePalettes[0]['name'],
-                    'palettes' => $appearancePalettes,
                 ], JSON_THROW_ON_ERROR),
                 'created_at' => now(),
                 'updated_at' => now(),

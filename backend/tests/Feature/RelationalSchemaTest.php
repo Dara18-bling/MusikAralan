@@ -415,7 +415,7 @@ class RelationalSchemaTest extends TestCase
             ->assertJsonPath('palettes.4.name', 'Marian · Pink and blue');
     }
 
-    public function test_seeded_appearance_returns_database_palettes_and_admin_can_select_one(): void
+    public function test_configured_appearance_palettes_are_authoritative_and_admin_can_select_one(): void
     {
         $this->seed();
         $palettes = [
@@ -425,9 +425,21 @@ class RelationalSchemaTest extends TestCase
             ['name' => 'Feasts · Red', 'primary' => '#a8323b', 'secondary' => '#e16c48'],
             ['name' => 'Marian · Pink and blue', 'primary' => '#e88faf', 'secondary' => '#7ea9d2'],
         ];
+        DB::table('settings')->where('key', 'appearance')->update([
+            'value' => json_encode([
+                'primaryColor' => '#000000',
+                'secondaryColor' => '#ffffff',
+                'paletteName' => 'Obsolete palette',
+                'palettes' => [
+                    ['name' => 'Obsolete palette', 'primary' => '#000000', 'secondary' => '#ffffff'],
+                ],
+            ], JSON_THROW_ON_ERROR),
+        ]);
 
         $this->getJson('/api/settings/appearance')
             ->assertOk()
+            ->assertJsonPath('appearance.primaryColor', '#6842a6')
+            ->assertJsonPath('appearance.paletteName', 'Advent & Lent · Violet')
             ->assertJsonPath('palettes', $palettes)
             ->assertJsonPath('appearance.palettes', $palettes);
 
@@ -452,7 +464,7 @@ class RelationalSchemaTest extends TestCase
             true,
         );
         $this->assertSame('#287653', $savedAppearance['primaryColor']);
-        $this->assertSame($palettes, $savedAppearance['palettes']);
+        $this->assertArrayNotHasKey('palettes', $savedAppearance);
 
         $this->withToken($admin->createToken('invalid-appearance-test')->plainTextToken)
             ->putJson('/api/settings/appearance', [
@@ -462,6 +474,30 @@ class RelationalSchemaTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('paletteName');
+    }
+
+    public function test_admin_can_save_configured_palette_when_appearance_setting_is_missing(): void
+    {
+        $this->seed();
+        $admin = User::query()->where('email', 'admin@musik.test')->firstOrFail();
+        DB::table('settings')->where('key', 'appearance')->delete();
+
+        $this->withToken($admin->createToken('appearance-missing-setting')->plainTextToken)
+            ->putJson('/api/settings/appearance', [
+                'primaryColor' => '#287653',
+                'secondaryColor' => '#79a94b',
+                'paletteName' => 'Ordinary Time · Green',
+            ])
+            ->assertOk()
+            ->assertJsonPath('appearance.paletteName', 'Ordinary Time · Green')
+            ->assertJsonPath('appearance.palettes.2.name', 'Ordinary Time · Green');
+
+        $savedAppearance = json_decode(
+            DB::table('settings')->where('key', 'appearance')->value('value'),
+            true,
+        );
+        $this->assertSame('Ordinary Time · Green', $savedAppearance['paletteName']);
+        $this->assertArrayNotHasKey('palettes', $savedAppearance);
     }
 
     public function test_local_database_seeder_creates_demo_accounts_and_catalog_data(): void

@@ -22,23 +22,34 @@ class SettingController extends Controller
             'primaryColor' => $defaultPalette['primary'] ?? '#e88faf',
             'secondaryColor' => $defaultPalette['secondary'] ?? '#7ea9d2',
             'paletteName' => $defaultPalette['name'] ?? null,
-            'palettes' => $palettes,
         ], $appearance);
-        if (! is_array($appearance['palettes'] ?? null)) {
-            $appearance['palettes'] = $palettes;
+        $selectedPalette = collect($palettes)->first(
+            fn ($palette): bool => is_array($palette)
+                && ($palette['name'] ?? null) === ($appearance['paletteName'] ?? null)
+                && strtolower((string) ($palette['primary'] ?? '')) === strtolower((string) $appearance['primaryColor'])
+                && strtolower((string) ($palette['secondary'] ?? '')) === strtolower((string) $appearance['secondaryColor']),
+        );
+        if (! is_array($selectedPalette)) {
+            $appearance = [
+                'primaryColor' => $defaultPalette['primary'] ?? '#e88faf',
+                'secondaryColor' => $defaultPalette['secondary'] ?? '#7ea9d2',
+                'paletteName' => $defaultPalette['name'] ?? null,
+            ];
+        } else {
+            $appearance['primaryColor'] = $selectedPalette['primary'];
+            $appearance['secondaryColor'] = $selectedPalette['secondary'];
+            $appearance['paletteName'] = $selectedPalette['name'];
         }
 
         return response()->json([
-            'appearance' => $appearance,
-            'palettes' => $appearance['palettes'],
+            'appearance' => [...$appearance, 'palettes' => $palettes],
+            'palettes' => $palettes,
         ]);
     }
 
     public function saveAppearance(Request $request): JsonResponse
     {
-        $setting = DB::table('settings')->where('key', 'appearance')->first();
-        $appearance = $setting ? json_decode($setting->value, true) : [];
-        $palettes = is_array($appearance['palettes'] ?? null) ? $appearance['palettes'] : [];
+        $palettes = config('appearance.palettes', []);
         $paletteNames = collect($palettes)
             ->pluck('name')
             ->filter(fn ($name): bool => is_string($name))
@@ -64,14 +75,14 @@ class SettingController extends Controller
             ]);
         }
 
-        $updatedAppearance = [...$data, 'palettes' => $palettes];
+        $updatedAppearance = $data;
         DB::table('settings')->updateOrInsert(
             ['key' => 'appearance'],
             ['value' => json_encode($updatedAppearance, JSON_THROW_ON_ERROR), 'updated_at' => now(), 'created_at' => now()],
         );
 
         return response()->json([
-            'appearance' => $updatedAppearance,
+            'appearance' => [...$updatedAppearance, 'palettes' => $palettes],
             'palettes' => $palettes,
         ]);
     }
