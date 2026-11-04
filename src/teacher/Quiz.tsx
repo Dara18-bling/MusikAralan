@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { apiGet, apiPost, apiPut, refreshApi } from "../api";
-import { Btn, Card, Input, Label, Pill, Title } from "../ui";
+import { Btn, Card, Input, Label } from "../ui";
 
 export type Question = {
   q: string;
@@ -25,7 +25,6 @@ interface AssessmentDetails extends AssessmentSummary {
 }
 
 interface QuizProps {
-  className?: string;
   classId?: string;
   assessmentId: string;
   onAssessmentChange: (assessmentId: string) => void;
@@ -39,7 +38,6 @@ const emptyQuestion = (): Question => ({
 });
 
 export function Quiz({
-  className,
   classId,
   assessmentId,
   onAssessmentChange,
@@ -237,21 +235,6 @@ export function Quiz({
 
   return (
     <>
-      <Title
-        kicker="Assessment builder"
-        title={title || "Assessment Builder"}
-        sub={
-          className
-            ? `Managing separate assessments for ${className}.`
-            : "Choose an assigned class before creating an assessment."
-        }
-        right={
-          <div className="flex gap-2">
-            <Pill>Auto-graded</Pill>
-            <Pill tone="p2">Passing {passingPercent}%</Pill>
-          </div>
-        }
-      />
       <div className="grid max-w-3xl gap-4">
         <Card className="flex flex-wrap items-end gap-3">
           <label className="grid min-w-56 flex-1 gap-1 text-sm font-semibold">

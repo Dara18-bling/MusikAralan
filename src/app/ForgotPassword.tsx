@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { Eye, EyeOff } from "lucide-react";
 import { apiPost, clearApiToken } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
 import { Field } from "./Field";
@@ -15,6 +16,8 @@ export function ForgotPassword() {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [codeSent, setCodeSent] = useState(Boolean(navigationState?.profileReset));
   const [loading, setLoading] = useState(false);
 
@@ -130,24 +133,60 @@ export function ForgotPassword() {
               />
             </Field>
             <Field label="New password">
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  minLength={8}
+                  className="pr-11"
+                />
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </Field>
             <Field label="Confirm new password">
-              <Input
-                type="password"
-                autoComplete="new-password"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <Input
+                  type={showConfirmation ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmation}
+                  onChange={(event) => setConfirmation(event.target.value)}
+                  required
+                  minLength={8}
+                  className="pr-11"
+                />
+                <button
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setShowConfirmation((visible) => !visible)}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center text-mute hover:text-p1"
+                  aria-label={
+                    showConfirmation
+                      ? "Hide confirmation password"
+                      : "Show confirmation password"
+                  }
+                >
+                  {showConfirmation ? (
+                    <EyeOff className="h-5 w-5" />
+                  ) : (
+                    <Eye className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </Field>
             <Btn disabled={loading || code.length !== 8}>
               {loading ? "Resetting password..." : "Reset password"}

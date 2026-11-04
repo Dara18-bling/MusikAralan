@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   apiPatch,
@@ -15,14 +15,18 @@ import Notifications from "./Notifications";
 import { TeacherView } from "./teacher/types";
 import { ExpiryBanner } from "./teacher/ExpiryBanner";
 import { Dashboard } from "./teacher/Dashboard";
-import { StudentList } from "./teacher/StudentList";
 import { TeacherClasses } from "./teacher/TeacherClasses";
-import { Upload } from "./teacher/Upload";
-import { Quiz } from "./teacher/Quiz";
-import { Meet } from "./teacher/Meet";
-import { TeacherMaterials } from "./teacher/TeacherMaterials";
+import { TeacherClassWorkspace } from "./teacher/TeacherClassWorkspace";
+import type { TeacherWorkspaceTab } from "./teacher/types";
 
 export type { TeacherView };
+
+const LEGACY_WORKSPACE_TABS: Partial<Record<TeacherView, TeacherWorkspaceTab>> = {
+  upload: "upload",
+  materials: "materials",
+  quiz: "assessments",
+  students: "students",
+};
 
 interface TeacherProps {
   view: TeacherView;
@@ -31,6 +35,7 @@ interface TeacherProps {
 }
 
 export default function Teacher({ view, userId, go }: TeacherProps) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const loggedInTeacherName = localStorage.getItem("name") || "Teacher User";
   const [teacherIdentity, setTeacherIdentity] = useState(loggedInTeacherName);
@@ -38,10 +43,12 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
   const [assignedClasses, setAssignedClasses] = useState<ClassCatalogItem[]>(
     [],
   );
+  const [classesLoaded, setClassesLoaded] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [savingCertificateClassId, setSavingCertificateClassId] = useState<string | null>(null);
   const requestedClassId = searchParams.get("classId") || "";
   const assessmentId = searchParams.get("assessmentId") || "";
+  const legacyWorkspaceTab = LEGACY_WORKSPACE_TABS[view];
 
   useEffect(() => {
     if (!userId) return;
@@ -64,8 +71,12 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
       "/classes",
       ({ data }) => {
         setAssignedClasses(data.filter((item) => !item.deleted));
+        setClassesLoaded(true);
       },
-      (error) => console.error("Could not load assigned classes:", error),
+      (error) => {
+        console.error("Could not load assigned classes:", error);
+        setClassesLoaded(true);
+      },
       POLL_INTERVAL_TWO_MINUTES,
     );
   }, [userId]);
@@ -84,12 +95,14 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
         : assignedClasses[0].id;
 
     setSelectedClassId(nextClassId);
-    if (view === "quiz" && requestedClassId !== nextClassId) {
+    if (view === "workspace" && requestedClassId !== nextClassId) {
       setSearchParams(
         (current) => {
           const next = new URLSearchParams(current);
           next.set("classId", nextClassId);
+          next.set("tab", "dashboard");
           next.delete("assessmentId");
+          next.delete("materialId");
           return next;
         },
         { replace: true },
@@ -101,6 +114,28 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
     selectedClassId,
     setSearchParams,
     view,
+  ]);
+
+  useEffect(() => {
+    if (!legacyWorkspaceTab || !classesLoaded) return;
+    const targetClass = assignedClasses.find(
+      (item) => item.id === requestedClassId,
+    ) || assignedClasses[0];
+    if (!targetClass) {
+      navigate("/teacher/classes", { replace: true });
+      return;
+    }
+
+    navigate(
+      `/teacher/workspace?classId=${encodeURIComponent(targetClass.id)}&tab=${legacyWorkspaceTab}`,
+      { replace: true },
+    );
+  }, [
+    assignedClasses,
+    classesLoaded,
+    legacyWorkspaceTab,
+    navigate,
+    requestedClassId,
   ]);
 
   const updateAssessmentId = useCallback(
@@ -155,6 +190,11 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
     }
   };
 
+  if (view === "meet") return <Navigate to="/teacher/classes" replace />;
+  if (legacyWorkspaceTab) {
+    return <Card className="animate-pulse py-12 text-center text-mute">Opening class workspace…</Card>;
+  }
+
   return (
     <>
       {(view === "dash" || view === "classes") && (
@@ -165,56 +205,33 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
       ) : view === "classes" ? (
         <TeacherClasses
           classes={assignedClasses}
-          savingCertificateClassId={savingCertificateClassId}
-          onToggleCertificates={toggleClassCertificates}
-          onChooseAction={(classId, nextView) => {
-            setSelectedClassId(classId);
-            if (nextView === "quiz") {
-              go(`quiz?classId=${encodeURIComponent(classId)}`);
-              return;
-            }
-            if (nextView === "materials") {
-              go(`materials?classId=${encodeURIComponent(classId)}`);
-              return;
-            }
-            go(nextView);
+          onOpenClass={(classId) => {
+            go(`workspace?classId=${encodeURIComponent(classId)}&tab=dashboard`);
           }}
         />
-      ) : view === "materials" ? (
+      ) : view === "workspace" ? (
         selectedClass ? (
-          <TeacherMaterials
-            classId={selectedClass.id}
-            className={selectedClass.name}
+          <TeacherClassWorkspace
+            classInfo={selectedClass}
+            teacherName={teacherIdentity}
+            savingCertificate={savingCertificateClassId === selectedClass.id}
+            onToggleCertificates={(unlocked) =>
+              toggleClassCertificates(selectedClass.id, unlocked)
+            }
+            onAssessmentChange={updateAssessmentId}
           />
+        ) : classesLoaded ? (
+          <Card className="text-center text-mute">
+            No class is currently assigned to your account.
+          </Card>
         ) : (
           <Card className="animate-pulse py-12 text-center text-mute">
-            Loading class materials…
+            Loading class workspace…
           </Card>
         )
-      ) : view === "students" ? (
-        <StudentList
-          className={selectedClass?.name}
-          classId={selectedClass?.id}
-          studentIds={selectedClass?.enrolledStudentIds || []}
-        />
-      ) : view === "quiz" ? (
-        <Quiz
-          className={selectedClass?.name}
-          classId={selectedClass?.id}
-          assessmentId={assessmentId}
-          onAssessmentChange={updateAssessmentId}
-        />
-      ) : view === "meet" ? (
-        <Meet classes={assignedClasses} />
       ) : view === "alerts" ? (
         <Notifications role="teacher" />
-      ) : (
-        <Upload
-          className={selectedClass?.name}
-          classId={selectedClass?.id}
-          teacherName={teacherIdentity}
-        />
-      )}
+      ) : null}
     </>
   );
 }

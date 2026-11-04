@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { apiDelete, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
-import { Btn, Card, Input, Label, Title } from "../ui";
+import { Btn, Card, Input, Label } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 
 interface ScheduleItem {
@@ -16,9 +16,10 @@ interface ScheduleItem {
 
 interface MeetProps {
   classes: ClassCatalogItem[];
+  fixedClassId?: string;
 }
 
-export function Meet({ classes }: MeetProps) {
+export function Meet({ classes, fixedClassId }: MeetProps) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [classId, setClassId] = useState("");
   const [title, setTitle] = useState("");
@@ -43,12 +44,16 @@ export function Meet({ classes }: MeetProps) {
   }, []);
 
   useEffect(() => {
+    if (fixedClassId) {
+      setClassId(fixedClassId);
+      return;
+    }
     setClassId((current) =>
       classes.some((item) => item.id === current)
         ? current
         : classes[0]?.id || "",
     );
-  }, [classes]);
+  }, [classes, fixedClassId]);
 
   function resetForm() {
     setEditingId(null);
@@ -60,7 +65,7 @@ export function Meet({ classes }: MeetProps) {
 
   function editSession(item: ScheduleItem) {
     setEditingId(item.id);
-    setClassId(item.classId || "");
+    setClassId(fixedClassId || item.classId || "");
     setTitle(item.title);
     setDescription(item.description || "");
     const date = new Date(item.startsAt);
@@ -75,7 +80,7 @@ export function Meet({ classes }: MeetProps) {
     setSending(true);
     try {
       const payload = {
-        classId,
+        classId: fixedClassId || classId,
         title,
         description: description || null,
         startsAt: new Date(startsAt).toISOString(),
@@ -121,9 +126,13 @@ export function Meet({ classes }: MeetProps) {
     }
   }
 
+  const visibleSchedules = fixedClassId
+    ? schedules.filter((item) => item.classId === fixedClassId)
+    : schedules;
+  const fixedClass = classes.find((item) => item.id === fixedClassId);
+
   return (
     <>
-      <Title kicker="Live sessions" title="Schedule a learning session" sub="Sessions are saved to the system and visible to enrolled students." />
       {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
       <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
         <Card>
@@ -132,12 +141,16 @@ export function Meet({ classes }: MeetProps) {
           ) : (
             <form className="grid content-start gap-3" onSubmit={(event) => void scheduleSession(event)}>
               <Label>{editingId ? "Edit session" : "New session"}</Label>
-              <label className="grid gap-1 text-sm font-semibold">
-                Class
-                <select value={classId} onChange={(event) => setClassId(event.target.value)} required className="rounded-xl border border-line bg-white px-3 py-2">
-                  {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
-              </label>
+              {fixedClassId ? (
+                <p className="text-sm font-semibold">Class: {fixedClass?.name || "Selected class"}</p>
+              ) : (
+                <label className="grid gap-1 text-sm font-semibold">
+                  Class
+                  <select value={classId} onChange={(event) => setClassId(event.target.value)} required className="rounded-xl border border-line bg-white px-3 py-2">
+                    {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </select>
+                </label>
+              )}
               <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Session title" required maxLength={255} />
               <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Meeting details (optional)" maxLength={10000} className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--p1)] focus:ring-2 focus:ring-p1-soft" />
               <label className="grid gap-1 text-sm font-semibold">
@@ -156,7 +169,7 @@ export function Meet({ classes }: MeetProps) {
         <Card>
           <Label>Scheduled sessions</Label>
           <ul className="mt-2 divide-y divide-line">
-            {schedules.map((item) => (
+            {visibleSchedules.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center gap-3 py-3">
                 <span className="flex-1">
                   <b>{item.title}</b>
@@ -178,7 +191,7 @@ export function Meet({ classes }: MeetProps) {
                 )}
               </li>
             ))}
-            {!schedules.length && <li className="py-5 text-center text-sm text-mute">No sessions have been scheduled yet.</li>}
+            {!visibleSchedules.length && <li className="py-5 text-center text-sm text-mute">No sessions have been scheduled yet.</li>}
           </ul>
         </Card>
       </div>

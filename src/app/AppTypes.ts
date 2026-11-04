@@ -10,7 +10,6 @@ import {
   Music,
   User,
   Users,
-  Video,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,7 +39,6 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
   teacher: [
     ["dash", LayoutDashboard, "Dashboard"],
     ["classes", BookOpen, "Classes"],
-    ["meet", Video, "Live Sessions"],
     ["alerts", Bell, "Notifications"],
     ["profile", User, "My Profile"],
   ],

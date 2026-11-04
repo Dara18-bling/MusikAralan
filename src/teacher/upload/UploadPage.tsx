@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { apiPost, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../../api";
-import { Title } from "../../ui";
 import {
   ensureAbsoluteUrl,
   parseAndConvertMediaUrl,
@@ -12,7 +11,7 @@ import type { RecentMaterial, UploadKind, UploadProps } from "./types";
 import { UploadForm } from "./UploadForm";
 import { getUploadKindFromResource, isSpreadsheetFile } from "./uploadUtils";
 
-export function UploadPage({ className, classId, teacherName }: UploadProps) {
+export function UploadPage({ classId, teacherName }: UploadProps) {
   const [kind, setKind] = useState<UploadKind>("Module");
   const [titlesByKind, setTitlesByKind] = useState<Record<string, string>>({
     Module: "",
@@ -145,15 +144,6 @@ export function UploadPage({ className, classId, teacherName }: UploadProps) {
 
   return (
     <>
-      <Title
-        kicker="Content uploader"
-        title="Add learning material"
-        sub={
-          className
-            ? `Adding content for ${className}.`
-            : "Choose an assigned class before adding content."
-        }
-      />
       <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
         <UploadForm
           kind={kind}

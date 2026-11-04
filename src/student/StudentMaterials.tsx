@@ -141,7 +141,6 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
               : `/student/classes/${selectedClass.id}/materials`,
           )
         }
-        onBack={() => navigate("/student/materials")}
       />
     );
   }

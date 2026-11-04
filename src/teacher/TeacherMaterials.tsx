@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { FileText, Video } from "lucide-react";
 import { toast } from "react-toastify";
 import { apiDelete, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
-import { Card, Title } from "../ui";
+import { Card } from "../ui";
 import { StudentMaterialViewer } from "../student/StudentMaterialViewer";
 import type { Material } from "../student/StudentClassWorkspace";
 
@@ -83,40 +83,43 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
 
   if (selectedMaterialId) {
     if (!loaded && !selectedMaterial) {
-      return <Card className="animate-pulse py-12 text-center text-mute">Loading material…</Card>;
+      return (
+        <>
+          <Card className="animate-pulse py-12 text-center text-mute">Loading material…</Card>
+        </>
+      );
     }
     if (!selectedMaterial) {
       return (
-        <Card className="text-center">
-          <p className="text-mute">
-            {loadError ? "Could not load this material." : "This material is no longer available."}
-          </p>
-          <button
-            type="button"
-            onClick={() => selectMaterial("")}
-            className="mt-4 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
-          >
-            Back to {className} materials
-          </button>
-        </Card>
+        <>
+          <Card className="text-center">
+            <p className="text-mute">
+              {loadError ? "Could not load this material." : "This material is no longer available."}
+            </p>
+            <button
+              type="button"
+              onClick={() => selectMaterial("")}
+              className="mt-4 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
+            >
+              Back to {className} materials
+            </button>
+          </Card>
+        </>
       );
     }
     return (
-      <StudentMaterialViewer
-        className={className}
-        material={selectedMaterial}
-        onBack={() => selectMaterial("")}
-      />
+      <>
+        <StudentMaterialViewer
+          className={className}
+          material={selectedMaterial}
+          onBack={() => selectMaterial("")}
+        />
+      </>
     );
   }
 
   return (
     <>
-      <Title
-        kicker="Class materials"
-        title={`${className} Materials`}
-        sub="Browse and open all materials shared with this class."
-      />
       {loadError ? (
         <Card className="mt-5 text-center text-mute">
           Could not load class materials. Please try again later.

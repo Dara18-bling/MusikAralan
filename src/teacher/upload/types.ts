@@ -3,7 +3,6 @@ import type { parseAndConvertMediaUrl } from "../../utils/mediaUrlHelper";
 export type UploadKind = "Module" | "Vocal Guide" | "Video Guide" | "Others";
 
 export interface UploadProps {
-  className?: string;
   classId?: string;
   teacherName?: string;
 }

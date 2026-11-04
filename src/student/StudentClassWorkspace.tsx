@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { GraduationCap, Users, Video } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { toast } from "react-toastify";
+import { Breadcrumbs } from "../app/Breadcrumbs";
 import {
   apiPost,
   POLL_INTERVAL_TWO_MINUTES,
@@ -74,7 +75,6 @@ interface StudentClassWorkspaceProps {
   selectedMaterialId: string;
   onSelectTab: (tab: WorkspaceTab) => void;
   onOpenMaterial: (materialId: string) => void;
-  onBack: () => void;
 }
 
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -92,7 +92,6 @@ export function StudentClassWorkspace({
   selectedMaterialId,
   onSelectTab,
   onOpenMaterial,
-  onBack,
 }: StudentClassWorkspaceProps) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
@@ -250,42 +249,83 @@ export function StudentClassWorkspace({
 
   if (selectedMaterialId) {
     if (loading && !selectedMaterial) {
-      return <Card className="animate-pulse py-12 text-center text-mute">Loading material…</Card>;
+      return (
+        <>
+          <Breadcrumbs
+            items={[
+              { label: "Classes", href: "/student/materials" },
+              { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
+              { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+              { label: "Material" },
+            ]}
+          />
+          <Card className="animate-pulse py-12 text-center text-mute">Loading material…</Card>
+        </>
+      );
     }
     if (!selectedMaterial) {
       return (
-        <Card className="text-center">
-          <p className="text-mute">This material is no longer available.</p>
-          <button
-            type="button"
-            onClick={() => onOpenMaterial("")}
-            className="mt-4 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
-          >
-            Go back to {classInfo.name}
-          </button>
-        </Card>
+        <>
+          <Breadcrumbs
+            items={[
+              { label: "Classes", href: "/student/materials" },
+              { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
+              { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+              { label: "Material" },
+            ]}
+          />
+          <Card className="text-center">
+            <p className="text-mute">This material is no longer available.</p>
+            <button
+              type="button"
+              onClick={() => onOpenMaterial("")}
+              className="mt-4 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
+            >
+              Go back to {classInfo.name}
+            </button>
+          </Card>
+        </>
       );
     }
     return (
-      <StudentMaterialViewer
-        className={classInfo.name}
-        material={selectedMaterial}
-        completed={completedMaterialIds.includes(selectedMaterial.id)}
-        onBack={() => onOpenMaterial("")}
-        onMarkComplete={() => markMaterialComplete(selectedMaterial.id)}
-      />
+      <>
+        <Breadcrumbs
+          items={[
+            { label: "Classes", href: "/student/materials" },
+            { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
+            { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+            { label: selectedMaterial.title },
+          ]}
+        />
+        <StudentMaterialViewer
+          className={classInfo.name}
+          material={selectedMaterial}
+          completed={completedMaterialIds.includes(selectedMaterial.id)}
+          onBack={() => onOpenMaterial("")}
+          onMarkComplete={() => markMaterialComplete(selectedMaterial.id)}
+        />
+      </>
     );
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-4 text-sm font-semibold text-p1 hover:underline"
-      >
-        ← Back to classes
-      </button>
+      {activeTab === "dashboard" ? (
+        <Breadcrumbs
+          items={[
+            { label: "Classes", href: "/student/materials" },
+            { label: classInfo.name },
+          ]}
+        />
+      ) : (
+        <Breadcrumbs
+          items={[
+            { label: "Classes", href: "/student/materials" },
+            { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
+            { label: TABS.find((tab) => tab.id === activeTab)?.label || "Dashboard" },
+          ]}
+        />
+      )}
       <Title
         kicker="Class workspace"
         title={classInfo.name}

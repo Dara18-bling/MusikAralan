@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
-import { Card, Pill, Title } from "../ui";
+import { Card, Pill } from "../ui";
 
 interface StudentListProps {
-  className?: string;
   classId?: string;
   studentIds?: string[];
 }
 
-export function StudentList({ className, classId, studentIds = [] }: StudentListProps) {
+export function StudentList({ classId, studentIds = [] }: StudentListProps) {
   const [students, setStudents] = useState<any[]>([]);
   const [materialCount, setMaterialCount] = useState(0);
 
@@ -40,12 +39,7 @@ export function StudentList({ className, classId, studentIds = [] }: StudentList
 
   return (
     <>
-      <Title
-        kicker="Class Roster"
-        title="My Students"
-        sub={className ? `Students enrolled in ${className}.` : "List of students assigned to your class."}
-      />
-      <Card className="mt-5">
+      <Card>
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-line text-mute">

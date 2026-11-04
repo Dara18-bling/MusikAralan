@@ -50,7 +50,9 @@ export function StudentMaterialViewer({
     mimeType.startsWith("video/") ||
     ["mp4", "webm", "ogv"].includes(extension);
   const isPdf = mimeType === "application/pdf" || extension === "pdf";
-  const isImage = mimeType.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp"].includes(extension);
+  const isImage =
+    mimeType.startsWith("image/") ||
+    ["png", "jpg", "jpeg", "gif", "webp"].includes(extension);
   const useEmbed = Boolean(drivePreviewUrl || (!dataSource && safeSource));
   const playerSource = drivePreviewUrl || safeSource;
   const driveDownloadUrl = getDriveDownloadUrl(source);
@@ -66,7 +68,9 @@ export function StudentMaterialViewer({
     if (!source) {
       return (
         <div className="grid min-h-64 place-items-center rounded-xl border border-dashed border-line bg-slate-50 p-8 text-center">
-          <p className="text-mute">This material does not have a document or media file attached.</p>
+          <p className="text-mute">
+            This material does not have a document or media file attached.
+          </p>
         </div>
       );
     }
@@ -75,7 +79,9 @@ export function StudentMaterialViewer({
       return (
         <div className="grid min-h-64 place-items-center rounded-xl border border-line bg-slate-50 p-6">
           <div className="w-full max-w-2xl">
-            <p className="mb-4 text-center text-sm font-medium text-mute">Audio player</p>
+            <p className="mb-4 text-center text-sm font-medium text-mute">
+              Audio player
+            </p>
             <audio controls className="w-full" src={safeSource}>
               Your browser does not support audio playback.
             </audio>
@@ -87,7 +93,9 @@ export function StudentMaterialViewer({
     if (isVideo && !drivePreviewUrl) {
       return (
         <div className="overflow-hidden rounded-xl border border-line bg-black">
-          {material.kind === "Video Guide" && !mimeType.startsWith("video/") && !["mp4", "webm", "ogv"].includes(extension) ? (
+          {material.kind === "Video Guide" &&
+          !mimeType.startsWith("video/") &&
+          !["mp4", "webm", "ogv"].includes(extension) ? (
             <iframe
               className="aspect-video w-full"
               src={safeSource}
@@ -107,7 +115,11 @@ export function StudentMaterialViewer({
     if (isImage && dataSource) {
       return (
         <div className="grid min-h-64 place-items-center overflow-hidden rounded-xl border border-line bg-slate-50 p-4">
-          <img src={dataSource} alt={material.title} className="max-h-[70vh] max-w-full object-contain" />
+          <img
+            src={dataSource}
+            alt={material.title}
+            className="max-h-[70vh] max-w-full object-contain"
+          />
         </div>
       );
     }
@@ -128,11 +140,18 @@ export function StudentMaterialViewer({
     return (
       <div className="grid min-h-64 place-items-center rounded-xl border border-dashed border-line bg-slate-50 p-8 text-center">
         <div>
-          <p className="text-mute">This file type cannot be previewed in the browser.</p>
+          <p className="text-mute">
+            This file type cannot be previewed in the browser.
+          </p>
           {dataSource && (
             <button
               type="button"
-              onClick={() => downloadDataUrl(dataSource, material.title || "learning-material")}
+              onClick={() =>
+                downloadDataUrl(
+                  dataSource,
+                  material.title || "learning-material",
+                )
+              }
               className="mt-4 inline-flex items-center gap-2 rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
             >
               <Download className="h-4 w-4" /> Download file
@@ -163,17 +182,15 @@ export function StudentMaterialViewer({
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         Go Back to {className}
       </button>
-      <Title
-        kicker={`${className} · ${material.kind}`}
-        title={material.title}
-        sub={material.description}
-      />
-      {material.teacherName && (
-        <p className="-mt-3 mb-5 text-sm text-mute">Uploaded by {material.teacherName}</p>
-      )}
       <Card className="grid gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Label>{isAudio ? "Audio player" : isVideo ? "Media player" : "Document viewer"}</Label>
+          <Label>
+            {isAudio
+              ? "Audio player"
+              : isVideo
+                ? "Media player"
+                : "Document viewer"}
+          </Label>
           {driveDownloadUrl && (
             <a
               href={driveDownloadUrl}
@@ -186,20 +203,36 @@ export function StudentMaterialViewer({
           )}
         </div>
         {renderResource()}
-        {Array.isArray(material.files) && material.files.map((file) => (
-          <a key={file.url} href={ensureAbsoluteUrl(file.url)} target="_blank" rel="noreferrer" className="text-sm font-semibold text-p1 underline">
-            Open {file.name}
-          </a>
-        ))}
-        {Array.isArray(material.links) && material.links.map((link) => (
-          <a key={link.url} href={ensureAbsoluteUrl(link.url)} target="_blank" rel="noreferrer" className="break-all text-sm font-semibold text-p1 underline">
-            Open attached link
-          </a>
-        ))}
+        {Array.isArray(material.files) &&
+          material.files.map((file) => (
+            <a
+              key={file.url}
+              href={ensureAbsoluteUrl(file.url)}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-semibold text-p1 underline"
+            >
+              Open {file.name}
+            </a>
+          ))}
+        {Array.isArray(material.links) &&
+          material.links.map((link) => (
+            <a
+              key={link.url}
+              href={ensureAbsoluteUrl(link.url)}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-sm font-semibold text-p1 underline"
+            >
+              Open attached link
+            </a>
+          ))}
         {onMarkComplete && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
             <p className="text-sm text-mute">
-              {completed ? "You have marked this material as complete." : "Finish reviewing this material, then mark it complete."}
+              {completed
+                ? "You have marked this material as complete."
+                : "Finish reviewing this material, then mark it complete."}
             </p>
             <button
               type="button"
@@ -207,11 +240,25 @@ export function StudentMaterialViewer({
               disabled={completed || saving}
               className={`rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${completed ? "bg-emerald-600" : "bg-p1"}`}
             >
-              {saving ? "Saving…" : completed ? "Completed" : "Mark as Complete"}
+              {saving
+                ? "Saving…"
+                : completed
+                  ? "Completed"
+                  : "Mark as Complete"}
             </button>
           </div>
         )}
       </Card>
+      <Title
+        kicker={`${className} · ${material.kind}`}
+        title={material.title}
+        sub={material.description}
+      />
+      {material.teacherName && (
+        <p className="-mt-3 mb-5 text-sm text-mute">
+          Uploaded by {material.teacherName}
+        </p>
+      )}
     </>
   );
 }
