@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Music } from "lucide-react";
 import { toast } from "react-toastify";
 import {
+  ApiError,
   apiPost,
   POLL_INTERVAL_TWO_MINUTES,
   refreshApi,
@@ -97,7 +98,23 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   const joinClass = async (item: ClassCatalogItem) => {
     if (!userId || item.deleted || !item.availableForEnrollment) return;
     try {
-      await apiPost(`/classes/${item.id}/enroll`);
+      const enroll = (confirmOverload: boolean) =>
+        apiPost<{ enrolled: boolean }>(`/classes/${item.id}/enroll`, {
+          ...(confirmOverload ? { confirmOverload: true } : {}),
+        });
+      try {
+        await enroll(false);
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "class_load_warning") {
+          if (window.confirm(error.message)) {
+            await enroll(true);
+          } else {
+            return;
+          }
+        } else {
+          throw error;
+        }
+      }
       setEnrolledClassIds((current) => [...new Set([...current, item.id])]);
       refreshApi("/classes");
       refreshApi(`/classes/${item.id}/students`);
@@ -117,9 +134,8 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
       toast.success(`Enrolled in ${item.name}.`);
     } catch (error) {
       console.error("Could not enroll in class:", error);
-      const details = error as { message?: string };
       toast.error(
-        `Could not enroll in this class: ${details.message || "Please check your connection and try again."}`,
+        `Could not enroll in this class: ${error instanceof Error ? error.message : "Please check your connection and try again."}`,
       );
     }
   };
@@ -190,6 +206,10 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
           </div>
         }
       />
+      <p className="mb-4 text-sm text-mute" aria-live="polite">
+        You’re enrolled in {enrolledClasses.length} of 5 concurrent classes.
+        Enrolling in more than 3 requires confirmation.
+      </p>
       {!classesLoaded ? (
         <Card className="animate-pulse py-12 text-center text-mute">Loading classes…</Card>
       ) : (
@@ -210,10 +230,10 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
                   <button
                     type="button"
                     onClick={() => void joinClass(item)}
-                    disabled={!userId}
+                    disabled={!userId || enrolledClasses.length >= 5}
                     className="flex-1 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    Enroll
+                    {enrolledClasses.length >= 5 ? "Class limit reached" : "Enroll"}
                   </button>
                 ) : (
                   <button

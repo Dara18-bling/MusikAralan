@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiGet, apiPost, apiPut, refreshApi } from "../api";
+import { ApiError, apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import type { ClassFilter } from "./adminTypes";
@@ -50,7 +50,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     setEditingClass((current) => (current ? { ...current, ...changes } : current));
   };
 
-  const saveManagedClass = async (item: ClassCatalogItem) => {
+  const saveManagedClass = async (item: ClassCatalogItem, confirmOverload = false) => {
     setSavingClassId(item.id);
     try {
       const { id, enrolledStudentIds: _enrolledStudentIds, ...classData } = item;
@@ -61,7 +61,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       ) {
         classData.enrollmentUpdatedAt = new Date();
       }
-      const { class: saved } = await apiPut<{ class: ClassCatalogItem }>(`/classes/${id}`, classData);
+      const { class: saved } = await apiPut<{ class: ClassCatalogItem }>(`/classes/${id}`, {
+        ...classData,
+        ...(confirmOverload ? { confirmOverload: true } : {}),
+      });
       setManagedClasses((current) =>
         current.map((existing) =>
           existing.id === id ? saved : existing
@@ -72,8 +75,17 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       setEditingClass(null);
       toast.success(`${item.name} saved.`);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code === "class_load_warning"
+      ) {
+        if (!confirmOverload && window.confirm(error.message)) {
+          await saveManagedClass(item, true);
+        }
+        return;
+      }
       console.error(error);
-      toast.error("Could not save this class.");
+      toast.error(error instanceof Error ? error.message : "Could not save this class.");
     } finally {
       setSavingClassId(null);
     }
@@ -102,9 +114,12 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     }
   };
 
-  const restoreManagedClass = async (item: ClassCatalogItem) => {
+  const restoreManagedClass = async (item: ClassCatalogItem, confirmOverload = false) => {
     try {
-      await apiPut(`/classes/${item.id}`, { deleted: false });
+      await apiPut(`/classes/${item.id}`, {
+        deleted: false,
+        ...(confirmOverload ? { confirmOverload: true } : {}),
+      });
       setManagedClasses((current) =>
         current.map((existing) =>
           existing.id === item.id ? { ...existing, deleted: false } : existing
@@ -113,12 +128,21 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       refreshApi("/classes");
       refreshApi("/dashboard");
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code === "class_load_warning"
+      ) {
+        if (!confirmOverload && window.confirm(error.message)) {
+          await restoreManagedClass(item, true);
+        }
+        return;
+      }
       console.error(error);
-      toast.error("Could not restore this class.");
+      toast.error(error instanceof Error ? error.message : "Could not restore this class.");
     }
   };
 
-  const createManagedClass = async (event: React.FormEvent) => {
+  const createManagedClass = async (event: React.FormEvent, confirmOverload = false) => {
     event.preventDefault();
     if (!newClassName.trim()) return;
     const newClass: Omit<ClassCatalogItem, "id"> = {
@@ -131,7 +155,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       createdAt: new Date(),
     };
     try {
-      const { class: created } = await apiPost<{ class: ClassCatalogItem }>("/classes", newClass);
+      const { class: created } = await apiPost<{ class: ClassCatalogItem }>("/classes", {
+        ...newClass,
+        ...(confirmOverload ? { confirmOverload: true } : {}),
+      });
       setManagedClasses((current) => [
         ...current,
         created,
@@ -145,8 +172,17 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       setNewClassAvailable(false);
       setShowCreateClass(false);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code === "class_load_warning"
+      ) {
+        if (!confirmOverload && window.confirm(error.message)) {
+          await createManagedClass(event, true);
+        }
+        return;
+      }
       console.error(error);
-      toast.error("Could not create the class.");
+      toast.error(error instanceof Error ? error.message : "Could not create the class.");
     }
   };
 

@@ -13,6 +13,10 @@ use Illuminate\Validation\Rule;
 
 class ClassController extends Controller
 {
+    private const SOFT_CLASS_LIMIT = 3;
+
+    private const HARD_CLASS_LIMIT = 5;
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->attributes->get('app_user');
@@ -32,30 +36,83 @@ class ClassController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $this->validatedClass($request);
-        $class = Classroom::query()->create($this->classAttributes($data));
-        $this->ensureModule($class);
+        $result = DB::transaction(function () use ($data, $request): JsonResponse {
+            $attributes = $this->classAttributes($data);
+            $teacherId = $attributes['teacher_id'] ?? null;
+            if ($teacherId !== null && ! ($attributes['deleted'] ?? false)) {
+                $teacher = User::query()->whereKey($teacherId)->lockForUpdate()->firstOrFail();
+                $loadResponse = $this->teacherLoadResponse(
+                    $teacher,
+                    null,
+                    (bool) ($data['confirmOverload'] ?? false),
+                );
+                if ($loadResponse) {
+                    return $loadResponse;
+                }
+            }
 
-        return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))], 201);
+            $class = Classroom::query()->create($attributes);
+            $this->ensureModule($class);
+
+            return response()->json([
+                'class' => $this->payload(
+                    $class->load('teacher')->loadCount('students'),
+                    $request->attributes->get('app_user'),
+                ),
+            ], 201);
+        });
+
+        return $result;
     }
 
     public function update(Request $request, Classroom $class): JsonResponse
     {
         $data = $this->validatedClass($request, true);
-        $class->fill($this->classAttributes($data));
-        if (array_key_exists('availableForEnrollment', $data) && $class->isDirty('available_for_enrollment')) {
-            $class->enrollment_updated_at = now();
-        }
-        $class->save();
-        $module = $class->modules()->first();
-        if ($module) {
-            $module->update([
-                'title' => $class->name,
-                'category' => $class->age_group,
-                'description' => $class->description,
-            ]);
-        }
 
-        return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))]);
+        return DB::transaction(function () use ($data, $request, $class): JsonResponse {
+            $class = Classroom::query()->whereKey($class->id)->lockForUpdate()->firstOrFail();
+            $attributes = $this->classAttributes($data);
+            $targetTeacherId = array_key_exists('teacher_id', $attributes)
+                ? $attributes['teacher_id']
+                : $class->teacher_id;
+            $targetDeleted = $attributes['deleted'] ?? $class->deleted;
+            $becomesActiveAssignment = $targetTeacherId !== null
+                && ! $targetDeleted
+                && ((int) $targetTeacherId !== (int) $class->teacher_id || $class->deleted);
+
+            if ($becomesActiveAssignment) {
+                $teacher = User::query()->whereKey($targetTeacherId)->lockForUpdate()->firstOrFail();
+                $loadResponse = $this->teacherLoadResponse(
+                    $teacher,
+                    $class->id,
+                    (bool) ($data['confirmOverload'] ?? false),
+                );
+                if ($loadResponse) {
+                    return $loadResponse;
+                }
+            }
+
+            $class->fill($attributes);
+            if (array_key_exists('availableForEnrollment', $data) && $class->isDirty('available_for_enrollment')) {
+                $class->enrollment_updated_at = now();
+            }
+            $class->save();
+            $module = $class->modules()->first();
+            if ($module) {
+                $module->update([
+                    'title' => $class->name,
+                    'category' => $class->age_group,
+                    'description' => $class->description,
+                ]);
+            }
+
+            return response()->json([
+                'class' => $this->payload(
+                    $class->load('teacher')->loadCount('students'),
+                    $request->attributes->get('app_user'),
+                ),
+            ]);
+        });
     }
 
     public function updateCertificateAccess(Request $request, Classroom $class): JsonResponse
@@ -84,9 +141,42 @@ class ClassController extends Controller
             return response()->json(['message' => 'This class is not available for enrollment.'], 403);
         }
 
-        $class->students()->syncWithoutDetaching([$student->id => ['enrolled_at' => now()]]);
+        $data = $request->validate([
+            'confirmOverload' => ['sometimes', 'boolean'],
+        ]);
 
-        return response()->json(['enrolled' => true], 201);
+        return DB::transaction(function () use ($class, $student, $data): JsonResponse {
+            $student = User::query()->whereKey($student->id)->lockForUpdate()->firstOrFail();
+            $alreadyEnrolled = $class->students()->where('users.id', $student->id)->exists();
+            if ($alreadyEnrolled) {
+                return response()->json(['enrolled' => true, 'alreadyEnrolled' => true]);
+            }
+
+            $enrolledCount = $student->classes()->where('classes.deleted', false)->count();
+            if ($enrolledCount >= self::HARD_CLASS_LIMIT) {
+                return response()->json([
+                    'code' => 'class_load_hard_limit',
+                    'message' => 'You are already enrolled in the maximum of 5 active classes.',
+                ], 422);
+            }
+            if (
+                $enrolledCount >= self::SOFT_CLASS_LIMIT
+                && ! ($data['confirmOverload'] ?? false)
+            ) {
+                return response()->json([
+                    'code' => 'class_load_warning',
+                    'message' => "You are enrolled in {$enrolledCount} active classes. Enrolling in another will exceed the recommended limit of 3.",
+                    'enrolledCount' => $enrolledCount,
+                ], 409);
+            }
+
+            $class->students()->syncWithoutDetaching([$student->id => ['enrolled_at' => now()]]);
+
+            return response()->json([
+                'enrolled' => true,
+                'enrolledCount' => $enrolledCount + 1,
+            ], 201);
+        });
     }
 
     public function students(Request $request, Classroom $class): JsonResponse
@@ -142,7 +232,35 @@ class ClassController extends Controller
             'description' => ['sometimes', 'nullable', 'string'],
             'availableForEnrollment' => ['sometimes', 'boolean'],
             'deleted' => ['sometimes', 'boolean'],
+            'confirmOverload' => ['sometimes', 'boolean'],
         ]);
+    }
+
+    private function teacherLoadResponse(User $teacher, ?int $excludeClassId, bool $confirmed): ?JsonResponse
+    {
+        $query = Classroom::query()
+            ->where('teacher_id', $teacher->id)
+            ->where('deleted', false);
+        if ($excludeClassId !== null) {
+            $query->where('id', '<>', $excludeClassId);
+        }
+        $classCount = $query->count();
+
+        if ($classCount >= self::HARD_CLASS_LIMIT) {
+            return response()->json([
+                'code' => 'class_load_hard_limit',
+                'message' => 'This teacher already manages the maximum of 5 active classes.',
+            ], 422);
+        }
+        if ($classCount >= self::SOFT_CLASS_LIMIT && ! $confirmed) {
+            return response()->json([
+                'code' => 'class_load_warning',
+                'message' => "This teacher already manages {$classCount} active classes. Assigning another will exceed the recommended limit of 3.",
+                'classCount' => $classCount,
+            ], 409);
+        }
+
+        return null;
     }
 
     private function classAttributes(array $data): array

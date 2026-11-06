@@ -109,6 +109,38 @@ class RelationalSchemaTest extends TestCase
         $this->assertNull($user->fresh()->messenger_link);
     }
 
+    public function test_authenticated_user_can_update_birthday_and_derived_birth_year(): void
+    {
+        $user = User::query()->create([
+            'name' => 'Birthday User',
+            'email' => 'birthday@example.test',
+            'role' => 'student',
+            'status' => 'approved',
+            'birth_year' => 1995,
+        ]);
+        $token = $user->createToken('birthday-update')->plainTextToken;
+
+        $this->withToken($token)
+            ->patchJson('/api/me', [
+                'name' => 'Birthday User',
+                'birthday' => '1995-08-21',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.birthday', '1995-08-21')
+            ->assertJsonPath('user.birthYear', 1995);
+
+        $this->assertSame('1995-08-21', $user->fresh()->birthday->format('Y-m-d'));
+        $this->assertSame(1995, $user->fresh()->birth_year);
+
+        $this->withToken($token)
+            ->patchJson('/api/me', [
+                'name' => 'Updated Name',
+                'birthday' => '2999-01-01',
+            ])
+            ->assertUnprocessable();
+        $this->assertSame('1995-08-21', $user->fresh()->birthday->format('Y-m-d'));
+    }
+
     public function test_student_roster_response_only_returns_classmate_count(): void
     {
         $teacher = User::query()->create([

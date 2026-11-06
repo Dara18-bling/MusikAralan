@@ -169,8 +169,15 @@ class AuthController extends Controller
         $user = $request->attributes->get('app_user');
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'birthday' => ['sometimes', 'nullable', 'date', 'before_or_equal:today', 'after_or_equal:1920-01-01'],
         ]);
         $user->name = trim($data['name']);
+        if (array_key_exists('birthday', $data)) {
+            $user->birthday = $data['birthday'];
+            $user->birth_year = $data['birthday'] === null
+                ? null
+                : (int) substr($data['birthday'], 0, 4);
+        }
         $user->save();
 
         return response()->json(['user' => $this->userPayload($user)]);

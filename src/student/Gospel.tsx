@@ -142,14 +142,21 @@ export function Gospel() {
       <p className="mt-3 text-xs font-semibold dark:text-black/70">
         <a
           href="https://www.awitatpapuri.com/"
+          target="_blank"
           className=" bg-white/50 p-2 rounded-4xl"
         >
           See more @ AwitAtPapuri.com
         </a>
       </p>
       <p className="mt-3 text-xs font-semibold italic text-right text-p1/50">
-        <a href="https://bible.helloao.org/docs/">API by HelloAO</a> |
-        <a href="https://helloao.org/"> Main Site</a>
+        <a href="https://bible.helloao.org/docs/" target="_blank">
+          API by HelloAO
+        </a>{" "}
+        |
+        <a href="https://helloao.org/" target="_blank">
+          {" "}
+          Main Site
+        </a>
       </p>
     </section>
   );

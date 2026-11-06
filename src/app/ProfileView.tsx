@@ -6,6 +6,9 @@ import { Btn, Card, Input, Label, Title } from "../ui";
 import { Field } from "./Field";
 import type { LiturgicalPalette } from "./AppTypes";
 
+const formatLocalDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 interface ProfileViewProps {
   role: string;
   name: string;
@@ -30,6 +33,8 @@ export function ProfileView({
   const navigate = useNavigate();
   const [fullName, setFullName] = useState(name);
   const [email, setEmail] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [savedBirthday, setSavedBirthday] = useState("");
   const [phone, setPhone] = useState("");
   const [messengerLink, setMessengerLink] = useState("");
   const [accountStatus, setAccountStatus] = useState("approved");
@@ -53,6 +58,7 @@ export function ProfileView({
       user: {
         name?: string;
         email?: string;
+        birthday?: string | null;
         phoneNumber?: string;
         messengerLink?: string;
         status?: string;
@@ -61,6 +67,8 @@ export function ProfileView({
       .then(({ user: data }) => {
         setFullName(data.name ?? name);
         setEmail(data.email ?? "");
+        setBirthday(data.birthday ?? "");
+        setSavedBirthday(data.birthday ?? "");
         setPhone(data.phoneNumber ?? "");
         setMessengerLink(data.messengerLink ?? "");
         setAccountStatus(data.status ?? "approved");
@@ -75,12 +83,18 @@ export function ProfileView({
     }
     setProfileSaving(true);
     try {
-      await apiPatch("/me", { name: fullName.trim() });
+      await apiPatch("/me", {
+        name: fullName.trim(),
+        ...(birthday !== savedBirthday
+          ? { birthday: birthday || null }
+          : {}),
+      });
       await apiPatch("/me/contact-details", {
         phoneNumber: phone.trim() || null,
         messengerLink: messengerLink.trim() || null,
       });
       localStorage.setItem("name", fullName.trim());
+      setSavedBirthday(birthday);
       toast.success("Profile information saved.");
     } catch (error) {
       console.error(error);
@@ -88,6 +102,21 @@ export function ProfileView({
     }
     setProfileSaving(false);
   };
+
+  const today = new Date();
+  const age = (() => {
+    if (!birthday) return null;
+    const [year, month, day] = birthday.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return (
+      today.getFullYear() -
+      year -
+      (today.getMonth() + 1 < month ||
+      (today.getMonth() + 1 === month && today.getDate() < day)
+        ? 1
+        : 0)
+    );
+  })();
 
   const sendPasswordResetInstructions = async () => {
     setPasswordResetSending(true);
@@ -189,9 +218,20 @@ export function ProfileView({
           </Field>
 
           {role !== "admin" && (
-            <Field label="Birth Year (For auto-age assignment)">
-              <Input type="number" defaultValue="2005" />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <Field label="Birthday">
+                <Input
+                  type="date"
+                  value={birthday}
+                  max={formatLocalDate(today)}
+                  min="1920-01-01"
+                  onChange={(event) => setBirthday(event.target.value)}
+                />
+              </Field>
+              <p className="pb-2 text-sm text-mute" aria-live="polite">
+                Age: {age === null ? "Not available" : `${age} years`}
+              </p>
+            </div>
           )}
           <Btn
             className={` w-fit ${role === "admin" ? "lg:col-span-2" : ""}`}

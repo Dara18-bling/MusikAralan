@@ -2,7 +2,13 @@ import { Card, Label, Title } from "../ui";
 
 interface AdminDashboardProps {
   pendingCount: number;
-  dashboardData: { users: number; classes: number; modules: number; materials: number; completedModules: number } | null;
+  dashboardData: {
+    users: number;
+    classes: number;
+    modules: number;
+    materials: number;
+    completedModules: number;
+  } | null;
   loading: boolean;
   newRequestNotice: string;
   accountListenerError: string;
@@ -18,9 +24,8 @@ export function AdminDashboard({
   return (
     <>
       <Title
-        kicker="Overview"
-        title="System Dashboard"
-        sub="Welcome to the admin panel."
+        kicker=""
+        title={"Welcome " + localStorage.getItem("name") + "!"}
       />
       {newRequestNotice && (
         <div
@@ -41,27 +46,39 @@ export function AdminDashboard({
       <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <Label>Pending Approvals</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{loading ? "—" : pendingCount}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {loading ? "—" : pendingCount}
+          </p>
         </Card>
         <Card>
           <Label>Total Accounts</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.users ?? "—"}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {dashboardData?.users ?? "—"}
+          </p>
         </Card>
         <Card>
           <Label>Active Classes</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.classes ?? "—"}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {dashboardData?.classes ?? "—"}
+          </p>
         </Card>
         <Card>
           <Label>Learning Modules</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.modules ?? "—"}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {dashboardData?.modules ?? "—"}
+          </p>
         </Card>
         <Card>
           <Label>Learning Materials</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.materials ?? "—"}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {dashboardData?.materials ?? "—"}
+          </p>
         </Card>
         <Card>
           <Label>Completed Modules</Label>
-          <p className="mt-2 font-display text-4xl grad-text">{dashboardData?.completedModules ?? "—"}</p>
+          <p className="mt-2 font-display text-4xl grad-text">
+            {dashboardData?.completedModules ?? "—"}
+          </p>
         </Card>
       </div>
     </>
