@@ -1,3 +1,11 @@
+import {
+  BookOpen,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  School,
+  UsersRound,
+} from "lucide-react";
 import { Card, Label, Title } from "../ui";
 
 interface AdminDashboardProps {
@@ -46,38 +54,44 @@ export function AdminDashboard({
       <div className="mt-5 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <Label>Pending Approvals</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {loading ? "—" : pendingCount}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <Clock3 className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{loading ? "—" : pendingCount}</span>
           </p>
         </Card>
         <Card>
           <Label>Total Accounts</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {dashboardData?.users ?? "—"}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <UsersRound className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{dashboardData?.users ?? "—"}</span>
           </p>
         </Card>
         <Card>
           <Label>Active Classes</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {dashboardData?.classes ?? "—"}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <School className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{dashboardData?.classes ?? "—"}</span>
           </p>
         </Card>
         <Card>
           <Label>Learning Modules</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {dashboardData?.modules ?? "—"}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <BookOpen className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{dashboardData?.modules ?? "—"}</span>
           </p>
         </Card>
         <Card>
           <Label>Learning Materials</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {dashboardData?.materials ?? "—"}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <FileText className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{dashboardData?.materials ?? "—"}</span>
           </p>
         </Card>
         <Card>
           <Label>Completed Modules</Label>
-          <p className="mt-2 font-display text-4xl grad-text">
-            {dashboardData?.completedModules ?? "—"}
+          <p className="mt-2 flex items-center gap-3 font-display text-4xl">
+            <CheckCircle2 className="h-8 w-8 shrink-0 text-p1" aria-hidden="true" />
+            <span className="grad-text">{dashboardData?.completedModules ?? "—"}</span>
           </p>
         </Card>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { apiGet, apiPatch } from "../api";
 import { Btn, Card, Title } from "../ui";
@@ -16,39 +16,88 @@ function getMessengerUrl(value: unknown): string | null {
 }
 
 interface AdminAccountsProps {
-  allUsers: any[];
-  setAllUsers: React.Dispatch<React.SetStateAction<any[]>>;
-  loading: boolean;
-  setLoading: (loading: boolean) => void;
   newRequestNotice: string;
   accountListenerError: string;
 }
 
+interface PaginatedUsersResponse {
+  data: any[];
+  currentPage: number;
+  lastPage: number;
+  perPage: number;
+  total: number;
+}
+
+const PAGE_SIZE = 10;
+
 export function AdminAccounts({
-  allUsers,
-  setAllUsers,
-  loading,
-  setLoading,
   newRequestNotice,
   accountListenerError,
 }: AdminAccountsProps) {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>({});
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("pending");
   const [accountSearch, setAccountSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(null);
+  const requestId = useRef(0);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
+    const request = ++requestId.current;
     setLoading(true);
+    const params = new URLSearchParams({
+      page: String(currentPage),
+      filter: activeFilter,
+    });
+    if (debouncedSearch) params.set("search", debouncedSearch);
     try {
-      const { data } = await apiGet<{ data: any[] }>("/admin/users");
-      setAllUsers(data);
-    } catch (err) {
-      console.error(err);
+      const response = await apiGet<PaginatedUsersResponse>(
+        `/admin/users?${params.toString()}`,
+      );
+      if (request !== requestId.current) return;
+      setUsers(response.data);
+      setCurrentPage(response.currentPage);
+      setLastPage(Math.max(1, response.lastPage));
+      setTotal(response.total);
+      setListError("");
+    } catch (error) {
+      console.error("Could not load accounts:", error);
+      if (request === requestId.current) {
+        setListError(
+          error instanceof Error ? error.message : "Could not load accounts.",
+        );
+      }
+    } finally {
+      if (request === requestId.current) setLoading(false);
     }
-    setLoading(false);
-  };
+  }, [activeFilter, currentPage, debouncedSearch]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearch(accountSearch.trim());
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [accountSearch]);
+
+  useEffect(() => {
+    void fetchUsers();
+    const interval = window.setInterval(() => void fetchUsers(), 15_000);
+    return () => window.clearInterval(interval);
+  }, [fetchUsers]);
+
+  useEffect(() => {
+    if (!loading && currentPage > lastPage) {
+      setCurrentPage(lastPage);
+    }
+  }, [currentPage, lastPage, loading]);
 
   const handleRoleChange = (id: string, role: string) => {
     setRolesToAssign((prev) => ({ ...prev, [id]: role }));
@@ -63,7 +112,7 @@ export function AdminAccounts({
     newStatus: UserStatus,
     roleToAssign?: string
   ) => {
-    const isPendingRequest = allUsers.some(
+    const isPendingRequest = users.some(
       (user) => user.id === uid && user.status === "pending"
     );
     if (
@@ -85,9 +134,7 @@ export function AdminAccounts({
         }
       }
       await apiPatch(`/admin/users/${encodeURIComponent(uid)}`, updateData);
-      setAllUsers((prev) =>
-        prev.map((u) => (u.id === uid ? { ...u, ...updateData } : u))
-      );
+      await fetchUsers();
       toast.success(`Account ${newStatus} successfully!`);
     } catch (err) {
       console.error("Could not update account approval:", err);
@@ -100,36 +147,9 @@ export function AdminAccounts({
     }
   };
 
-  const filteredUsers = allUsers.filter((user) => {
-    const matchesFilter =
-      activeFilter === "all" ||
-      (activeFilter === "pending" && user.status === "pending") ||
-      (activeFilter === "activated" && user.status === "approved") ||
-      (activeFilter === "deactivated" &&
-        (user.status === "inactive" || user.status === "rejected")) ||
-      (user.role === activeFilter && user.status !== "pending");
-    if (!matchesFilter) return false;
-
-    const terms = accountSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return true;
-    const searchableText = [
-      user.name,
-      user.email,
-      user.phoneNumber,
-      user.messengerLink,
-      user.role,
-      user.status,
-      user.status === "approved" ? "activated active" : "",
-      user.status === "inactive" || user.status === "rejected"
-        ? "deactivated inactive rejected"
-        : "",
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return terms.every((term) => searchableText.includes(term));
-  });
   const selectedMessengerUrl = getMessengerUrl(selectedUser?.messengerLink);
+  const firstResult = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const lastResult = Math.min(currentPage * PAGE_SIZE, total);
 
   return (
     <>
@@ -178,7 +198,10 @@ export function AdminAccounts({
             ).map(([filter, label]) => (
               <button
                 key={filter}
-                onClick={() => setActiveFilter(filter)}
+                onClick={() => {
+                  setActiveFilter(filter);
+                  setCurrentPage(1);
+                }}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
                   activeFilter === filter
                     ? "bg-p1 text-white"
@@ -189,11 +212,18 @@ export function AdminAccounts({
               </button>
             ))}
           </div>
-          <Btn variant="ghost" onClick={fetchUsers}>
+          <Btn variant="ghost" onClick={() => void fetchUsers()}>
             {loading ? "Refreshing..." : "Refresh List"}
           </Btn>
         </div>
-        {filteredUsers.length === 0 ? (
+        {listError && (
+          <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            Could not load accounts: {listError}
+          </p>
+        )}
+        {loading && users.length === 0 && !listError ? (
+          <div className="py-10 text-center text-mute">Loading accounts…</div>
+        ) : total === 0 ? (
           <div className="text-center py-10 text-mute">
             No {activeFilter} accounts right now.
           </div>
@@ -218,7 +248,7 @@ export function AdminAccounts({
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {filteredUsers.map((u) => {
+                {users.map((u) => {
                   const currentRole = rolesToAssign[u.id] || u.role || "student";
                   const messengerUrl = getMessengerUrl(u.messengerLink);
                   return (
@@ -323,6 +353,30 @@ export function AdminAccounts({
             </table>
           </div>
         )}
+        <div className="mt-5 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage <= 1 || loading}
+              className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(lastPage, page + 1))}
+              disabled={currentPage >= lastPage || loading}
+              className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+          <p className="text-sm text-mute" aria-live="polite">
+            Showing {firstResult}–{lastResult} out of {total} accounts · Page{" "}
+            {currentPage} out of {lastPage}
+          </p>
+        </div>
       </Card>
 
       {selectedUser && (

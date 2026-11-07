@@ -71,6 +71,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
             Route::put('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'update']);
             Route::delete('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'destroy']);
             Route::put('/admin/users/{userId}/voice-groups', [VoiceGroupController::class, 'assignUsers'])->whereNumber('userId');
+            Route::get('/admin/users/summary', [AuthController::class, 'adminUserSummary']);
             Route::get('/admin/users', [AuthController::class, 'indexUsers']);
             Route::patch('/admin/users/{userId}', [AuthController::class, 'updateUser'])->whereNumber('userId');
             Route::post('/classes', [ClassController::class, 'store']);

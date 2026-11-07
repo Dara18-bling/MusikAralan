@@ -197,12 +197,80 @@ class AuthController extends Controller
         return response()->json(['user' => $this->userPayload($user)]);
     }
 
-    public function indexUsers(): JsonResponse
+    public function indexUsers(Request $request): JsonResponse
     {
-        $users = User::query()->orderByDesc('date_requested')->get()
-            ->map(fn (User $user) => $this->userPayload($user));
+        $data = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'filter' => ['sometimes', Rule::in(['all', 'pending', 'activated', 'deactivated', 'student', 'teacher', 'admin'])],
+            'search' => ['sometimes', 'string', 'max:255'],
+        ]);
+        $query = User::query();
+        $filter = $data['filter'] ?? 'pending';
+        if ($filter === 'pending') {
+            $query->where('status', 'pending');
+        } elseif ($filter === 'activated') {
+            $query->where('status', 'approved');
+        } elseif ($filter === 'deactivated') {
+            $query->whereIn('status', ['inactive', 'rejected']);
+        } elseif (in_array($filter, ['student', 'teacher', 'admin'], true)) {
+            $query->where('role', $filter)->where('status', '<>', 'pending');
+        }
 
-        return response()->json(['data' => $users]);
+        $searchTerms = preg_split('/\\s+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($searchTerms as $term) {
+            $query->where(function ($matches) use ($term): void {
+                $matches->where('name', 'like', "%{$term}%")
+                    ->orWhere('email', 'like', "%{$term}%")
+                    ->orWhere('phone_number', 'like', "%{$term}%")
+                    ->orWhere('messenger_link', 'like', "%{$term}%")
+                    ->orWhere('role', 'like', "%{$term}%")
+                    ->orWhere('status', 'like', "%{$term}%");
+                if (in_array(strtolower($term), ['active', 'activated'], true)) {
+                    $matches->orWhere('status', 'approved');
+                } elseif (in_array(strtolower($term), ['inactive', 'deactivated'], true)) {
+                    $matches->orWhereIn('status', ['inactive', 'rejected']);
+                }
+            });
+        }
+
+        $users = $query->orderByDesc('date_requested')
+            ->orderByDesc('id')
+            ->paginate(10);
+
+        return response()->json([
+            'data' => $users->getCollection()->map(fn (User $user) => $this->userPayload($user)),
+            'currentPage' => $users->currentPage(),
+            'lastPage' => $users->lastPage(),
+            'perPage' => $users->perPage(),
+            'total' => $users->total(),
+        ]);
+    }
+
+    public function adminUserSummary(): JsonResponse
+    {
+        return response()->json([
+            'pendingCount' => User::query()->where('status', 'pending')->count(),
+            'pendingRequests' => User::query()
+                ->where('status', 'pending')
+                ->orderByDesc('date_requested')
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get(['id', 'name', 'email'])
+                ->map(fn (User $user): array => [
+                    'id' => (string) $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ]),
+            'teachers' => User::query()
+                ->where('role', 'teacher')
+                ->where('status', 'approved')
+                ->orderBy('name')
+                ->get(['name', 'email'])
+                ->map(fn (User $user): string => trim($user->name ?: $user->email))
+                ->filter()
+                ->unique()
+                ->values(),
+        ]);
     }
 
     public function updateUser(Request $request, int $userId): JsonResponse

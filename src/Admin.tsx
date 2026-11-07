@@ -11,10 +11,14 @@ import { AdminGospel } from "./admin/AdminGospel";
 export type { AdminView };
 
 export default function Admin({ view }: { view: AdminView }) {
-  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [newRequestNotice, setNewRequestNotice] = useState("");
   const [accountListenerError, setAccountListenerError] = useState("");
+  const [adminUserSummary, setAdminUserSummary] = useState<{
+    pendingCount: number;
+    pendingRequests: { id: string; name: string; email: string }[];
+    teachers: string[];
+  } | null>(null);
   const [dashboardData, setDashboardData] = useState<{
     users: number;
     classes: number;
@@ -23,20 +27,28 @@ export default function Admin({ view }: { view: AdminView }) {
     completedModules: number;
   } | null>(null);
   const knownUserIds = useRef(new Set<string>());
+  const previousPendingCount = useRef<number | null>(null);
 
   useEffect(() => {
     setLoading(true);
     let initialSnapshot = true;
     let noticeTimer: number | undefined;
 
-    const unsubscribe = watchApi<{ data: any[] }>(
-      "/admin/users",
-      ({ data }) => {
-        setAllUsers(data);
+    const unsubscribe = watchApi<{
+      pendingCount: number;
+      pendingRequests: { id: string; name: string; email: string }[];
+      teachers: string[];
+    }>(
+      "/admin/users/summary",
+      (summary) => {
+        setAdminUserSummary(summary);
         setAccountListenerError("");
-        if (!initialSnapshot) {
-          const newRequests = data
-            .filter((user) => !knownUserIds.current.has(user.id) && user.status === "pending")
+        if (
+          !initialSnapshot &&
+          summary.pendingCount > (previousPendingCount.current ?? summary.pendingCount)
+        ) {
+          const newRequests = summary.pendingRequests
+            .filter((user) => !knownUserIds.current.has(user.id))
             .map((user) => user.name || user.email || "A user");
 
           if (newRequests.length > 0) {
@@ -45,11 +57,14 @@ export default function Admin({ view }: { view: AdminView }) {
                 ? `New access request from ${newRequests[0]}.`
                 : `${newRequests.length} new access requests received.`
             );
-            window.clearTimeout(noticeTimer);
-            noticeTimer = window.setTimeout(() => setNewRequestNotice(""), 8000);
+          } else {
+            setNewRequestNotice("New access request received.");
           }
+          window.clearTimeout(noticeTimer);
+          noticeTimer = window.setTimeout(() => setNewRequestNotice(""), 8000);
         }
-        knownUserIds.current = new Set(data.map((user) => user.id));
+        knownUserIds.current = new Set(summary.pendingRequests.map((user) => user.id));
+        previousPendingCount.current = summary.pendingCount;
         initialSnapshot = false;
         setLoading(false);
       },
@@ -78,21 +93,10 @@ export default function Admin({ view }: { view: AdminView }) {
     POLL_INTERVAL_TWO_MINUTES,
   ), []);
 
-  const pendingCount = allUsers.filter((u) => u.status === "pending").length;
-
-  const accountTeachers = [
-    ...new Set(
-      allUsers
-        .filter((user) => user.role === "teacher" && user.status === "approved")
-        .map((user) => String(user.name || user.email || "").trim())
-        .filter(Boolean)
-    ),
-  ];
-
   if (view === "dash") {
     return (
       <AdminDashboard
-        pendingCount={pendingCount}
+        pendingCount={adminUserSummary?.pendingCount ?? 0}
         dashboardData={dashboardData}
         loading={loading}
         newRequestNotice={newRequestNotice}
@@ -104,10 +108,6 @@ export default function Admin({ view }: { view: AdminView }) {
   if (view === "accounts") {
     return (
       <AdminAccounts
-        allUsers={allUsers}
-        setAllUsers={setAllUsers}
-        loading={loading}
-        setLoading={setLoading}
         newRequestNotice={newRequestNotice}
         accountListenerError={accountListenerError}
       />
@@ -123,7 +123,7 @@ export default function Admin({ view }: { view: AdminView }) {
   }
 
   if (view === "classes") {
-    return <AdminClasses accountTeachers={accountTeachers} />;
+    return <AdminClasses accountTeachers={adminUserSummary?.teachers ?? []} />;
   }
 
   if (view === "bot") {
