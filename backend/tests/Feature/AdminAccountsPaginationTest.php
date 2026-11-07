@@ -62,6 +62,47 @@ class AdminAccountsPaginationTest extends TestCase
             ->assertJsonPath('teachers.0', 'Teacher User');
     }
 
+    public function test_admin_can_edit_account_profile_and_contact_details(): void
+    {
+        $admin = $this->createUser('edit-admin@example.test', 'admin', 'approved');
+        $target = $this->createUser('edit-target@example.test', 'student', 'approved');
+        $teacher = $this->createUser('edit-teacher@example.test', 'teacher', 'approved');
+        $target->update(['birth_year' => 1995]);
+        $token = $admin->createToken('edit-account')->plainTextToken;
+
+        $this->withToken($token)
+            ->patchJson("/api/admin/users/{$target->id}", [
+                'name' => 'Updated Student',
+                'email' => 'updated-student@example.test',
+                'birthday' => '1995-08-21',
+                'phoneNumber' => '+639171234567',
+                'messengerLink' => 'https://m.me/updatedstudent',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.name', 'Updated Student')
+            ->assertJsonPath('user.email', 'updated-student@example.test')
+            ->assertJsonPath('user.birthday', '1995-08-21')
+            ->assertJsonPath('user.birthYear', 1995)
+            ->assertJsonPath('user.phoneNumber', '+639171234567')
+            ->assertJsonPath('user.messengerLink', 'https://m.me/updatedstudent')
+            ->assertJsonPath('user.role', 'student')
+            ->assertJsonPath('user.status', 'approved');
+
+        $this->assertSame('updated-student@example.test', $target->fresh()->email);
+        $this->withToken($admin->createToken('duplicate-email')->plainTextToken)
+            ->patchJson("/api/admin/users/{$target->id}", [
+                'email' => $admin->email,
+            ])
+            ->assertUnprocessable();
+
+        $this->withToken($admin->createToken('edit-teacher-without-expiry')->plainTextToken)
+            ->patchJson("/api/admin/users/{$teacher->id}", [
+                'name' => 'Teacher Updated',
+            ])
+            ->assertOk()
+            ->assertJsonPath('user.name', 'Teacher Updated');
+    }
+
     private function createUser(string $email, string $role, string $status): User
     {
         return User::query()->create([

@@ -16,6 +16,7 @@ export default function Admin({ view }: { view: AdminView }) {
   const [accountListenerError, setAccountListenerError] = useState("");
   const [adminUserSummary, setAdminUserSummary] = useState<{
     pendingCount: number;
+    pendingProfileEditRequestCount: number;
     pendingRequests: { id: string; name: string; email: string }[];
     teachers: string[];
   } | null>(null);
@@ -36,6 +37,7 @@ export default function Admin({ view }: { view: AdminView }) {
 
     const unsubscribe = watchApi<{
       pendingCount: number;
+      pendingProfileEditRequestCount: number;
       pendingRequests: { id: string; name: string; email: string }[];
       teachers: string[];
     }>(
@@ -110,6 +112,7 @@ export default function Admin({ view }: { view: AdminView }) {
       <AdminAccounts
         newRequestNotice={newRequestNotice}
         accountListenerError={accountListenerError}
+        pendingProfileEditRequestCount={adminUserSummary?.pendingProfileEditRequestCount ?? 0}
       />
     );
   }

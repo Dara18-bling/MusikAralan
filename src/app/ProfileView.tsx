@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch, apiPost, apiPut } from "../api";
+import { apiGet, apiPatch, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import { Field } from "./Field";
 import type { LiturgicalPalette } from "./AppTypes";
@@ -22,6 +22,21 @@ interface ProfileViewProps {
   }) => void;
 }
 
+interface ProfileDetails {
+  name: string;
+  email: string;
+  birthday: string;
+  phone: string;
+  messengerLink: string;
+}
+
+interface PendingProfileEditRequest {
+  id: string;
+  changes: Record<string, string | null>;
+  createdAt: string | null;
+  status: "pending" | "approved" | "rejected";
+}
+
 export function ProfileView({
   role,
   name,
@@ -34,15 +49,20 @@ export function ProfileView({
   const [fullName, setFullName] = useState(name);
   const [email, setEmail] = useState("");
   const [birthday, setBirthday] = useState("");
-  const [savedBirthday, setSavedBirthday] = useState("");
   const [phone, setPhone] = useState("");
   const [messengerLink, setMessengerLink] = useState("");
+  const [savedProfile, setSavedProfile] = useState<ProfileDetails | null>(null);
+  const [pendingEditRequest, setPendingEditRequest] =
+    useState<PendingProfileEditRequest | null>(null);
   const [accountStatus, setAccountStatus] = useState("approved");
+  const [profileLoadError, setProfileLoadError] = useState("");
+  const [editRequestLoadError, setEditRequestLoadError] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [passwordResetSending, setPasswordResetSending] = useState(false);
   const [colorSaving, setColorSaving] = useState(false);
   const [selectedPalette, setSelectedPalette] =
     useState<LiturgicalPalette | null>(null);
+  const handledEditRequest = useRef("");
   useEffect(() => {
     setSelectedPalette(
       palettes.find(
@@ -65,42 +85,146 @@ export function ProfileView({
       };
     }>("/me")
       .then(({ user: data }) => {
-        setFullName(data.name ?? name);
-        setEmail(data.email ?? "");
-        setBirthday(data.birthday ?? "");
-        setSavedBirthday(data.birthday ?? "");
-        setPhone(data.phoneNumber ?? "");
-        setMessengerLink(data.messengerLink ?? "");
+        const profile = {
+          name: data.name ?? name,
+          email: data.email ?? "",
+          birthday: data.birthday ?? "",
+          phone: data.phoneNumber ?? "",
+          messengerLink: data.messengerLink ?? "",
+        };
+        setFullName(profile.name);
+        setEmail(profile.email);
+        setBirthday(profile.birthday);
+        setPhone(profile.phone);
+        setMessengerLink(profile.messengerLink);
+        setSavedProfile(profile);
         setAccountStatus(data.status ?? "approved");
       })
-      .catch((error) => console.error("Could not load profile:", error));
+      .catch((error) => {
+        console.error("Could not load profile:", error);
+        setProfileLoadError("Could not load your profile. Refresh the page to try again.");
+      });
+    return watchApi<{ request: PendingProfileEditRequest | null }>(
+      "/me/profile-edit-request",
+      ({ request }) => {
+        setEditRequestLoadError("");
+        setPendingEditRequest(request);
+        if (!request || request.status === "pending") return;
+        const requestStatus = `${request.id}:${request.status}`;
+        if (handledEditRequest.current === requestStatus) return;
+        handledEditRequest.current = requestStatus;
+        apiGet<{
+          user: {
+            name?: string;
+            email?: string;
+            birthday?: string | null;
+            phoneNumber?: string;
+            messengerLink?: string;
+          };
+        }>("/me")
+          .then(({ user: data }) => {
+            const profile = {
+              name: data.name ?? name,
+              email: data.email ?? "",
+              birthday: data.birthday ?? "",
+              phone: data.phoneNumber ?? "",
+              messengerLink: data.messengerLink ?? "",
+            };
+            setFullName(profile.name);
+            setEmail(profile.email);
+            setBirthday(profile.birthday);
+            setPhone(profile.phone);
+            setMessengerLink(profile.messengerLink);
+            setSavedProfile(profile);
+            localStorage.setItem("name", profile.name);
+          })
+          .catch((error) => {
+            console.error("Could not refresh reviewed profile:", error);
+            toast.error("Your request was reviewed, but your profile could not be refreshed.");
+          });
+      },
+      (error) => {
+        console.error("Could not load pending profile edit request:", error);
+        setEditRequestLoadError("Could not check the status of your profile edit request.");
+      },
+      POLL_INTERVAL_TWO_MINUTES,
+    );
   }, [name]);
 
   const saveProfile = async () => {
+    if (!savedProfile) {
+      toast.error("Your profile is still loading. Please try again shortly.");
+      return;
+    }
     if (!fullName.trim()) {
       toast.warning("Please enter your full name.");
       return;
     }
     setProfileSaving(true);
     try {
-      await apiPatch("/me", {
+      const currentDetails = savedProfile;
+      const proposedDetails = {
         name: fullName.trim(),
-        ...(birthday !== savedBirthday
-          ? { birthday: birthday || null }
-          : {}),
-      });
-      await apiPatch("/me/contact-details", {
-        phoneNumber: phone.trim() || null,
-        messengerLink: messengerLink.trim() || null,
-      });
-      localStorage.setItem("name", fullName.trim());
-      setSavedBirthday(birthday);
-      toast.success("Profile information saved.");
+        email: email.trim(),
+        birthday,
+        phone: phone.trim(),
+        messengerLink: messengerLink.trim(),
+      };
+      const changes: Record<string, string | null> = {};
+      if (proposedDetails.name !== currentDetails.name) changes.name = proposedDetails.name;
+      if (proposedDetails.email !== currentDetails.email) changes.email = proposedDetails.email;
+      if (proposedDetails.birthday !== currentDetails.birthday) changes.birthday = proposedDetails.birthday || null;
+      if (proposedDetails.phone !== currentDetails.phone) changes.phoneNumber = proposedDetails.phone || null;
+      if (proposedDetails.messengerLink !== currentDetails.messengerLink) {
+        changes.messengerLink = proposedDetails.messengerLink || null;
+      }
+
+      if (Object.keys(changes).length === 0) {
+        toast.info("There are no profile changes to save.");
+        return;
+      }
+
+      if (role === "admin") {
+        const { user } = await apiPatch<{ user: { name: string; email: string; birthday: string | null; phoneNumber: string | null; messengerLink: string | null } }>("/me", {
+          name: proposedDetails.name,
+          email: proposedDetails.email,
+          birthday: proposedDetails.birthday || null,
+        });
+        const { user: updatedUser } = await apiPatch<{ user: typeof user }>("/me/contact-details", {
+          phoneNumber: proposedDetails.phone || null,
+          messengerLink: proposedDetails.messengerLink || null,
+        });
+        const updatedProfile = {
+          name: updatedUser.name,
+          email: updatedUser.email,
+          birthday: updatedUser.birthday || "",
+          phone: updatedUser.phoneNumber || "",
+          messengerLink: updatedUser.messengerLink || "",
+        };
+        setFullName(updatedProfile.name);
+        setEmail(updatedProfile.email);
+        setBirthday(updatedProfile.birthday);
+        setPhone(updatedProfile.phone);
+        setMessengerLink(updatedProfile.messengerLink);
+        setSavedProfile(updatedProfile);
+        localStorage.setItem("name", updatedProfile.name);
+        toast.success("Profile information saved.");
+      } else {
+        const { request } = await apiPost<{ request: PendingProfileEditRequest }>(
+          "/me/profile-edit-requests",
+          changes,
+        );
+        setPendingEditRequest(request);
+        toast.success("Your profile edit request was sent to the administrator for review.");
+      }
     } catch (error) {
       console.error(error);
-      toast.error("Could not save profile information.");
+      toast.error(
+        error instanceof Error ? error.message : "Could not save profile information.",
+      );
+    } finally {
+      setProfileSaving(false);
     }
-    setProfileSaving(false);
   };
 
   const today = new Date();
@@ -117,6 +241,8 @@ export function ProfileView({
         : 0)
     );
   })();
+  const isPendingProfileRequest =
+    role !== "admin" && pendingEditRequest?.status === "pending";
 
   const sendPasswordResetInstructions = async () => {
     setPasswordResetSending(true);
@@ -177,14 +303,35 @@ export function ProfileView({
         <div
           className={`grid gap-4 ${role === "admin" ? "lg:grid-cols-2" : ""}`}
         >
+          {profileLoadError && (
+            <p role="alert" className="text-sm text-red-700 sm:col-span-2">
+              {profileLoadError}
+            </p>
+          )}
+          {editRequestLoadError && (
+            <p role="alert" className="text-sm text-red-700 sm:col-span-2">
+              {editRequestLoadError}
+            </p>
+          )}
+          {!savedProfile && !profileLoadError && (
+            <p className="text-sm text-mute sm:col-span-2" role="status">
+              Loading profile details…
+            </p>
+          )}
           <Field label="Full Name">
             <Input
+              disabled={isPendingProfileRequest}
               value={fullName}
               onChange={(event) => setFullName(event.target.value)}
             />
           </Field>
           <Field label="Email Address">
-            <Input type="email" value={email} readOnly />
+            <Input
+              type="email"
+              value={email}
+              disabled={isPendingProfileRequest}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </Field>
           {role === "admin" && (
             <div className="grid grid-cols-2 gap-3 rounded-xl bg-p1-soft p-4 text-base lg:col-span-2">
@@ -202,6 +349,7 @@ export function ProfileView({
             <Input
               type="tel"
               value={phone}
+              disabled={isPendingProfileRequest}
               onChange={(event) => setPhone(event.target.value)}
               placeholder="09171234567"
             />
@@ -211,33 +359,72 @@ export function ProfileView({
             <Input
               type="url"
               value={messengerLink}
+              disabled={isPendingProfileRequest}
               onChange={(event) => setMessengerLink(event.target.value)}
               placeholder="https://m.me/yourname"
             />
             <p className="mt-1 text-sm text-mute">For contact reference.</p>
           </Field>
 
-          {role !== "admin" && (
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-              <Field label="Birthday">
-                <Input
-                  type="date"
-                  value={birthday}
-                  max={formatLocalDate(today)}
-                  min="1920-01-01"
-                  onChange={(event) => setBirthday(event.target.value)}
-                />
-              </Field>
-              <p className="pb-2 text-sm text-mute" aria-live="polite">
-                Age: {age === null ? "Not available" : `${age} years`}
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+            <Field label="Birthday">
+              <Input
+                type="date"
+                value={birthday}
+                disabled={isPendingProfileRequest}
+                max={formatLocalDate(today)}
+                min="1920-01-01"
+                onChange={(event) => setBirthday(event.target.value)}
+              />
+            </Field>
+            <p className="pb-2 text-sm text-mute" aria-live="polite">
+              Age: {age === null ? "Not available" : `${age} years`}
+            </p>
+          </div>
+          {isPendingProfileRequest && (
+            <div
+              role="status"
+              className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"
+            >
+              <p className="font-semibold">Profile edit request pending review</p>
+              <p className="mt-1">
+                Your details will remain unchanged until an administrator reviews
+                your request. Submitted{" "}
+                {pendingEditRequest?.createdAt
+                  ? new Date(pendingEditRequest.createdAt).toLocaleString()
+                  : "recently"}.
               </p>
+              <ul className="mt-2 list-inside list-disc">
+                {Object.entries(pendingEditRequest?.changes || {}).map(([field, value]) => (
+                  <li key={field}>
+                    {field}: {value || "Not provided"}
+                  </li>
+                ))}
+              </ul>
             </div>
+          )}
+          {role !== "admin" && pendingEditRequest?.status === "approved" && (
+            <p role="status" className="rounded-xl bg-green-50 p-4 text-sm text-green-800 sm:col-span-2">
+              Your profile edit request was approved and the changes have been applied.
+            </p>
+          )}
+          {role !== "admin" && pendingEditRequest?.status === "rejected" && (
+            <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2">
+              Your profile edit request was not approved. No changes were made to your account.
+            </p>
           )}
           <Btn
             className={` w-fit ${role === "admin" ? "lg:col-span-2" : ""}`}
             onClick={saveProfile}
+            disabled={profileSaving || isPendingProfileRequest || !savedProfile}
           >
-            {profileSaving ? "Saving..." : "Save Changes"}
+            {profileSaving
+              ? "Saving..."
+              : isPendingProfileRequest
+                ? "Request pending review"
+                : role === "admin"
+                  ? "Save Changes"
+                  : "Submit edit request"}
           </Btn>
           {role === "admin" && (
             <>

@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\ClassController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GospelVerseController;
 use App\Http\Controllers\Api\LearningController;
+use App\Http\Controllers\Api\ProfileEditRequestController;
 use App\Http\Controllers\Api\QuizAttemptController;
 use App\Http\Controllers\Api\ScheduleController;
 use App\Http\Controllers\Api\SettingController;
@@ -28,6 +29,8 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
     Route::middleware('approved')->group(function (): void {
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
+        Route::get('/me/profile-edit-request', [ProfileEditRequestController::class, 'current']);
+        Route::post('/me/profile-edit-requests', [ProfileEditRequestController::class, 'store']);
         Route::post('/me/password-reset-code', [AuthController::class, 'sendPasswordChangeCode'])
             ->middleware('throttle:password-reset-request');
         Route::patch('/me/contact-details', [AuthController::class, 'updateContactDetails']);
@@ -74,6 +77,8 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
             Route::get('/admin/users/summary', [AuthController::class, 'adminUserSummary']);
             Route::get('/admin/users', [AuthController::class, 'indexUsers']);
             Route::patch('/admin/users/{userId}', [AuthController::class, 'updateUser'])->whereNumber('userId');
+            Route::get('/admin/profile-edit-requests', [ProfileEditRequestController::class, 'index']);
+            Route::patch('/admin/profile-edit-requests/{requestId}', [ProfileEditRequestController::class, 'review'])->whereNumber('requestId');
             Route::post('/classes', [ClassController::class, 'store']);
             Route::put('/classes/{class}', [ClassController::class, 'update']);
             Route::post('/announcements', [AnnouncementController::class, 'store']);

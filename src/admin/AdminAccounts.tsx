@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import { apiGet, apiPatch } from "../api";
-import { Btn, Card, Title } from "../ui";
+import { Btn, Card, Input, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
+import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
 
 function getMessengerUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -18,6 +19,7 @@ function getMessengerUrl(value: unknown): string | null {
 interface AdminAccountsProps {
   newRequestNotice: string;
   accountListenerError: string;
+  pendingProfileEditRequestCount: number;
 }
 
 interface PaginatedUsersResponse {
@@ -33,6 +35,7 @@ const PAGE_SIZE = 10;
 export function AdminAccounts({
   newRequestNotice,
   accountListenerError,
+  pendingProfileEditRequestCount,
 }: AdminAccountsProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,9 +46,17 @@ export function AdminAccounts({
   const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>({});
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("pending");
+  const [showEditRequests, setShowEditRequests] = useState(false);
   const [accountSearch, setAccountSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editBirthday, setEditBirthday] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editMessengerLink, setEditMessengerLink] = useState("");
+  const [savingUser, setSavingUser] = useState(false);
   const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(null);
   const requestId = useRef(0);
 
@@ -105,6 +116,46 @@ export function AdminAccounts({
 
   const handleDateChange = (id: string, date: string) => {
     setAccessDates((prev) => ({ ...prev, [id]: date }));
+  };
+
+  const openEditModal = (user: any) => {
+    setSelectedUser(null);
+    setEditingUser(user);
+    setEditName(user.name || "");
+    setEditEmail(user.email || "");
+    setEditBirthday(user.birthday || "");
+    setEditPhone(user.phoneNumber || "");
+    setEditMessengerLink(user.messengerLink || "");
+  };
+
+  const saveUserDetails = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    setSavingUser(true);
+    try {
+      const { user } = await apiPatch<{ user: any }>(
+        `/admin/users/${encodeURIComponent(editingUser.id)}`,
+        {
+          name: editName.trim(),
+          email: editEmail.trim(),
+          birthday: editBirthday || null,
+          phoneNumber: editPhone.trim() || null,
+          messengerLink: editMessengerLink.trim() || null,
+        },
+      );
+      setUsers((current) =>
+        current.map((item) => (item.id === user.id ? user : item)),
+      );
+      setEditingUser(null);
+      toast.success("Account details updated.");
+    } catch (error) {
+      console.error("Could not update account details:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Could not update account details.",
+      );
+    } finally {
+      setSavingUser(false);
+    }
   };
 
   const updateAccountStatus = async (
@@ -175,6 +226,32 @@ export function AdminAccounts({
         </div>
       )}
       <Card className="mt-5">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            aria-pressed={!showEditRequests}
+            onClick={() => setShowEditRequests(false)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              !showEditRequests ? "bg-p1 text-white" : "bg-gray-100 text-mute"
+            }`}
+          >
+            Accounts
+          </button>
+          <button
+            type="button"
+            aria-pressed={showEditRequests}
+            onClick={() => setShowEditRequests(true)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              showEditRequests ? "bg-p1 text-white" : "bg-gray-100 text-mute"
+            }`}
+          >
+            Edit requests ({pendingProfileEditRequestCount})
+          </button>
+        </div>
+        {showEditRequests ? (
+          <AdminProfileEditRequests pendingCount={pendingProfileEditRequestCount} />
+        ) : (
+          <>
         <input
           type="search"
           value={accountSearch}
@@ -377,6 +454,8 @@ export function AdminAccounts({
             {currentPage} out of {lastPage}
           </p>
         </div>
+          </>
+        )}
       </Card>
 
       {selectedUser && (
@@ -430,13 +509,114 @@ export function AdminAccounts({
                 <p><strong>Access Until:</strong> {selectedUser.accessUntil}</p>
               )}
             </div>
-            <button
-              onClick={() => setSelectedUser(null)}
-              className="mt-5 w-full rounded-full bg-gray-200 py-2 font-semibold"
-            >
-              Close
-            </button>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => openEditModal(selectedUser)}
+                className="rounded-full bg-p1-soft px-4 py-2 font-semibold text-p1"
+              >
+                Edit details
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedUser(null)}
+                className="rounded-full bg-gray-200 px-4 py-2 font-semibold"
+              >
+                Close
+              </button>
+            </div>
           </Card>
+        </div>
+      )}
+
+      {editingUser && (
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingUser) {
+              setEditingUser(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-account-title"
+            className="my-auto w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
+          >
+            <h3 id="edit-account-title" className="font-display text-2xl font-bold">
+              Edit account details
+            </h3>
+            <p className="mt-1 text-sm text-mute">
+              Update profile and contact information for {editingUser.name || editingUser.email}.
+            </p>
+            <form className="mt-5 grid gap-4" onSubmit={(event) => void saveUserDetails(event)}>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Full Name
+                <Input
+                  required
+                  maxLength={255}
+                  value={editName}
+                  onChange={(event) => setEditName(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Email Address
+                <Input
+                  required
+                  type="email"
+                  maxLength={255}
+                  value={editEmail}
+                  onChange={(event) => setEditEmail(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Birthday
+                <Input
+                  type="date"
+                  min="1920-01-01"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={editBirthday}
+                  onChange={(event) => setEditBirthday(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Contact Number
+                <Input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(event) => setEditPhone(event.target.value)}
+                  placeholder="09171234567"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Facebook Messenger Link
+                <Input
+                  type="url"
+                  value={editMessengerLink}
+                  onChange={(event) => setEditMessengerLink(event.target.value)}
+                  placeholder="https://m.me/yourname"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={savingUser}
+                  onClick={() => setEditingUser(null)}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {savingUser ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </form>
+          </section>
         </div>
       )}
 

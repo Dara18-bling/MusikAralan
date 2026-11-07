@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ProfileEditRequest;
 use App\Models\User;
 use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Http\JsonResponse;
@@ -167,11 +168,18 @@ class AuthController extends Controller
     public function updateProfile(Request $request): JsonResponse
     {
         $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'admin', 403, 'Submit profile changes for administrator review.');
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'birthday' => ['sometimes', 'nullable', 'date', 'before_or_equal:today', 'after_or_equal:1920-01-01'],
         ]);
-        $user->name = trim($data['name']);
+        if (array_key_exists('name', $data)) {
+            $user->name = trim($data['name']);
+        }
+        if (array_key_exists('email', $data)) {
+            $user->email = strtolower($data['email']);
+        }
         if (array_key_exists('birthday', $data)) {
             $user->birthday = $data['birthday'];
             $user->birth_year = $data['birthday'] === null
@@ -186,6 +194,7 @@ class AuthController extends Controller
     public function updateContactDetails(Request $request): JsonResponse
     {
         $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'admin', 403, 'Submit profile changes for administrator review.');
         $data = $request->validate([
             'phoneNumber' => ['present', 'nullable', 'regex:/^(?:\\d{11}|\\+[1-9]\\d{7,14})$/'],
             'messengerLink' => ['present', 'nullable', 'string', 'max:2048'],
@@ -250,6 +259,9 @@ class AuthController extends Controller
     {
         return response()->json([
             'pendingCount' => User::query()->where('status', 'pending')->count(),
+            'pendingProfileEditRequestCount' => ProfileEditRequest::query()
+                ->where('status', 'pending')
+                ->count(),
             'pendingRequests' => User::query()
                 ->where('status', 'pending')
                 ->orderByDesc('date_requested')
@@ -277,23 +289,54 @@ class AuthController extends Controller
     {
         $target = User::query()->findOrFail($userId);
         $data = $request->validate([
-            'status' => ['required', Rule::in(['pending', 'approved', 'rejected', 'inactive'])],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($target->id)],
+            'birthday' => ['sometimes', 'nullable', 'date', 'before_or_equal:today', 'after_or_equal:1920-01-01'],
+            'phoneNumber' => ['sometimes', 'nullable', 'regex:/^(?:\\d{11}|\\+[1-9]\\d{7,14})$/'],
+            'messengerLink' => ['sometimes', 'nullable', 'string', 'max:2048'],
+            'status' => ['sometimes', 'required', Rule::in(['pending', 'approved', 'rejected', 'inactive'])],
             'role' => ['sometimes', Rule::in(['student', 'teacher', 'admin'])],
             'accessUntil' => ['nullable', 'date'],
         ]);
+        if (array_key_exists('name', $data)) {
+            $target->name = trim($data['name']);
+        }
+        if (array_key_exists('email', $data)) {
+            $target->email = strtolower($data['email']);
+        }
+        if (array_key_exists('birthday', $data)) {
+            $target->birthday = $data['birthday'];
+            $target->birth_year = $data['birthday'] === null
+                ? null
+                : (int) substr($data['birthday'], 0, 4);
+        }
+        if (array_key_exists('phoneNumber', $data)) {
+            $target->phone_number = $data['phoneNumber'];
+        }
+        if (array_key_exists('messengerLink', $data)) {
+            $target->messenger_link = $data['messengerLink'];
+        }
 
-        if ($data['status'] === 'approved' && ($data['role'] ?? $target->role) === 'teacher' && empty($data['accessUntil']) && ! $target->access_until) {
+        $status = $data['status'] ?? $target->status;
+        if (
+            array_key_exists('status', $data)
+            && $status === 'approved'
+            && ($data['role'] ?? $target->role) === 'teacher'
+            && empty($data['accessUntil'])
+            && ! $target->access_until
+        ) {
             return response()->json(['message' => 'An access end date is required to approve a teacher account.'], 422);
         }
 
-        $target->status = $data['status'];
-        if ($data['status'] === 'approved' && isset($data['role'])) {
+        $previousStatus = $target->status;
+        $target->status = $status;
+        if ($status === 'approved' && isset($data['role'])) {
             $target->role = $data['role'];
         }
         if (array_key_exists('accessUntil', $data) && $data['accessUntil'] !== null) {
             $target->access_until = $data['accessUntil'];
         }
-        if ($data['status'] === 'approved' && $target->status !== 'approved') {
+        if ($status === 'approved' && $previousStatus !== 'approved') {
             $target->approved_by = $request->attributes->get('app_user')->id;
             $target->approved_at = now();
         }
