@@ -26,6 +26,19 @@ export function Dashboard() {
   const role = localStorage.getItem("role") as Role | null;
   const userName = localStorage.getItem("name") || "User";
   const userBirthYear = Number(localStorage.getItem("birthYear")) || 2010;
+  const userId = localStorage.getItem("uid") || "";
+  const pathParts = location.pathname.split("/");
+  const pathRole = pathParts[1] as Role;
+  const view =
+    role && NAV[role]
+      ? role === "student" && pathParts[2] === "classes"
+        ? "materials"
+        : pathParts[2] || DASHBOARD_VIEW[role]
+      : "";
+  const studentHelpSeenKey = userId ? `studentHelpSeen:${userId}` : "";
+  const hasSeenStudentHelp =
+    studentHelpSeenKey !== "" &&
+    localStorage.getItem(studentHelpSeenKey) === "true";
 
   const currentYear = new Date().getFullYear();
   const ageNum = currentYear - userBirthYear;
@@ -75,17 +88,30 @@ export function Dashboard() {
     localStorage.setItem("darkMode", String(darkMode));
   }, [darkMode]);
 
-  if (!role || !NAV[role] || !hasApiToken()) return <Navigate to="/login" replace />;
+  useEffect(() => {
+    if (
+      role === "student" &&
+      pathRole === "student" &&
+      view === "help" &&
+      studentHelpSeenKey &&
+      hasApiToken()
+    ) {
+      localStorage.setItem(studentHelpSeenKey, "true");
+    }
+  }, [role, pathRole, view, studentHelpSeenKey]);
 
-  const pathParts = location.pathname.split("/");
-  const pathRole = pathParts[1] as Role;
-  const view =
-    role === "student" && pathParts[2] === "classes"
-      ? "materials"
-      : pathParts[2] || DASHBOARD_VIEW[role];
+  if (!role || !NAV[role] || !hasApiToken()) return <Navigate to="/login" replace />;
 
   if (pathRole !== role) return <Navigate to={`/${role}/${DASHBOARD_VIEW[role]}`} replace />;
   if (role === "student" && view === "store") return <Navigate to="/student/materials" replace />;
+  if (
+    role === "student" &&
+    studentHelpSeenKey &&
+    !hasSeenStudentHelp &&
+    view !== "help"
+  ) {
+    return <Navigate to="/student/help" replace />;
+  }
 
   const go = (v: string) => {
     navigate(`/${role}/${v}`);
