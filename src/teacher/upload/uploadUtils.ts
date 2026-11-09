@@ -13,6 +13,7 @@ export const UPLOAD_KINDS: UploadKind[] = [
   "Vocal Guide",
   "Video Guide",
   "Others",
+  "Assignment",
 ];
 
 const EXTENSION_KIND: Record<string, UploadKind> = {
@@ -80,6 +81,8 @@ export function isSpreadsheetFile(fileName: string) {
 
 export function getLinkPlaceholder(kind: UploadKind) {
   switch (kind) {
+    case "Assignment":
+      return "Paste a Google Drive, Docs, Sheets, or Slides link";
     case "Vocal Guide":
       return "Paste Google Drive audio link (e.g. choir guide track MP3) or direct audio URL";
     case "Video Guide":

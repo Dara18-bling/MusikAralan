@@ -1,6 +1,6 @@
 import type { parseAndConvertMediaUrl } from "../../utils/mediaUrlHelper";
 
-export type UploadKind = "Module" | "Vocal Guide" | "Video Guide" | "Others";
+export type UploadKind = "Module" | "Vocal Guide" | "Video Guide" | "Others" | "Assignment";
 
 export interface UploadProps {
   classId?: string;

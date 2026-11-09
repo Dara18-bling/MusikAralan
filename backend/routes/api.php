@@ -52,8 +52,12 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::get('/classes/{class}/students', [ClassController::class, 'students']);
         Route::get('/classes/{class}/materials', [LearningController::class, 'materials']);
         Route::post('/classes/{class}/materials', [LearningController::class, 'createMaterial']);
+        Route::put('/classes/{class}/materials/{material}', [LearningController::class, 'updateMaterial'])->whereNumber('material');
         Route::delete('/classes/{class}/materials/{material}', [LearningController::class, 'deleteMaterial'])->whereNumber('material');
         Route::post('/classes/{class}/materials/{material}/complete', [LearningController::class, 'completeMaterial']);
+        Route::post('/classes/{class}/materials/{material}/submissions', [LearningController::class, 'submitAssignment']);
+        Route::get('/classes/{class}/materials/{material}/submissions', [LearningController::class, 'assignmentSubmissions']);
+        Route::put('/classes/{class}/materials/{material}/submissions/{submission}', [LearningController::class, 'gradeAssignmentSubmission'])->whereNumber('submission');
         Route::get('/classes/{class}/progress', [LearningController::class, 'progress']);
         Route::get('/classes/{class}/assessment', [LearningController::class, 'assessment']);
         Route::put('/classes/{class}/assessment', [LearningController::class, 'publishAssessment']);

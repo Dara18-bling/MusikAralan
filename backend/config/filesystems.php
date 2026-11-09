@@ -28,6 +28,7 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
     'material_uploads_disk' => env('MATERIAL_UPLOADS_DISK', 'public'),
+    'material_upload_max_size_mb' => max(1, (int) env('MATERIAL_UPLOAD_MAX_SIZE_MB', 8)),
     'material_uploads_signed_urls' => env('MATERIAL_UPLOADS_SIGNED_URLS', false),
     'material_signed_url_ttl_minutes' => env('MATERIAL_SIGNED_URL_TTL_MINUTES', 60),
 

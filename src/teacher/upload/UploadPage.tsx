@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiPost, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../../api";
+import { apiPost, apiRequest, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../../api";
 import {
   ensureAbsoluteUrl,
   parseAndConvertMediaUrl,
@@ -10,6 +10,16 @@ import { StudentPreview } from "./StudentPreview";
 import type { RecentMaterial, UploadKind, UploadProps } from "./types";
 import { UploadForm } from "./UploadForm";
 import { getUploadKindFromResource, isSpreadsheetFile } from "./uploadUtils";
+
+function todayAt(time: "00:00" | "23:59") {
+  const today = new Date();
+  const date = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+  return `${date}T${time}`;
+}
 
 export function UploadPage({ classId, teacherName }: UploadProps) {
   const [kind, setKind] = useState<UploadKind>("Module");
@@ -25,6 +35,10 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
   const [fileError, setFileError] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [recent, setRecent] = useState<RecentMaterial[]>([]);
+  const [availableFrom, setAvailableFrom] = useState(() => todayAt("00:00"));
+  const [dueAt, setDueAt] = useState(() => todayAt("23:59"));
+  const [allowLateSubmissions, setAllowLateSubmissions] = useState(false);
+  const [maxUploadSizeMb, setMaxUploadSizeMb] = useState(8);
 
   const title = titlesByKind[kind] || "";
   const description = descriptionsByKind[kind] || "";
@@ -39,9 +53,12 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
       setRecent([]);
       return;
     }
-    return watchApi<{ data: RecentMaterial[] }>(
+    return watchApi<{ data: RecentMaterial[]; maxUploadSizeMb?: number }>(
       `/classes/${classId}/materials`,
-      ({ data }) => setRecent(data),
+      ({ data, maxUploadSizeMb: configuredLimit }) => {
+        setRecent(data);
+        if (configuredLimit && configuredLimit > 0) setMaxUploadSizeMb(configuredLimit);
+      },
       (error) =>
         console.error("Could not load published class materials:", error),
       POLL_INTERVAL_TWO_MINUTES,
@@ -53,9 +70,9 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
     if (!file) return;
     setFileError("");
 
-    if (file.size > 800 * 1024) {
+    if (file.size > maxUploadSizeMb * 1024 * 1024) {
       setFileError(
-        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be 800 KB or smaller; for larger files, paste a share link above.`,
+        `"${file.name}" is ${(file.size / (1024 * 1024)).toFixed(1)} MB. Files must be ${maxUploadSizeMb} MB or smaller; use Google Drive for larger files.`,
       );
       setSelectedFile(null);
       setFileDataUrl("");
@@ -63,7 +80,9 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
     }
 
     setSelectedFile(file);
-    setKind(getUploadKindFromResource(file.name));
+    setKind((current) =>
+      current === "Assignment" ? current : getUploadKindFromResource(file.name),
+    );
     setMediaUrlInput("");
     setFileDataUrl("");
     const reader = new FileReader();
@@ -90,7 +109,9 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
     }
 
     const detectedKind = getUploadKindFromResource(value);
-    setKind(detectedKind);
+    setKind((current) =>
+      current === "Assignment" ? current : detectedKind,
+    );
     setMediaUrlInput(value);
     setSelectedFile(null);
     setFileDataUrl("");
@@ -106,6 +127,16 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
       toast.warning("Choose an assigned class before publishing materials.");
       return;
     }
+    if (kind === "Assignment") {
+      if (!availableFrom || !dueAt) {
+        toast.warning("Set both the assignment start and due date.");
+        return;
+      }
+      if (new Date(dueAt) < new Date(availableFrom)) {
+        toast.warning("The due date must be on or after the start date.");
+        return;
+      }
+    }
 
     const finalMediaUrl = ensureAbsoluteUrl(mediaUrlInput) || fileDataUrl;
     const finalStreamUrl = fileDataUrl || processedMedia.streamUrl;
@@ -118,18 +149,41 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
 
     setPublishing(true);
     try {
-      await apiPost(`/classes/${classId}/materials`, {
+      const payload = {
         title: title.trim(),
         description: description.trim(),
         kind,
-        mediaUrl: finalMediaUrl,
-        streamUrl: finalStreamUrl,
+        mediaUrl: selectedFile ? "" : finalMediaUrl,
+        streamUrl: selectedFile ? "" : finalStreamUrl,
         teacherName: teacherName || localStorage.getItem("name") || "Teacher",
-      });
+        isAssignment: kind === "Assignment",
+        availableFrom: kind === "Assignment" ? new Date(availableFrom).toISOString() : null,
+        dueAt: kind === "Assignment" ? new Date(dueAt).toISOString() : null,
+        allowLateSubmissions: kind === "Assignment" && allowLateSubmissions,
+      };
+      if (selectedFile) {
+        const formData = new FormData();
+        Object.entries(payload).forEach(([key, value]) => {
+          formData.append(
+            key,
+            typeof value === "boolean" ? (value ? "1" : "0") : value == null ? "" : String(value),
+          );
+        });
+        formData.append("file", selectedFile);
+        await apiRequest(`/classes/${classId}/materials`, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        await apiPost(`/classes/${classId}/materials`, payload);
+      }
       refreshApi(`/classes/${classId}/materials`);
       refreshApi("/dashboard");
       setMediaUrlInput("");
       removeFile();
+      setAvailableFrom(todayAt("00:00"));
+      setDueAt(todayAt("23:59"));
+      setAllowLateSubmissions(false);
       toast.success("Material published successfully to class.");
     } catch (error) {
       console.error("Could not publish class material:", error);
@@ -162,6 +216,13 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
           fileError={fileError}
           processedMedia={processedMedia}
           publishing={publishing}
+          maxUploadSizeMb={maxUploadSizeMb}
+          availableFrom={availableFrom}
+          setAvailableFrom={setAvailableFrom}
+          dueAt={dueAt}
+          setDueAt={setDueAt}
+          allowLateSubmissions={allowLateSubmissions}
+          setAllowLateSubmissions={setAllowLateSubmissions}
           onFileChange={handleFileChange}
           onRemoveFile={removeFile}
           onPublish={handlePublish}

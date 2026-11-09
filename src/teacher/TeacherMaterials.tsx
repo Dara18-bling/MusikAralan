@@ -111,8 +111,17 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
       <>
         <StudentMaterialViewer
           className={className}
+          classId={classId}
           material={selectedMaterial}
           onBack={() => selectMaterial("")}
+          teacherMode
+          onMaterialUpdated={(updatedMaterial) =>
+            setMaterials((current) =>
+              current.map((item) =>
+                item.id === updatedMaterial.id ? updatedMaterial : item,
+              ),
+            )
+          }
         />
       </>
     );

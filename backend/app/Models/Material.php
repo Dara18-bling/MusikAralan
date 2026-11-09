@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Material extends Model
@@ -22,7 +23,22 @@ class Material extends Model
         'media_url',
         'stream_url',
         'storage_path',
+        'is_assignment',
+        'available_from',
+        'due_at',
+        'allow_late_submissions',
+        'max_points',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_assignment' => 'boolean',
+            'available_from' => 'datetime',
+            'due_at' => 'datetime',
+            'allow_late_submissions' => 'boolean',
+        ];
+    }
 
     public function classroom(): BelongsTo
     {
@@ -42,5 +58,10 @@ class Material extends Model
     public function voiceGroup(): BelongsTo
     {
         return $this->belongsTo(VoiceGroup::class);
+    }
+
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(AssignmentSubmission::class);
     }
 }

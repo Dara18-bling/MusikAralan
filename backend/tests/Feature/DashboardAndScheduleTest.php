@@ -6,6 +6,7 @@ use App\Models\Classroom;
 use App\Models\Material;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -428,6 +429,213 @@ class DashboardAndScheduleTest extends TestCase
                 'data.0.streamUrl',
                 'https://cdn.example.test/materials/'.$material->storage_path,
             );
+    }
+
+    public function test_teacher_can_upload_material_files_up_to_eight_megabytes(): void
+    {
+        config()->set('filesystems.material_uploads_signed_urls', false);
+        $teacher = $this->createUser('material-eight-mb-teacher@example.test', 'teacher');
+        $class = Classroom::query()->create([
+            'name' => 'Eight MB class',
+            'teacher_id' => $teacher->id,
+        ]);
+        Storage::fake('material-uploads');
+        config()->set('filesystems.material_uploads_disk', 'material-uploads');
+
+        $token = $teacher->createToken('material-eight-mb')->plainTextToken;
+        $this->withToken($token)
+            ->post("/api/classes/{$class->id}/materials", [
+                'title' => 'Large lesson notes',
+                'description' => 'An uploaded PDF.',
+                'kind' => 'Module',
+                'file' => UploadedFile::fake()->create('lesson.pdf', 8192, 'application/pdf'),
+                'isAssignment' => '0',
+                'allowLateSubmissions' => '0',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('material.maxUploadSizeMb', 8)
+            ->assertJsonPath('material.title', 'Large lesson notes');
+
+        $material = Material::query()->where('class_id', $class->id)->firstOrFail();
+        $this->assertNotNull($material->storage_path);
+        Storage::disk('material-uploads')->assertExists($material->storage_path);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('material-over-eight-mb')->plainTextToken)
+            ->post("/api/classes/{$class->id}/materials", [
+                'title' => 'Too large notes',
+                'description' => 'This file exceeds the upload limit.',
+                'kind' => 'Module',
+                'file' => UploadedFile::fake()->create('too-large.pdf', 8193, 'application/pdf'),
+            ])
+            ->assertUnprocessable();
+    }
+
+    public function test_students_can_turn_in_and_teachers_can_grade_assignment_submissions(): void
+    {
+        config()->set('filesystems.material_uploads_signed_urls', false);
+        $teacher = $this->createUser('assignment-teacher@example.test', 'teacher');
+        $student = $this->createUser('assignment-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Assignment class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        config()->set('filesystems.disks.assignment-uploads', [
+            'driver' => 'local',
+            'root' => storage_path('framework/testing/assignment-uploads'),
+            'url' => 'https://files.example.test',
+            'throw' => false,
+        ]);
+        Storage::fake('assignment-uploads');
+        config()->set('filesystems.material_uploads_disk', 'assignment-uploads');
+
+        $assignmentId = $this->withToken($teacher->createToken('assignment-create')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials", [
+                'title' => 'Practice recording',
+                'description' => 'Upload a short recording.',
+                'kind' => 'Assignment',
+                'isAssignment' => true,
+                'availableFrom' => now()->subHour()->toISOString(),
+                'dueAt' => now()->addDay()->toISOString(),
+                'allowLateSubmissions' => false,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('material.isAssignment', true)
+            ->json('material.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assignment-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk()
+            ->assertJsonPath('data.0.submission', null);
+
+        Auth::forgetGuards();
+        $submissionId = $this->withToken($student->createToken('assignment-submit')->plainTextToken)
+            ->post("/api/classes/{$class->id}/materials/{$assignmentId}/submissions", [
+                'file' => UploadedFile::fake()->create('practice.pdf', 12, 'application/pdf'),
+            ])
+            ->assertCreated()
+            ->assertJsonPath('submission.fileName', 'practice.pdf')
+            ->json('submission.id');
+
+        $submission = DB::table('assignment_submissions')->find($submissionId);
+        $this->assertNotNull($submission->storage_path);
+        Storage::disk('assignment-uploads')->assertExists($submission->storage_path);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('assignment-submissions')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials/{$assignmentId}/submissions")
+            ->assertOk()
+            ->assertJsonPath('data.0.studentName', $student->name)
+            ->assertJsonPath('data.0.fileName', 'practice.pdf');
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('assignment-grade')->plainTextToken)
+            ->putJson("/api/classes/{$class->id}/materials/{$assignmentId}/submissions/{$submissionId}", [
+                'grade' => 87,
+                'feedback' => 'Good work.',
+            ])
+            ->assertOk()
+            ->assertJsonPath('submission.grade', 87)
+            ->assertJsonPath('submission.feedback', 'Good work.');
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('assignment-edit')->plainTextToken)
+            ->putJson("/api/classes/{$class->id}/materials/{$assignmentId}", [
+                'allowLateSubmissions' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('material.allowLateSubmissions', true);
+    }
+
+    public function test_assignment_rejects_submission_after_deadline_when_late_work_is_disabled(): void
+    {
+        $teacher = $this->createUser('assignment-closed-teacher@example.test', 'teacher');
+        $student = $this->createUser('assignment-closed-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Closed assignment class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+
+        $assignmentId = $this->withToken($teacher->createToken('assignment-closed-create')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials", [
+                'title' => 'Closed work',
+                'description' => 'No late submissions.',
+                'kind' => 'Assignment',
+                'isAssignment' => true,
+                'availableFrom' => now()->subDays(2)->toISOString(),
+                'dueAt' => now()->subHour()->toISOString(),
+                'allowLateSubmissions' => false,
+            ])
+            ->assertCreated()
+            ->json('material.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assignment-closed-submit')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials/{$assignmentId}/submissions", [
+                'driveUrl' => 'https://drive.google.com/file/d/example/view',
+            ])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'This assignment is closed to submissions.');
+        $this->assertDatabaseCount('assignment_submissions', 0);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('assignment-reopen')->plainTextToken)
+            ->putJson("/api/classes/{$class->id}/materials/{$assignmentId}", [
+                'allowLateSubmissions' => true,
+            ])
+            ->assertOk()
+            ->assertJsonPath('material.allowLateSubmissions', true);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assignment-reopened-submit')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials/{$assignmentId}/submissions", [
+                'driveUrl' => 'https://drive.google.com/file/d/example/view',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('submission.driveUrl', 'https://drive.google.com/file/d/example/view');
+    }
+
+    public function test_configured_upload_limit_is_returned_and_applied_to_student_submissions(): void
+    {
+        config()->set('filesystems.material_upload_max_size_mb', 1);
+        $teacher = $this->createUser('assignment-limit-teacher@example.test', 'teacher');
+        $student = $this->createUser('assignment-limit-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Configured limit class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+
+        $assignmentId = $this->withToken($teacher->createToken('assignment-limit-create')->plainTextToken)
+            ->postJson("/api/classes/{$class->id}/materials", [
+                'title' => 'Small limit assignment',
+                'description' => 'Test the configured limit.',
+                'kind' => 'Assignment',
+                'isAssignment' => true,
+                'availableFrom' => now()->subHour()->toISOString(),
+                'dueAt' => now()->addDay()->toISOString(),
+                'allowLateSubmissions' => false,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('material.maxUploadSizeMb', 1)
+            ->json('material.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assignment-limit-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk()
+            ->assertJsonPath('maxUploadSizeMb', 1)
+            ->assertJsonPath('data.0.maxUploadSizeMb', 1);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assignment-limit-submit')->plainTextToken)
+            ->post("/api/classes/{$class->id}/materials/{$assignmentId}/submissions", [
+                'file' => UploadedFile::fake()->create('too-large.pdf', 1025, 'application/pdf'),
+            ])
+            ->assertUnprocessable();
     }
 
     public function test_private_material_urls_are_signed_and_remain_class_authorized(): void

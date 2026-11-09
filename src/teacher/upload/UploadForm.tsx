@@ -16,6 +16,13 @@ interface UploadFormProps {
   fileError: string;
   processedMedia: ProcessedMedia;
   publishing: boolean;
+  maxUploadSizeMb: number;
+  availableFrom: string;
+  setAvailableFrom: (value: string) => void;
+  dueAt: string;
+  setDueAt: (value: string) => void;
+  allowLateSubmissions: boolean;
+  setAllowLateSubmissions: (value: boolean) => void;
   onFileChange: (files: FileList | null) => void;
   onRemoveFile: () => void;
   onPublish: () => void;
@@ -34,6 +41,13 @@ export function UploadForm({
   fileError,
   processedMedia,
   publishing,
+  maxUploadSizeMb,
+  availableFrom,
+  setAvailableFrom,
+  dueAt,
+  setDueAt,
+  allowLateSubmissions,
+  setAllowLateSubmissions,
   onFileChange,
   onRemoveFile,
   onPublish,
@@ -81,7 +95,7 @@ export function UploadForm({
 
       <div className="grid gap-2 my-4">
         <label className="text-sm font-semibold text-ink">
-          Or attach small file directly (&lt; 800 KB)
+          Or attach a file directly (max {maxUploadSizeMb} MB)
         </label>
         {!selectedFile ? (
           <label
@@ -102,8 +116,8 @@ export function UploadForm({
               Drop score or worksheet here or browse
             </span>
             <span className="text-xs text-mute">
-              PDF, image, audio, or document (max 800 KB). For larger rehearsal
-              tracks, paste a Google Drive link above.
+              PDF, image, audio, or document (max {maxUploadSizeMb} MB). Use
+              Google Drive for larger files.
             </span>
           </label>
         ) : (
@@ -145,10 +159,16 @@ export function UploadForm({
             key={uploadKind}
             type="button"
             onClick={() => setKind(uploadKind)}
-            disabled={hasAttachedResource && uploadKind !== kind}
+            disabled={
+              hasAttachedResource &&
+              uploadKind !== kind &&
+              uploadKind !== "Assignment"
+            }
             aria-pressed={kind === uploadKind}
             title={
-              hasAttachedResource && uploadKind !== kind
+              hasAttachedResource &&
+              uploadKind !== kind &&
+              uploadKind !== "Assignment"
                 ? "Remove the attached file or link before changing its category."
                 : undefined
             }
@@ -182,6 +202,41 @@ export function UploadForm({
             className="min-h-24 w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm font-normal outline-none focus:border-[var(--p1)]"
           />
         </label>
+
+        {kind === "Assignment" && (
+          <div className="grid gap-4 rounded-2xl border border-p1/20 bg-p1-soft/20 p-4">
+            <p className="text-sm font-semibold text-ink">Assignment schedule</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Opens
+                <Input
+                  type="datetime-local"
+                  value={availableFrom}
+                  onChange={(event) => setAvailableFrom(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Due
+                <Input
+                  type="datetime-local"
+                  value={dueAt}
+                  onChange={(event) => setDueAt(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-ink">
+              <input
+                type="checkbox"
+                checked={allowLateSubmissions}
+                onChange={(event) => setAllowLateSubmissions(event.target.checked)}
+                className="h-4 w-4 accent-[var(--p1)]"
+              />
+              Allow late submissions
+            </label>
+          </div>
+        )}
 
         <div className="mt-2 flex gap-2">
           <Btn onClick={onPublish} disabled={publishing}>

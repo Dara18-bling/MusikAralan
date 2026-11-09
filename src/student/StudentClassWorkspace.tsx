@@ -25,6 +25,28 @@ export type Material = {
   canDelete?: boolean;
   files?: { name: string; url: string }[];
   links?: { url: string }[];
+  isAssignment?: boolean;
+  availableFrom?: string | null;
+  dueAt?: string | null;
+  allowLateSubmissions?: boolean;
+  maxPoints?: number;
+  maxUploadSizeMb?: number;
+  submission?: AssignmentSubmission | null;
+};
+
+export type AssignmentSubmission = {
+  id: string;
+  studentId: string;
+  studentName?: string | null;
+  studentEmail?: string | null;
+  fileName: string | null;
+  fileUrl: string | null;
+  driveUrl: string | null;
+  fileSize: number | null;
+  submittedAt: string | null;
+  grade: number | null;
+  feedback: string | null;
+  gradedAt: string | null;
 };
 
 type AssessmentSummary = {
@@ -299,6 +321,7 @@ export function StudentClassWorkspace({
         />
         <StudentMaterialViewer
           className={classInfo.name}
+          classId={classInfo.id}
           material={selectedMaterial}
           completed={completedMaterialIds.includes(selectedMaterial.id)}
           onBack={() => onOpenMaterial("")}
@@ -427,7 +450,14 @@ export function StudentClassWorkspace({
                 <Card key={material.id}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <Label>{material.kind}</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Label>{material.kind}</Label>
+                        {material.isAssignment && (
+                          <span className="rounded-full bg-p1-soft px-2.5 py-1 text-xs font-semibold text-p1">
+                            Assignment
+                          </span>
+                        )}
+                      </div>
                       <h2 className="mt-1 font-display text-xl">{material.title}</h2>
                       {material.description && <p className="mt-1 whitespace-pre-wrap text-sm text-mute">{material.description}</p>}
                       {material.teacherName && <p className="mt-1 text-xs text-mute">Uploaded by {material.teacherName}</p>}

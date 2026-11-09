@@ -22,6 +22,7 @@ Set these backend environment variables:
   MATERIAL_UPLOADS_DISK=s3-compatible
   MATERIAL_UPLOADS_SIGNED_URLS=true
   MATERIAL_SIGNED_URL_TTL_MINUTES=60
+  MATERIAL_UPLOAD_MAX_SIZE_MB=8
 
   AWS_ACCESS_KEY_ID=<FILEBASE_S3_ACCESS_KEY>
   AWS_SECRET_ACCESS_KEY=<FILEBASE_S3_SECRET_KEY>
@@ -35,6 +36,11 @@ Value details:
   MATERIAL_UPLOADS_DISK
     The configured Laravel disk for material files. Use s3-compatible for
     Filebase or Cloudflare R2. This is a disk name, not a URL.
+
+  MATERIAL_UPLOAD_MAX_SIZE_MB
+    Maximum direct teacher and student file upload size in megabytes. The
+    default is 8 MB. Google Drive links are not subject to this file limit.
+    Refresh Laravel's cached configuration after changing this value.
 
   MATERIAL_UPLOADS_SIGNED_URLS
     Set true for a private bucket. The API creates expiring signed download
@@ -171,16 +177,21 @@ After changing production environment values:
 
 2. Restart/reload the web application and any long-lived workers.
 
-3. Upload a small supported file through a teacher account in a class managed
-   by that teacher.
+3. Configure the PHP runtime and any reverse proxy or web server request-body
+   limits to accept at least MATERIAL_UPLOAD_MAX_SIZE_MB. For example, with
+   the default 8 MB limit, set upload_max_filesize to at least 8M and
+   post_max_size to at least 10M.
 
-4. Open the material as an authorized class member. A private bucket response
+4. Upload a supported file no larger than MATERIAL_UPLOAD_MAX_SIZE_MB through
+   a teacher account in a class managed by that teacher.
+
+5. Open the material as an authorized class member. A private bucket response
    should contain a signed URL whose host is the S3 API host and whose query
    contains a signature and expiry.
 
-5. Confirm that an unauthorized account cannot list the class materials.
+6. Confirm that an unauthorized account cannot list the class materials.
 
-6. If upload fails, inspect backend/storage/logs/laravel.log on the server.
+7. If upload fails, inspect backend/storage/logs/laravel.log on the server.
    The server log records the storage disk and provider exception. Do not
    return credentials or full secret values in support messages.
 

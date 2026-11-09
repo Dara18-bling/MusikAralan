@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
+use App\Models\AssignmentSubmission;
 use App\Models\Classroom;
 use App\Models\Material;
 use App\Models\Module;
@@ -13,6 +14,7 @@ use App\Models\QuizAttempt;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -24,10 +26,17 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
-        $items = $class->materials()->with('classroom')->orderByDesc('created_at')->get()
+        $materials = $class->materials()->with('classroom');
+        if ($user->role === 'student') {
+            $materials->with(['submissions' => fn ($query) => $query->where('student_id', $user->id)]);
+        }
+        $items = $materials->orderByDesc('created_at')->get()
             ->map(fn (Material $material) => $this->materialPayload($material, $user));
 
-        return response()->json(['data' => $items]);
+        return response()->json([
+            'data' => $items,
+            'maxUploadSizeMb' => $this->maxUploadSizeMb(),
+        ]);
     }
 
     public function createMaterial(Request $request, Classroom $class): JsonResponse
@@ -38,9 +47,18 @@ class LearningController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string'],
             'kind' => ['required', 'string', 'max:32'],
-            'mediaUrl' => ['nullable', 'string', 'max:1600000'],
-            'streamUrl' => ['nullable', 'string', 'max:1600000'],
+            'mediaUrl' => ['nullable', 'string', 'max:'.($this->maxUploadSizeMb() * 1398102 + 4096)],
+            'streamUrl' => ['nullable', 'string', 'max:'.($this->maxUploadSizeMb() * 1398102 + 4096)],
+            'file' => ['nullable', 'file', 'max:'.($this->maxUploadSizeMb() * 1024), 'mimes:pdf,doc,docx,odt,ppt,pptx,xls,xlsx,csv,txt,rtf,jpg,jpeg,png,gif,webp,mp3,wav,m4a,aac,ogg,mp4,mov,webm'],
+            'isAssignment' => ['sometimes', 'boolean'],
+            'availableFrom' => ['nullable', 'required_if:isAssignment,true', 'date'],
+            'dueAt' => ['nullable', 'required_if:isAssignment,true', 'date', 'after_or_equal:availableFrom'],
+            'allowLateSubmissions' => ['sometimes', 'boolean'],
+            'maxPoints' => ['sometimes', 'required_if:isAssignment,true', 'integer', 'min:1', 'max:10000'],
         ]);
+        if (($data['isAssignment'] ?? false) && empty($data['availableFrom'])) {
+            return response()->json(['message' => 'Set a start date and end date for this assignment.'], 422);
+        }
 
         $mediaUrl = $data['mediaUrl'] ?? null;
         $streamUrl = $data['streamUrl'] ?? null;
@@ -50,18 +68,28 @@ class LearningController extends Controller
             }
         }
         $storagePath = null;
-        foreach (['mediaUrl' => &$mediaUrl, 'streamUrl' => &$streamUrl] as &$candidate) {
-            if (is_string($candidate) && str_starts_with($candidate, 'data:')) {
-                if ($storagePath !== null) {
-                    $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
-
-                    continue;
-                }
-                $storagePath = $this->storeDataUrl($candidate);
-                $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
+        if ($request->hasFile('file')) {
+            if ($mediaUrl || $streamUrl) {
+                return response()->json(['message' => 'Submit either a file or a link, not both.'], 422);
             }
+            $storagePath = $this->storeUploadedMaterial($request->file('file'));
+            $mediaUrl = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
+            $streamUrl = $mediaUrl;
         }
-        unset($candidate);
+        if ($storagePath === null) {
+            foreach (['mediaUrl' => &$mediaUrl, 'streamUrl' => &$streamUrl] as &$candidate) {
+                if (is_string($candidate) && str_starts_with($candidate, 'data:')) {
+                    if ($storagePath !== null) {
+                        $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
+
+                        continue;
+                    }
+                    $storagePath = $this->storeDataUrl($candidate);
+                    $candidate = Storage::disk(config('filesystems.material_uploads_disk', 'public'))->url($storagePath);
+                }
+            }
+            unset($candidate);
+        }
 
         $module = $this->moduleForClass($class);
         $material = $class->materials()->create([
@@ -73,9 +101,46 @@ class LearningController extends Controller
             'media_url' => $mediaUrl,
             'stream_url' => $streamUrl,
             'storage_path' => $storagePath,
+            'is_assignment' => $data['isAssignment'] ?? false,
+            'available_from' => $data['availableFrom'] ?? null,
+            'due_at' => $data['dueAt'] ?? null,
+            'allow_late_submissions' => $data['allowLateSubmissions'] ?? false,
+            'max_points' => $data['maxPoints'] ?? 100,
         ]);
 
         return response()->json(['material' => $this->materialPayload($material, $user)], 201);
+    }
+
+    public function updateMaterial(Request $request, Classroom $class, string $material): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'admin' || ($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id), 403);
+        $item = $class->materials()->findOrFail($material);
+        $data = $request->validate([
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'description' => ['sometimes', 'required', 'string'],
+            'isAssignment' => ['sometimes', 'boolean'],
+            'availableFrom' => ['nullable', 'required_if:isAssignment,true', 'date'],
+            'dueAt' => ['nullable', 'required_if:isAssignment,true', 'date', 'after_or_equal:availableFrom'],
+            'allowLateSubmissions' => ['sometimes', 'boolean'],
+            'maxPoints' => ['sometimes', 'required_if:isAssignment,true', 'integer', 'min:1', 'max:10000'],
+        ]);
+        $isAssignment = $data['isAssignment'] ?? $item->is_assignment;
+        if ($isAssignment && (empty($data['availableFrom']) && ! $item->available_from
+            || empty($data['dueAt']) && ! $item->due_at)) {
+            return response()->json(['message' => 'Set a start date and end date for this assignment.'], 422);
+        }
+        $item->fill([
+            'title' => $data['title'] ?? $item->title,
+            'description' => $data['description'] ?? $item->description,
+            'is_assignment' => $isAssignment,
+            'available_from' => $data['availableFrom'] ?? $item->available_from,
+            'due_at' => $data['dueAt'] ?? $item->due_at,
+            'allow_late_submissions' => $data['allowLateSubmissions'] ?? $item->allow_late_submissions,
+            'max_points' => $data['maxPoints'] ?? $item->max_points,
+        ])->save();
+
+        return response()->json(['material' => $this->materialPayload($item->fresh(), $user)]);
     }
 
     public function deleteMaterial(Request $request, Classroom $class, string $material): JsonResponse
@@ -474,8 +539,159 @@ class LearningController extends Controller
         return response()->json(['completed' => true]);
     }
 
+    public function submitAssignment(Request $request, Classroom $class, Material $material): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless(
+            $user->role === 'student'
+                && (int) $material->class_id === (int) $class->id
+                && ! $material->trashed()
+                && $class->students()->where('users.id', $user->id)->exists(),
+            403,
+        );
+        abort_unless($material->is_assignment, 404);
+        abort_if(
+            $material->available_from && now()->lt($material->available_from),
+            403,
+            'This assignment is not open yet.',
+        );
+        abort_if(
+            $material->due_at && now()->gt($material->due_at) && ! $material->allow_late_submissions,
+            403,
+            'This assignment is closed to submissions.',
+        );
+        $data = $request->validate([
+            'file' => ['required_without:driveUrl', 'file', 'max:'.($this->maxUploadSizeMb() * 1024), 'mimes:pdf,doc,docx,odt,ppt,pptx,xls,xlsx,csv,txt,rtf,jpg,jpeg,png,gif,webp,mp3,wav,m4a,aac,ogg,mp4,mov,webm'],
+            'driveUrl' => ['required_without:file', 'nullable', 'url', 'max:2000'],
+        ]);
+        if (isset($data['file']) && isset($data['driveUrl'])) {
+            return response()->json(['message' => 'Submit either a file or a Google link, not both.'], 422);
+        }
+        if (isset($data['driveUrl']) && ! $this->isGoogleUrl($data['driveUrl'])) {
+            return response()->json(['message' => 'Submission links must be Google Drive, Docs, Sheets, or Slides links.'], 422);
+        }
+
+        $diskName = config('filesystems.material_uploads_disk', 'public');
+        $newPath = null;
+        $file = $request->file('file');
+        if ($file) {
+            try {
+                $newPath = $file->store('assignment-submissions/'.$material->id, $diskName);
+            } catch (\Throwable $exception) {
+                Log::error('Could not save assignment submission.', [
+                    'disk' => $diskName,
+                    'material_id' => $material->id,
+                    'student_id' => $user->id,
+                    'exception' => $exception::class,
+                    'reason' => $exception->getMessage(),
+                ]);
+
+                return response()->json(['message' => 'The submission file could not be saved. Please try again.'], 500);
+            }
+            if (! is_string($newPath) || $newPath === '') {
+                Log::error('Could not save assignment submission; storage disk returned no path.', [
+                    'disk' => $diskName,
+                    'material_id' => $material->id,
+                    'student_id' => $user->id,
+                ]);
+
+                return response()->json(['message' => 'The submission file could not be saved. Please try again.'], 500);
+            }
+        }
+
+        $existing = $material->submissions()->where('student_id', $user->id)->first();
+        $oldPath = $existing?->storage_path;
+        try {
+            $submission = DB::transaction(function () use ($material, $user, $file, $data, $newPath, $existing): AssignmentSubmission {
+                $submission = $existing ?? new AssignmentSubmission([
+                    'material_id' => $material->id,
+                    'student_id' => $user->id,
+                ]);
+                $submission->fill([
+                    'storage_path' => $newPath,
+                    'file_name' => $file?->getClientOriginalName(),
+                    'mime_type' => $file?->getMimeType(),
+                    'file_size' => $file?->getSize(),
+                    'drive_url' => $data['driveUrl'] ?? null,
+                    'submitted_at' => now(),
+                    'grade' => null,
+                    'feedback' => null,
+                    'graded_by' => null,
+                    'graded_at' => null,
+                ])->save();
+
+                return $submission;
+            });
+        } catch (\Throwable $exception) {
+            if ($newPath) {
+                $this->deleteAssignmentUpload($diskName, $newPath, $material->id, $user->id);
+            }
+            Log::error('Could not record assignment submission.', [
+                'material_id' => $material->id,
+                'student_id' => $user->id,
+                'exception' => $exception::class,
+                'reason' => $exception->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'The submission could not be recorded. Please try again.'], 500);
+        }
+        if ($oldPath && $oldPath !== $newPath) {
+            $this->deleteAssignmentUpload($diskName, $oldPath, $material->id, $user->id);
+        }
+
+        return response()->json(['submission' => $this->submissionPayload($submission)], 201);
+    }
+
+    public function assignmentSubmissions(Request $request, Classroom $class, Material $material): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless(
+            ($user->role === 'admin' || ($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id))
+                && (int) $material->class_id === (int) $class->id
+                && $material->is_assignment,
+            403,
+        );
+
+        return response()->json([
+            'data' => $material->submissions()->with('student:id,name,email')->orderByDesc('submitted_at')
+                ->get()
+                ->map(fn (AssignmentSubmission $submission): array => $this->submissionPayload($submission, true))
+                ->values(),
+        ]);
+    }
+
+    public function gradeAssignmentSubmission(
+        Request $request,
+        Classroom $class,
+        Material $material,
+        AssignmentSubmission $submission,
+    ): JsonResponse {
+        $user = $request->attributes->get('app_user');
+        abort_unless(
+            ($user->role === 'admin' || ($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id))
+                && (int) $material->class_id === (int) $class->id
+                && (int) $submission->material_id === (int) $material->id
+                && $material->is_assignment,
+            403,
+        );
+        $data = $request->validate([
+            'grade' => ['required', 'integer', 'min:0', 'max:'.$material->max_points],
+            'feedback' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $submission->fill([
+            'grade' => $data['grade'],
+            'feedback' => $data['feedback'] ?? null,
+            'graded_by' => $user->id,
+            'graded_at' => now(),
+        ])->save();
+
+        return response()->json(['submission' => $this->submissionPayload($submission->load('student:id,name,email'), true)]);
+    }
+
     private function materialPayload(Material $material, ?User $user = null): array
     {
+        $submission = $user?->role === 'student' ? $material->submissions->first() : null;
+
         return [
             'id' => (string) $material->id,
             'title' => $material->title,
@@ -487,7 +703,36 @@ class LearningController extends Controller
             'canDelete' => $user?->role === 'teacher'
                 && (int) $material->teacher_id === (int) $user->id,
             'createdAt' => $material->created_at?->toISOString(),
+            'isAssignment' => $material->is_assignment,
+            'availableFrom' => $material->available_from?->toISOString(),
+            'dueAt' => $material->due_at?->toISOString(),
+            'allowLateSubmissions' => $material->allow_late_submissions,
+            'maxPoints' => $material->max_points,
+            'maxUploadSizeMb' => $this->maxUploadSizeMb(),
+            'submission' => $submission ? $this->submissionPayload($submission) : null,
         ];
+    }
+
+    private function submissionPayload(AssignmentSubmission $submission, bool $includeStudent = false): array
+    {
+        $payload = [
+            'id' => (string) $submission->id,
+            'studentId' => (string) $submission->student_id,
+            'fileName' => $submission->file_name,
+            'fileUrl' => $submission->storage_path ? $this->storedFileUrl($submission->storage_path) : null,
+            'driveUrl' => $submission->drive_url,
+            'fileSize' => $submission->file_size,
+            'submittedAt' => $submission->submitted_at?->toISOString(),
+            'grade' => $submission->grade,
+            'feedback' => $submission->feedback,
+            'gradedAt' => $submission->graded_at?->toISOString(),
+        ];
+        if ($includeStudent) {
+            $payload['studentName'] = $submission->student?->name;
+            $payload['studentEmail'] = $submission->student?->email;
+        }
+
+        return $payload;
     }
 
     private function assessmentPayload(Assessment $assessment, bool $includeAnswers): array
@@ -574,8 +819,8 @@ class LearningController extends Controller
             abort(422, 'The uploaded media format is not supported.');
         }
         $contents = base64_decode($matches['data'], true);
-        if ($contents === false || strlen($contents) > 800 * 1024) {
-            abort(422, 'Uploaded media must be valid and no larger than 800 KB.');
+        if ($contents === false || strlen($contents) > $this->maxUploadSizeMb() * 1024 * 1024) {
+            abort(422, 'Uploaded media must be valid and no larger than '.$this->maxUploadSizeMb().' MB.');
         }
         $extension = match ($matches['mime']) {
             'application/pdf' => 'pdf',
@@ -609,6 +854,36 @@ class LearningController extends Controller
         return $path;
     }
 
+    private function storeUploadedMaterial(UploadedFile $file): string
+    {
+        $diskName = config('filesystems.material_uploads_disk', 'public');
+        try {
+            $path = $file->store('materials/'.now()->format('Y/m'), $diskName);
+        } catch (\Throwable $exception) {
+            Log::error('Could not save uploaded class material.', [
+                'disk' => $diskName,
+                'exception' => $exception::class,
+                'reason' => $exception->getMessage(),
+            ]);
+
+            abort(500, 'The uploaded media could not be saved. Check server logs for storage provider details.');
+        }
+        if (! is_string($path) || $path === '') {
+            Log::error('Could not save uploaded class material; storage disk returned no path.', [
+                'disk' => $diskName,
+            ]);
+
+            abort(500, 'The uploaded media could not be saved.');
+        }
+
+        return $path;
+    }
+
+    private function maxUploadSizeMb(): int
+    {
+        return max(1, (int) config('filesystems.material_upload_max_size_mb', 8));
+    }
+
     private function materialUrl(?string $url, ?string $storagePath): ?string
     {
         if (is_string($url) && is_string($storagePath)) {
@@ -617,21 +892,57 @@ class LearningController extends Controller
                 is_string($urlPath)
                 && str_ends_with(trim(rawurldecode($urlPath), '/'), ltrim($storagePath, '/'))
             ) {
-                $disk = Storage::disk(config('filesystems.material_uploads_disk', 'public'));
-                if (config('filesystems.material_uploads_signed_urls')) {
-                    $expiresInMinutes = min(
-                        1440,
-                        max(1, (int) config('filesystems.material_signed_url_ttl_minutes', 60)),
-                    );
-
-                    return $disk->temporaryUrl($storagePath, now()->addMinutes($expiresInMinutes));
-                }
-
-                return $disk->url($storagePath);
+                return $this->storedFileUrl($storagePath);
             }
         }
 
         return $this->safeStoredUrl($url);
+    }
+
+    private function storedFileUrl(string $storagePath): string
+    {
+        $disk = Storage::disk(config('filesystems.material_uploads_disk', 'public'));
+        if (config('filesystems.material_uploads_signed_urls')) {
+            $expiresInMinutes = min(
+                1440,
+                max(1, (int) config('filesystems.material_signed_url_ttl_minutes', 60)),
+            );
+
+            return $disk->temporaryUrl($storagePath, now()->addMinutes($expiresInMinutes));
+        }
+
+        return $disk->url($storagePath);
+    }
+
+    private function isGoogleUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return $this->isSafeExternalUrl($url)
+            && ($host === 'google.com' || str_ends_with($host, '.google.com'));
+    }
+
+    private function deleteAssignmentUpload(string $diskName, string $path, int $materialId, int $studentId): void
+    {
+        try {
+            if (! Storage::disk($diskName)->delete($path)) {
+                Log::error('Could not remove replaced assignment submission file.', [
+                    'disk' => $diskName,
+                    'path' => $path,
+                    'material_id' => $materialId,
+                    'student_id' => $studentId,
+                ]);
+            }
+        } catch (\Throwable $exception) {
+            Log::error('Could not remove replaced assignment submission file.', [
+                'disk' => $diskName,
+                'path' => $path,
+                'material_id' => $materialId,
+                'student_id' => $studentId,
+                'exception' => $exception::class,
+                'reason' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function isSafeExternalUrl(string $url): bool
