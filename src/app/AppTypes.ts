@@ -44,6 +44,7 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
   ],
   admin: [
     ["dash", LayoutDashboard, "Dashboard"],
+    ["alerts", Bell, "Notifications"],
     ["accounts", Users, "Accounts"],
     ["news", Megaphone, "Announcements"],
     ["gospel", BookHeart, "Gospel Verses"],

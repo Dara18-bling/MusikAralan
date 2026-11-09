@@ -7,6 +7,7 @@ import { AdminNews } from "./admin/AdminNews";
 import { AdminClasses } from "./admin/AdminClasses";
 import { AdminChatbot } from "./admin/AdminChatbot";
 import { AdminGospel } from "./admin/AdminGospel";
+import { AdminNotifications } from "./admin/AdminNotifications";
 
 export type { AdminView };
 
@@ -25,7 +26,6 @@ export default function Admin({ view }: { view: AdminView }) {
     classes: number;
     modules: number;
     materials: number;
-    completedModules: number;
   } | null>(null);
   const knownUserIds = useRef(new Set<string>());
   const previousPendingCount = useRef<number | null>(null);
@@ -88,7 +88,7 @@ export default function Admin({ view }: { view: AdminView }) {
     };
   }, []);
 
-  useEffect(() => watchApi<{ dashboard: { users: number; classes: number; modules: number; materials: number; completedModules: number } }>(
+  useEffect(() => watchApi<{ dashboard: { users: number; classes: number; modules: number; materials: number } }>(
     "/dashboard",
     ({ dashboard }) => setDashboardData(dashboard),
     (error) => console.error("Could not load admin dashboard metrics:", error),
@@ -99,6 +99,7 @@ export default function Admin({ view }: { view: AdminView }) {
     return (
       <AdminDashboard
         pendingCount={adminUserSummary?.pendingCount ?? 0}
+        pendingEditCount={adminUserSummary?.pendingProfileEditRequestCount ?? 0}
         dashboardData={dashboardData}
         loading={loading}
         newRequestNotice={newRequestNotice}
@@ -113,6 +114,16 @@ export default function Admin({ view }: { view: AdminView }) {
         newRequestNotice={newRequestNotice}
         accountListenerError={accountListenerError}
         pendingProfileEditRequestCount={adminUserSummary?.pendingProfileEditRequestCount ?? 0}
+      />
+    );
+  }
+
+  if (view === "alerts") {
+    return (
+      <AdminNotifications
+        pendingCount={adminUserSummary?.pendingCount ?? 0}
+        pendingRequests={adminUserSummary?.pendingRequests ?? []}
+        pendingEditCount={adminUserSummary?.pendingProfileEditRequestCount ?? 0}
       />
     );
   }

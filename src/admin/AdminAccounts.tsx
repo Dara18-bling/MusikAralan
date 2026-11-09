@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { apiGet, apiPatch } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
@@ -37,6 +38,7 @@ export function AdminAccounts({
   accountListenerError,
   pendingProfileEditRequestCount,
 }: AdminAccountsProps) {
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState("");
@@ -46,7 +48,9 @@ export function AdminAccounts({
   const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>({});
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("pending");
-  const [showEditRequests, setShowEditRequests] = useState(false);
+  const [showEditRequests, setShowEditRequests] = useState(
+    () => searchParams.get("section") === "edit-requests",
+  );
   const [accountSearch, setAccountSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
