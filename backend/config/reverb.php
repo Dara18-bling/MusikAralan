@@ -1,10 +1,12 @@
 <?php
 
+
 return [
     'default' => env('REVERB_SERVER', 'reverb'),
 
     'servers' => [
         'reverb' => [
+            'pulse_ingest_interval' => (int) env('REVERB_PULSE_INGEST_INTERVAL', 15),
             'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
             'port' => (int) env('REVERB_SERVER_PORT', 8080),
             'path' => env('REVERB_SERVER_PATH', ''),
