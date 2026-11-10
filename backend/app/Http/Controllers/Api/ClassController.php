@@ -1,0 +1,290 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Classroom;
+use App\Models\Module;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+
+class ClassController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $query = Classroom::query()->with('teacher')->withCount('students');
+
+        if ($user->role === 'teacher') {
+            $query->where('teacher_id', $user->id)->where('deleted', false);
+        } elseif ($user->role === 'student') {
+            $query->where('deleted', false);
+        }
+
+        $classes = $query->orderBy('name')->get()->map(fn (Classroom $class) => $this->payload($class, $user));
+
+        return response()->json(['data' => $classes]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $data = $this->validatedClass($request);
+        $class = DB::transaction(function () use ($data): Classroom {
+            $attributes = $this->classAttributes($data);
+            if (! empty($attributes['teacher_id'])) {
+                $this->ensureTeacherClassCapacity((int) $attributes['teacher_id']);
+            }
+            $class = Classroom::query()->create($attributes);
+            $this->ensureModule($class);
+            return $class;
+        });
+
+        return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))], 201);
+    }
+
+    public function update(Request $request, Classroom $class): JsonResponse
+    {
+        $data = $this->validatedClass($request, true);
+        $class = DB::transaction(function () use ($request, $class, $data): Classroom {
+            $current = Classroom::query()->lockForUpdate()->findOrFail($class->id);
+            $attributes = $this->classAttributes($data);
+            $targetTeacherId = array_key_exists('teacher_id', $attributes)
+                ? $attributes['teacher_id']
+                : $current->teacher_id;
+            $teacherChanged = (int) $targetTeacherId !== (int) $current->teacher_id;
+            $restoring = $current->deleted && array_key_exists('deleted', $data) && ! $data['deleted'];
+
+            if ($targetTeacherId && ($teacherChanged || $restoring)) {
+                $this->ensureTeacherClassCapacity((int) $targetTeacherId, (int) $current->id);
+            }
+
+            $current->fill($attributes);
+            if (array_key_exists('availableForEnrollment', $data) && $current->isDirty('available_for_enrollment')) {
+                $current->enrollment_updated_at = now();
+            }
+            $current->save();
+            $module = $current->modules()->first();
+            if ($module) {
+                $module->update([
+                    'title' => $current->name,
+                    'category' => $current->age_group,
+                    'description' => $current->description,
+                ]);
+            }
+
+            return $current;
+        });
+
+        return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $request->attributes->get('app_user'))]);
+    }
+
+    private function ensureTeacherClassCapacity(int $teacherId, ?int $excludeClassId = null): void
+    {
+        User::query()->whereKey($teacherId)->lockForUpdate()->firstOrFail();
+        $activeClassCount = Classroom::query()
+            ->where('teacher_id', $teacherId)
+            ->where('deleted', false)
+            ->when($excludeClassId !== null, fn ($query) => $query->whereKeyNot($excludeClassId))
+            ->count();
+
+        abort_if($activeClassCount >= 3, 422, 'This teacher already has 3 active classes. A teacher may be assigned to a maximum of 3 active classes.');
+    }
+
+    public function updateCertificateAccess(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id, 403);
+
+        $data = $request->validate([
+            'certificatesUnlocked' => ['required', 'boolean'],
+        ]);
+        $class->certificates_unlocked = $data['certificatesUnlocked'];
+        $class->save();
+
+        return response()->json([
+            'class' => $this->payload(
+                $class->load('teacher')->loadCount('students'),
+                $user,
+            ),
+        ]);
+    }
+
+    public function enrollment(Request $request, Classroom $class): JsonResponse
+    {
+        $student = $request->attributes->get('app_user');
+        if ($student->role !== 'student' || $class->deleted || ! $class->available_for_enrollment) {
+            return response()->json(['message' => 'This class is not available for enrollment.'], 403);
+        }
+
+        $class->students()->syncWithoutDetaching([$student->id => ['enrolled_at' => now()]]);
+
+        return response()->json(['enrolled' => true], 201);
+    }
+
+    public function students(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        if ($user->role === 'student') {
+            abort_unless($class->students()->where('users.id', $user->id)->exists(), 403);
+            $classmateCount = $class->students()
+                ->where('users.status', 'approved')
+                ->where('users.id', '!=', $user->id)
+                ->count();
+
+            return response()->json(['count' => $classmateCount]);
+        } else {
+            $this->ensureAssignedTeacher($request, $class);
+        }
+        $studentsQuery = $class->students()->where('users.status', 'approved');
+        $students = $studentsQuery->orderBy('users.name')->get();
+
+        $data = $students->map(function (User $student) use ($class): array {
+            return [
+                'id' => (string) $student->id,
+                'name' => $student->name,
+                'email' => $student->email,
+                'birthday' => $student->birthday?->format('Y-m-d'),
+                'birthYear' => $student->birth_year,
+                'status' => $student->status,
+                'classProgress' => $this->studentProgress($student, $class),
+            ];
+        });
+
+        return response()->json(['data' => $data]);
+    }
+
+    public function enrollmentNotice(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        if ($user->role === 'teacher') {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
+        return response()->json(['class' => $this->payload($class->load('teacher')->loadCount('students'), $user)]);
+    }
+
+    private function validatedClass(Request $request, bool $partial = false): array
+    {
+        $required = $partial ? 'sometimes' : 'required';
+
+        return $request->validate([
+            'name' => [$required, 'string', 'max:255'],
+            'teacher' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'age' => ['sometimes', Rule::in(['all', 'kids', 'youth', 'adults'])],
+            'description' => ['sometimes', 'nullable', 'string'],
+            'availableForEnrollment' => ['sometimes', 'boolean'],
+            'deleted' => ['sometimes', 'boolean'],
+        ]);
+    }
+
+    private function classAttributes(array $data): array
+    {
+        $attributes = [];
+        foreach ([
+            'name' => 'name',
+            'age' => 'age_group',
+            'description' => 'description',
+            'availableForEnrollment' => 'available_for_enrollment',
+            'deleted' => 'deleted',
+        ] as $input => $column) {
+            if (array_key_exists($input, $data)) {
+                $attributes[$column] = $data[$input];
+            }
+        }
+        if (array_key_exists('teacher', $data)) {
+            $name = trim((string) $data['teacher']);
+            $attributes['teacher_id'] = $name === '' || strtolower($name) === 'unassigned'
+                ? null
+                : User::query()->where('role', 'teacher')->where('status', 'approved')->where('name', $name)->value('id');
+            if ($name !== '' && strtolower($name) !== 'unassigned' && ! $attributes['teacher_id']) {
+                abort(422, 'The selected teacher account was not found or is not approved.');
+            }
+        }
+
+        return $attributes;
+    }
+
+    private function payload(Classroom $class, User $user): array
+    {
+        $studentIds = $user->role === 'admin' || $user->role === 'teacher'
+            ? $class->students()->pluck('users.id')->map(fn ($id) => (string) $id)->all()
+            : ($class->students()->where('users.id', $user->id)->exists() ? [(string) $user->id] : []);
+
+        return [
+            'id' => (string) $class->id,
+            'name' => $class->name,
+            'teacher' => $class->teacher?->name ?? 'Unassigned',
+            'teacherId' => $class->teacher ? (string) $class->teacher->id : null,
+            'age' => $class->age_group,
+            'description' => $class->description ?? '',
+            'availableForEnrollment' => $class->available_for_enrollment,
+            'certificatesUnlocked' => $class->certificates_unlocked,
+            'deleted' => $class->deleted,
+            'enrolledStudentIds' => $studentIds,
+            'enrolledCount' => $class->students_count ?? $class->students()->count(),
+            'createdAt' => $class->created_at?->toISOString(),
+            'enrollmentUpdatedAt' => $class->enrollment_updated_at?->toISOString(),
+        ];
+    }
+
+    private function ensureModule(Classroom $class): Module
+    {
+        return $class->modules()->first() ?? $class->modules()->create([
+            'title' => $class->name,
+            'category' => $class->age_group,
+            'description' => $class->description,
+            'created_by' => $class->teacher_id,
+        ]);
+    }
+
+    private function ensureAssignedTeacher(Request $request, Classroom $class): void
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
+    }
+
+    private function studentProgress(User $student, Classroom $class): array
+    {
+        $completed = DB::table('material_completions')
+            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+            ->where('material_completions.student_id', $student->id)
+            ->where('materials.class_id', $class->id)
+            ->whereNull('materials.deleted_at')
+            ->pluck('material_completions.material_id')
+            ->map(fn ($id) => (string) $id)
+            ->all();
+        $deletedCompletedMaterials = DB::table('material_completions')
+            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+            ->where('material_completions.student_id', $student->id)
+            ->where('materials.class_id', $class->id)
+            ->whereNotNull('materials.deleted_at')
+            ->orderBy('material_completions.completed_at')
+            ->get([
+                'materials.id',
+                'materials.title',
+                'material_completions.completed_at',
+            ])
+            ->map(fn ($material) => [
+                'id' => (string) $material->id,
+                'title' => $material->title,
+                'completedAt' => $material->completed_at,
+            ])
+            ->all();
+        $attempt = DB::table('assessment_attempts')
+            ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
+            ->where('assessment_attempts.student_id', $student->id)
+            ->where('assessments.class_id', $class->id)
+            ->orderByDesc('assessment_attempts.submitted_at')
+            ->first();
+
+        return [
+            'completedMaterialIds' => $completed,
+            'deletedCompletedMaterials' => $deletedCompletedMaterials,
+            'assessmentScore' => $attempt?->score,
+            'assessmentPassed' => (bool) ($attempt?->passed ?? false),
+        ];
+    }
+}

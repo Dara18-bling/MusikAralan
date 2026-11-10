@@ -1,0 +1,208 @@
+MusikAralan Backend - Production File Storage Setup
+===================================================
+
+This guide configures teacher material uploads to a private Filebase bucket
+using the S3-compatible Laravel disk. It also covers the PHP CA certificate
+bundle needed to make HTTPS requests to Filebase.
+
+Never put access credentials in this file, source control, frontend variables,
+or client-side code. Set secrets in the production host's secret/environment
+settings or in the backend's untracked .env file.
+
+
+1. Filebase values
+------------------
+
+Create an S3 access key in Filebase's account/access-key settings. Use the
+S3-compatible access key and secret key, not an account login credential or
+an unrelated API token.
+
+Set these backend environment variables:
+
+  MATERIAL_UPLOADS_DISK=s3-compatible
+  MATERIAL_UPLOADS_SIGNED_URLS=true
+  MATERIAL_SIGNED_URL_TTL_MINUTES=60
+
+  AWS_ACCESS_KEY_ID=<FILEBASE_S3_ACCESS_KEY>
+  AWS_SECRET_ACCESS_KEY=<FILEBASE_S3_SECRET_KEY>
+  AWS_DEFAULT_REGION=auto
+  AWS_BUCKET=whaling-a-hobby
+  AWS_ENDPOINT=https://s3.filebase.io
+  AWS_USE_PATH_STYLE_ENDPOINT=false
+
+Value details:
+
+  MATERIAL_UPLOADS_DISK
+    The configured Laravel disk for material files. Use s3-compatible for
+    Filebase or Cloudflare R2. This is a disk name, not a URL.
+
+  MATERIAL_UPLOADS_SIGNED_URLS
+    Set true for a private bucket. The API creates expiring signed download
+    links after checking the caller's class access.
+
+  MATERIAL_SIGNED_URL_TTL_MINUTES
+    Link lifetime in minutes. The backend enforces a minimum of 1 minute and
+    a maximum of 1440 minutes (24 hours). Use a shorter lifetime if practical.
+
+  AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+    S3 credentials created in Filebase. Treat both as secrets. The secret key
+    is displayed by Filebase when the key is created; save it securely.
+
+  AWS_DEFAULT_REGION
+    Filebase's S3 API uses "auto".
+
+  AWS_BUCKET
+    Bucket name from the Filebase dashboard. The current project environment
+    uses "whaling-a-hobby"; replace it if the production bucket differs.
+
+  AWS_ENDPOINT
+    Filebase S3 API endpoint: https://s3.filebase.io. The backend sends
+    authenticated upload requests and creates signed download links against
+    this endpoint.
+
+  AWS_USE_PATH_STYLE_ENDPOINT
+    Filebase supports path and virtual-host addressing. Keep false for the
+    current virtual-host setup. The SDK composes requests using the bucket
+    name and endpoint.
+
+For private signed URLs, AWS_URL is not used to produce material links.
+Signed links use AWS_ENDPOINT. AWS_URL is only needed when
+MATERIAL_UPLOADS_SIGNED_URLS=false and the bucket/CDN is publicly readable;
+in that case set it to the public bucket or CDN base URL, not the S3 API
+endpoint. Do not make a private bucket public to work around signing issues.
+
+AWS_DEFAULT_VISIBILITY does not set Filebase bucket access for this custom
+compatible disk. The adapter does not send object ACL headers; keep the
+bucket private and manage access in Filebase.
+
+The S3 access key must have permission to upload objects to the selected
+bucket. Signed download requests must also be authorized to read those
+objects. Configure the bucket and key policy in Filebase accordingly.
+
+
+2. PHP HTTPS CA bundle (cURL error 77)
+--------------------------------------
+
+The error "cURL error 77: error adding trust anchors from file" means the PHP
+process cannot load its configured CA certificate bundle. It is not, by
+itself, evidence of an invalid Filebase key or bucket.
+
+1. On the backend host, find which PHP configuration the web runtime uses.
+   For CLI PHP, run:
+
+     php --ini
+
+   The web server/PHP-FPM runtime can use a different php.ini; check its
+   deployment/runtime configuration too.
+
+2. Obtain a current CA bundle from the official cURL CA bundle page:
+
+     https://curl.se/ca/cacert.pem
+
+   Store it at a stable path readable by the PHP service account. Do not
+   point PHP at a missing file or an empty/invalid bundle.
+
+3. In the php.ini actually used by the backend runtime, set curl.cainfo to the
+   absolute path of that file. Example for the Windows development host:
+
+     curl.cainfo = "C:\php8.5\extras\ca\ssl\cacert.pem"
+
+   Use the real path on the production host; it may be different. Ensure the
+   PHP service account can read the file. Do not disable TLS verification.
+
+4. Restart/reload the relevant PHP runtime or application service so the
+   setting takes effect. If using a long-lived worker, restart that worker too.
+
+5. Confirm the runtime loaded the expected setting. CLI check:
+
+     php -i
+
+   Inspect the "curl.cainfo" value. Also verify the setting through the web
+   runtime/hosting panel if it uses a separate PHP configuration.
+
+
+3. Application production settings
+----------------------------------
+
+Configure these for the actual deployment, in addition to the storage values:
+
+  APP_ENV=production
+  APP_DEBUG=false
+  APP_KEY=<generated Laravel application key>
+  APP_URL=https://<backend-domain>
+  FRONTEND_URL=https://<frontend-domain>
+
+Configure outbound email so password recovery codes can be delivered:
+
+  MAIL_MAILER=smtp
+  MAIL_SCHEME=tls
+  MAIL_HOST=<SMTP_HOST>
+  MAIL_PORT=587
+  MAIL_USERNAME=<SMTP_USERNAME>
+  MAIL_PASSWORD=<SMTP_PASSWORD>
+  MAIL_FROM_ADDRESS=<VERIFIED_SENDER_ADDRESS>
+  MAIL_FROM_NAME=MusikAralan
+
+The backend .env.example uses MAIL_MAILER=log for local development; with
+that setting, messages are written to the backend log rather than delivered.
+Use your email provider's SMTP settings in production and keep its password
+in the host's secret store. Password reset codes are valid for 15 minutes.
+
+Set the database connection variables for the production database
+(DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD).
+Use the production host's secure secret store for database and S3 credentials.
+Do not use the example/local SQLite or localhost values in production.
+
+Generate APP_KEY using Laravel's deployment setup procedure; do not copy a
+development key into source control. Configure HTTPS and production CORS /
+allowed frontend origins according to the deployed frontend domain.
+
+
+4. Apply settings and verify
+----------------------------
+
+After changing production environment values:
+
+1. From the backend application directory, refresh Laravel's cached
+   configuration using the deployment's normal release procedure:
+
+     php artisan config:clear
+     php artisan config:cache
+
+2. Restart/reload the web application and any long-lived workers.
+
+3. Upload a small supported file through a teacher account in a class managed
+   by that teacher.
+
+4. Open the material as an authorized class member. A private bucket response
+   should contain a signed URL whose host is the S3 API host and whose query
+   contains a signature and expiry.
+
+5. Confirm that an unauthorized account cannot list the class materials.
+
+6. If upload fails, inspect backend/storage/logs/laravel.log on the server.
+   The server log records the storage disk and provider exception. Do not
+   return credentials or full secret values in support messages.
+
+
+5. Switching between Filebase and R2
+------------------------------------
+
+The application selects a generic S3-compatible disk. A provider change
+normally requires changing deployment environment values, not application
+code:
+
+  AWS_ACCESS_KEY_ID
+  AWS_SECRET_ACCESS_KEY
+  AWS_DEFAULT_REGION
+  AWS_BUCKET
+  AWS_ENDPOINT
+  AWS_USE_PATH_STYLE_ENDPOINT
+
+For private objects, keep MATERIAL_UPLOADS_SIGNED_URLS=true and ensure the
+new provider supports the S3 operations and signing behavior used by the app.
+Test upload and signed download against the target provider before cutover.
+
+Existing objects do not move automatically. Copy objects to the new bucket
+while preserving their stored storage_path keys, then switch the environment
+values. Keep a rollback plan until uploads and downloads are verified.

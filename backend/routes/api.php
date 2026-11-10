@@ -1,0 +1,102 @@
+<?php
+
+use App\Http\Controllers\Api\AnnouncementController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ChatbotController;
+use App\Http\Controllers\Api\ClassController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\GospelVerseController;
+use App\Http\Controllers\Api\LearningController;
+use App\Http\Controllers\Api\QuizAttemptController;
+use App\Http\Controllers\Api\ProfileChangeRequestController;
+use App\Http\Controllers\Api\ScheduleController;
+use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\UserNotificationController;
+use App\Http\Controllers\Api\VoiceGroupController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/settings/appearance', [SettingController::class, 'appearance']);
+
+Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:login');
+Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:register');
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:password-reset-request');
+Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:password-reset-confirm');
+
+Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/session', [AuthController::class, 'session']);
+
+    Route::middleware('approved')->group(function (): void {
+        Route::get('/me', [AuthController::class, 'me']);
+        Route::patch('/me', [AuthController::class, 'updateProfile'])->middleware('role:admin');
+        Route::patch('/me/password', [AuthController::class, 'changePassword']);
+        Route::patch('/me/phone', [AuthController::class, 'updatePhone'])->middleware('role:admin');
+        Route::middleware('role:student,teacher')->group(function (): void {
+            Route::get('/me/profile-change-request', [ProfileChangeRequestController::class, 'mine']);
+            Route::post('/me/profile-change-request', [ProfileChangeRequestController::class, 'store']);
+        });
+        Route::get('/dashboard', [DashboardController::class, 'show']);
+        Route::get('/gospel-verses', [GospelVerseController::class, 'index']);
+        Route::get('/schedules', [ScheduleController::class, 'index']);
+        Route::post('/schedules', [ScheduleController::class, 'store']);
+        Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->whereNumber('schedule');
+        Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->whereNumber('schedule');
+        Route::get('/quiz-attempts', [QuizAttemptController::class, 'index']);
+        Route::get('/notifications', [UserNotificationController::class, 'index']);
+        Route::patch('/notifications/{notificationId}/read', [UserNotificationController::class, 'markRead']);
+
+        Route::get('/classes', [ClassController::class, 'index']);
+        Route::patch('/classes/{class}/certificate-access', [ClassController::class, 'updateCertificateAccess']);
+        Route::post('/classes/{class}/notifications', [UserNotificationController::class, 'notifyClass']);
+        Route::get('/classes/{class}/enrollment-notice', [ClassController::class, 'enrollmentNotice']);
+        Route::post('/classes/{class}/enroll', [ClassController::class, 'enrollment']);
+        Route::get('/classes/{class}/students', [ClassController::class, 'students']);
+        Route::get('/classes/{class}/materials', [LearningController::class, 'materials'])->whereNumber('class');
+        Route::get('/classes/{class}/materials/{material}/notation', [LearningController::class, 'viewSheetMusic'])->whereNumber('class')->whereNumber('material');
+        Route::post('/classes/{class}/materials', [LearningController::class, 'createMaterial']);
+        Route::delete('/classes/{class}/materials/{material}', [LearningController::class, 'deleteMaterial'])->whereNumber('material');
+        Route::post('/classes/{class}/materials/{material}/complete', [LearningController::class, 'completeMaterial']);
+        Route::get('/classes/{class}/materials/{material}/submissions', [LearningController::class, 'materialSubmissions']);
+        Route::post('/classes/{class}/materials/{material}/submissions', [LearningController::class, 'submitMaterialWork']);
+        Route::get('/classes/{class}/materials/{material}/submissions/{submission}/file', [LearningController::class, 'downloadMaterialSubmission'])->whereNumber('submission');
+        Route::put('/classes/{class}/materials/{material}/submissions/{submission}', [LearningController::class, 'gradeMaterialSubmission'])->whereNumber('submission');
+        Route::get('/classes/{class}/materials/{material}/comments', [LearningController::class, 'materialComments']);
+        Route::put('/classes/{class}/materials/{material}/comments', [LearningController::class, 'saveMaterialComment']);
+        Route::get('/classes/{class}/progress', [LearningController::class, 'progress']);
+        Route::get('/classes/{class}/assessment', [LearningController::class, 'assessment']);
+        Route::put('/classes/{class}/assessment', [LearningController::class, 'publishAssessment']);
+        Route::post('/classes/{class}/assessment/attempts', [LearningController::class, 'submitAssessment']);
+        Route::get('/classes/{class}/assessments', [LearningController::class, 'assessments']);
+        Route::post('/classes/{class}/assessments', [LearningController::class, 'createAssessment']);
+        Route::get('/classes/{class}/assessments/{assessment}/comments', [LearningController::class, 'assessmentComments']);
+        Route::put('/classes/{class}/assessments/{assessment}/comments', [LearningController::class, 'saveAssessmentComment']);
+        Route::get('/assessments/{assessment}', [LearningController::class, 'showAssessment']);
+        Route::put('/assessments/{assessment}', [LearningController::class, 'updateAssessment']);
+        Route::post('/assessments/{assessment}/attempts', [LearningController::class, 'submitAssessmentAttempt']);
+
+        Route::get('/announcements', [AnnouncementController::class, 'index']);
+        Route::get('/chatbot-responses', [ChatbotController::class, 'index']);
+        Route::middleware('role:admin')->group(function (): void {
+            Route::get('/admin/profile-change-requests', [ProfileChangeRequestController::class, 'index']);
+            Route::patch('/admin/profile-change-requests/{requestId}', [ProfileChangeRequestController::class, 'review'])->whereNumber('requestId');
+            Route::post('/gospel-verses', [GospelVerseController::class, 'store']);
+            Route::delete('/gospel-verses/{gospelVerse}', [GospelVerseController::class, 'destroy']);
+            Route::get('/voice-groups', [VoiceGroupController::class, 'index']);
+            Route::post('/voice-groups', [VoiceGroupController::class, 'store']);
+            Route::put('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'update']);
+            Route::delete('/voice-groups/{voiceGroup}', [VoiceGroupController::class, 'destroy']);
+            Route::put('/admin/users/{userId}/voice-groups', [VoiceGroupController::class, 'assignUsers'])->whereNumber('userId');
+            Route::get('/admin/users', [AuthController::class, 'indexUsers']);
+            Route::patch('/admin/users/{userId}', [AuthController::class, 'updateUser'])->whereNumber('userId');
+            Route::post('/classes', [ClassController::class, 'store']);
+            Route::put('/classes/{class}', [ClassController::class, 'update']);
+            Route::post('/announcements', [AnnouncementController::class, 'store']);
+            Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->whereNumber('id');
+            Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->whereNumber('id');
+            Route::post('/chatbot-responses', [ChatbotController::class, 'store']);
+            Route::put('/chatbot-responses/{id}', [ChatbotController::class, 'update']);
+            Route::delete('/chatbot-responses/{id}', [ChatbotController::class, 'destroy']);
+            Route::put('/settings/appearance', [SettingController::class, 'saveAppearance']);
+        });
+    });
+});

@@ -1,0 +1,10 @@
+{
+  "description": "A user-friendly LMS for a parish music ministry offering tailored courses, live sessions, assessments, and engagement tools for all ages.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
