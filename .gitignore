@@ -12,6 +12,7 @@ logs/
 .claude-replay.*
 .tmp-*
 /.figma/design-context/
+vendor/
 
 # Platform-managed agentplat state, not project source. In the
 # client-initiated single-repo workspace layout (make's `Path: "."` spec) the
@@ -36,3 +37,6 @@ coverage/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Context files
+/Context/

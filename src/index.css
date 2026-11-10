@@ -55,7 +55,23 @@
 }
 .staff { background-image: repeating-linear-gradient(to bottom, transparent 0 9px, color-mix(in oklab, var(--p1) 14%, transparent) 9px 10px); }
 
+.Toastify__toast.musik-toast {
+  color: white;
+  background: linear-gradient(120deg, var(--p1), var(--p2));
+  border: 1px solid color-mix(in srgb, var(--p2) 65%, white);
+  border-radius: 1rem;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--p1) 25%, transparent);
+  font-family: var(--font-sans);
+}
 
+.musik-toast .Toastify__toast-icon,
+.musik-toast .Toastify__close-button {
+  color: white;
+}
+
+.musik-toast .Toastify__progress-bar {
+  background: rgb(255 255 255 / 75%);
+}
 
 /* ===== GLOBAL LIGHT AND DARK MODE ===== */
 
