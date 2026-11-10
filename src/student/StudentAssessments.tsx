@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import {
   apiGet,
   apiPost,
-  POLL_INTERVAL_TWO_MINUTES,
   refreshApi,
   watchApi,
 } from "../api";
@@ -72,7 +71,6 @@ export function StudentAssessments({
         toast.error("Could not load assessments for this class.");
         setLoading(false);
       },
-      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [classId]);
 

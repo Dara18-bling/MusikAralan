@@ -18,6 +18,7 @@ import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
 import { Chatbot } from "./Chatbot";
 import { Gospel } from "../student/Gospel";
+import { RealtimeConnection } from "./RealtimeConnection";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -135,6 +136,7 @@ export function Dashboard() {
 
   return (
     <div className={`canvas min-h-screen lg:grid lg:grid-cols-[17rem_1fr] ${darkMode ? "bg-gray-900 text-white" : ""}`}>
+      <RealtimeConnection role={role} userId={userId} />
       <aside
         className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col overflow-y-auto border-r border-line ${
           darkMode ? "bg-gray-800" : "bg-white/95"

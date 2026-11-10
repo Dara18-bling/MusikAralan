@@ -7,6 +7,7 @@ use App\Models\Classroom;
 use App\Models\ScheduleEvent;
 use App\Models\User;
 use App\Notifications\AppMessageNotification;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -82,6 +83,12 @@ class ScheduleController extends Controller
                 classId: $class?->id,
             ));
         }
+        RealtimeUpdates::publish(
+            ['/schedules', '/dashboard', '/notifications'],
+            userIds: $recipients->modelKeys(),
+            roles: $class === null ? ['admin', 'student', 'teacher'] : [],
+            classIds: $class ? [$class->id] : [],
+        );
 
         return response()->json(['schedule' => [
             'id' => (string) $event->id,
@@ -116,6 +123,7 @@ class ScheduleController extends Controller
             abort_unless($class && (int) $class->teacher_id === (int) $user->id, 403);
         }
 
+        $previousClassId = $schedule->class_id;
         $schedule->update([
             'class_id' => $class?->id,
             'title' => trim($data['title']),
@@ -123,6 +131,11 @@ class ScheduleController extends Controller
             'starts_at' => $data['startsAt'],
             'join_url' => $data['joinUrl'] ?? null,
         ]);
+        RealtimeUpdates::publish(
+            ['/schedules', '/dashboard'],
+            roles: $class === null || $previousClassId === null ? ['admin', 'student', 'teacher'] : [],
+            classIds: array_filter([$previousClassId, $class?->id]),
+        );
 
         return response()->json(['schedule' => [
             'id' => (string) $schedule->id,
@@ -140,7 +153,13 @@ class ScheduleController extends Controller
         $user = $request->attributes->get('app_user');
         abort_unless($this->canManage($user, $schedule), 403);
 
+        $classId = $schedule->class_id;
         $schedule->delete();
+        RealtimeUpdates::publish(
+            ['/schedules', '/dashboard'],
+            roles: $classId === null ? ['admin', 'student', 'teacher'] : [],
+            classIds: $classId === null ? [] : [$classId],
+        );
 
         return response()->json(['message' => 'Scheduled session deleted.']);
     }

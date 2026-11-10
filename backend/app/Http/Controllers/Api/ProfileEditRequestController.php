@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProfileEditRequest;
 use App\Models\User;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +66,11 @@ class ProfileEditRequestController extends Controller
                 'message' => 'You already have a profile edit request awaiting review.',
             ], 409);
         }
+        RealtimeUpdates::publish(
+            ['/me/profile-edit-request', '/admin/users/summary', '/admin/profile-edit-requests'],
+            userIds: [$user->id],
+            roles: ['admin'],
+        );
 
         return response()->json([
             'request' => $this->payload($editRequest->load('user')),
@@ -165,6 +171,11 @@ class ProfileEditRequestController extends Controller
                 'errors' => $result['errors'],
             ], 422);
         }
+        RealtimeUpdates::publish(
+            ['/me/profile-edit-request', '/me', '/admin/users/summary', '/admin/profile-edit-requests'],
+            userIds: [$result['request']->user_id],
+            roles: ['admin'],
+        );
 
         return response()->json(['request' => $this->payload($result['request'])]);
     }

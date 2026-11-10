@@ -163,6 +163,55 @@ Generate APP_KEY using Laravel's deployment setup procedure; do not copy a
 development key into source control. Configure HTTPS and production CORS /
 allowed frontend origins according to the deployed frontend domain.
 
+Live updates use Laravel Reverb. Configure these backend values in the
+production secret/environment settings:
+
+  BROADCAST_CONNECTION=reverb
+  REVERB_APP_ID=<unique-application-id>
+  REVERB_APP_KEY=<public-application-key>
+  REVERB_APP_SECRET=<server-only-application-secret>
+  REVERB_HOST=<public-websocket-host>
+  REVERB_PORT=443
+  REVERB_SCHEME=https
+  REVERB_SERVER_HOST=0.0.0.0
+  REVERB_SERVER_PORT=8080
+  REVERB_ALLOWED_ORIGINS=https://<frontend-domain>
+
+Set the frontend build-time values to match the public WebSocket endpoint:
+
+  VITE_REVERB_APP_KEY=<public-application-key>
+  VITE_REVERB_HOST=<public-websocket-host>
+  VITE_REVERB_PORT=443
+  VITE_REVERB_SCHEME=https
+  VITE_API_BASE_URL=https://<backend-domain>/api
+
+The app key is public; never expose REVERB_APP_SECRET to the frontend. The
+frontend authorizes private channels with its Sanctum bearer token through
+https://<backend-domain>/broadcasting/auth. Keep that route reachable from the
+frontend origin. The application configures its CORS path and protects the
+authorization route with auth:sanctum. Private user, role, and class channels
+verify the authenticated user's identity, role, approval status, or class
+membership.
+
+Run Reverb as its own continuously running process, for example:
+
+  php artisan reverb:start --host=0.0.0.0 --port=8080
+
+Use the hosting platform's process supervisor/container orchestration to
+restart it on failure and during deployments. Put a TLS-capable reverse proxy
+or load balancer in front of it and enable WebSocket upgrade/connection
+headers; browsers must connect using WSS. Confirm the Azure hosting plan
+supports WebSockets and a persistent Reverb process. The API/web process,
+Reverb process, and proxy must be able to reach each other at the configured
+addresses.
+
+Data-change broadcasts are sent after the related database commit and use
+Laravel's immediate broadcast path; they do not require a database queue worker.
+If the app later adds queued broadcast or notification events, run a separate
+queue worker and choose its backend deliberately. Reverb's Redis scaling
+option is unnecessary for one instance; enable it only with Redis configured
+when running multiple Reverb instances.
+
 
 4. Apply settings and verify
 ----------------------------

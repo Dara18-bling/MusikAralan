@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use App\Models\User;
 use App\Notifications\AppMessageNotification;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -48,6 +49,10 @@ class UserNotificationController extends Controller
             ->whereKey($notificationId)
             ->firstOrFail();
         $notification->markAsRead();
+        RealtimeUpdates::publish(
+            ['/notifications'],
+            userIds: [$request->attributes->get('app_user')->id],
+        );
 
         return response()->json(['read' => true]);
     }
@@ -83,6 +88,11 @@ class UserNotificationController extends Controller
             trim($data['content']),
             classId: $class->id,
         ));
+        RealtimeUpdates::publish(
+            ['/notifications'],
+            userIds: [...$recipients->modelKeys(), $sender->id],
+            classIds: [$class->id],
+        );
 
         return response()->json(['notified' => $recipients->count()], 201);
     }
@@ -105,5 +115,9 @@ class UserNotificationController extends Controller
                 announcementId: $announcementId,
             ));
         }
+        RealtimeUpdates::publish(
+            ['/notifications'],
+            userIds: $recipients->modelKeys(),
+        );
     }
 }

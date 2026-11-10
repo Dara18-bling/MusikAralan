@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\VoiceGroup;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -57,6 +58,10 @@ class VoiceGroupController extends Controller
             $sync[$group['id']] = ['voice_part' => $group['voicePart'] ?? null];
         }
         $user->voiceGroups()->sync($sync);
+        RealtimeUpdates::publish(
+            ['/announcements'],
+            userIds: [$user->id],
+        );
 
         return response()->json(['voiceGroups' => $user->voiceGroups()->orderBy('name')->get()->map(
             fn (VoiceGroup $group): array => [

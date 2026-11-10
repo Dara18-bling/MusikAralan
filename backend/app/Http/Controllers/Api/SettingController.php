@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\RealtimeUpdates;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -79,6 +80,10 @@ class SettingController extends Controller
         DB::table('settings')->updateOrInsert(
             ['key' => 'appearance'],
             ['value' => json_encode($updatedAppearance, JSON_THROW_ON_ERROR), 'updated_at' => now(), 'created_at' => now()],
+        );
+        RealtimeUpdates::publish(
+            ['/settings/appearance'],
+            roles: ['admin', 'student', 'teacher'],
         );
 
         return response()->json([

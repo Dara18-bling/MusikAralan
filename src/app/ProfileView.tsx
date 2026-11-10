@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { apiGet, apiPatch, apiPost, apiPut, watchApi } from "../api";
 import { Btn, Card, Input, Label, Title } from "../ui";
 import { Field } from "./Field";
 import type { LiturgicalPalette } from "./AppTypes";
@@ -147,7 +147,6 @@ export function ProfileView({
         console.error("Could not load pending profile edit request:", error);
         setEditRequestLoadError("Could not check the status of your profile edit request.");
       },
-      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [name]);
 

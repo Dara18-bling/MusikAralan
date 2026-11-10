@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { apiDelete, apiPost, apiPut, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
+import { apiDelete, apiPost, apiPut, refreshApi, watchApi } from "../api";
 import { Btn, Card, Input, Label } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 
@@ -37,7 +37,7 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
     }, (listenerError) => {
       console.error("Could not load scheduled meetings:", listenerError);
       setError("Scheduled sessions could not be loaded.");
-    }, POLL_INTERVAL_TWO_MINUTES);
+    });
     return () => {
       stopSchedules();
     };

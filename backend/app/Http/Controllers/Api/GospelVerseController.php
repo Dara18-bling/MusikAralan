@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\GospelVerse;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -43,6 +44,10 @@ class GospelVerseController extends Controller
         if (! $verse->wasRecentlyCreated) {
             return response()->json(['message' => 'This verse is already in the rotation.'], 422);
         }
+        RealtimeUpdates::publish(
+            ['/gospel-verses'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['verse' => $verse], 201);
     }
@@ -54,6 +59,10 @@ class GospelVerseController extends Controller
         }
 
         $gospelVerse->delete();
+        RealtimeUpdates::publish(
+            ['/gospel-verses'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['message' => 'Verse removed from rotation.']);
     }

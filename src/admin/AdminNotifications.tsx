@@ -64,7 +64,6 @@ export function AdminNotifications({
         );
         setEditRequestsLoading(false);
       },
-      15_000,
     );
   }, [pendingEditCount]);
 

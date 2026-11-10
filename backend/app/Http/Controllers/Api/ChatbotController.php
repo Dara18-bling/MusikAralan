@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\RealtimeUpdates;
 
 class ChatbotController extends Controller
 {
@@ -31,6 +32,10 @@ class ChatbotController extends Controller
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        RealtimeUpdates::publish(
+            ['/chatbot-responses'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['response' => $this->find($id)], 201);
     }
@@ -48,6 +53,10 @@ class ChatbotController extends Controller
             ->first();
         abort_unless($record, 404);
         DB::table('chatbot_responses')->where('id', $record->id)->update([...$data, 'updated_at' => now()]);
+        RealtimeUpdates::publish(
+            ['/chatbot-responses'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['response' => $this->find($record->id)]);
     }
@@ -64,6 +73,10 @@ class ChatbotController extends Controller
         } else {
             DB::table('chatbot_responses')->where('id', $record->id)->delete();
         }
+        RealtimeUpdates::publish(
+            ['/chatbot-responses'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['deleted' => true]);
     }

@@ -4,11 +4,13 @@ const API_BASE_URL = (
 ).replace(/\/+$/, "");
 const AUTH_TOKEN_KEY = "musikAralanApiToken";
 
-export const POLL_INTERVAL_DAY = 24 * 60 * 60 * 1000;
-export const POLL_INTERVAL_TEN_MINUTES = 10 * 60 * 1000;
-export const POLL_INTERVAL_TWO_MINUTES = 2 * 60 * 1000;
-
 const apiWatchers = new Map<string, Set<() => void>>();
+export interface RealtimeDataChange {
+  topics: string[];
+  classId: number | null;
+}
+
+const realtimeListeners = new Set<(change: RealtimeDataChange) => void>();
 let activeApiRequests = 0;
 const apiActivityListeners = new Set<(activeRequests: number) => void>();
 
@@ -42,6 +44,10 @@ export function clearApiToken() {
 
 export function hasApiToken() {
   return sessionStorage.getItem(AUTH_TOKEN_KEY) !== null;
+}
+
+export function getApiToken() {
+  return sessionStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export class ApiError extends Error {
@@ -144,14 +150,42 @@ export function apiDelete<T>(path: string): Promise<T> {
 }
 
 export function refreshApi(path: string) {
-  apiWatchers.get(path)?.forEach((refresh) => refresh());
+  for (const [watchedPath, refreshers] of apiWatchers) {
+    if (watchedPath === path || watchedPath.startsWith(`${path}?`)) {
+      refreshers.forEach((refresh) => refresh());
+    }
+  }
+}
+
+export function refreshAllApiWatchers() {
+  apiWatchers.forEach((refreshers) => refreshers.forEach((refresh) => refresh()));
+}
+
+export function subscribeToRealtimeDataChanges(
+  listener: (change: RealtimeDataChange) => void,
+) {
+  realtimeListeners.add(listener);
+  return () => {
+    realtimeListeners.delete(listener);
+  };
+}
+
+export function handleRealtimeDataChange(change: RealtimeDataChange) {
+  for (const listener of realtimeListeners) {
+    listener(change);
+  }
+  for (const topic of change.topics) {
+    const path = change.classId === null
+      ? topic
+      : topic.replace(/\{classId\}/g, String(change.classId));
+    if (!path.includes("{")) refreshApi(path);
+  }
 }
 
 export function watchApi<T>(
   path: string,
   onData: (payload: T) => void,
   onError: (error: unknown) => void,
-  intervalMs = POLL_INTERVAL_DAY,
 ): () => void {
   let stopped = false;
   let running = false;
@@ -181,10 +215,8 @@ export function watchApi<T>(
   watchers.add(refresh);
   apiWatchers.set(path, watchers);
   void load();
-  const timer = window.setInterval(() => void load(), intervalMs);
   return () => {
     stopped = true;
-    window.clearInterval(timer);
     watchers.delete(refresh);
     if (watchers.size === 0) apiWatchers.delete(path);
   };

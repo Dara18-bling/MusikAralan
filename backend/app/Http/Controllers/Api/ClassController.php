@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Classroom;
 use App\Models\Module;
 use App\Models\User;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,12 @@ class ClassController extends Controller
 
             $class = Classroom::query()->create($attributes);
             $this->ensureModule($class);
+            RealtimeUpdates::publish(
+                ['/classes', '/dashboard'],
+                userIds: array_filter([$class->teacher_id]),
+                roles: ['admin', 'student'],
+                classIds: [$class->id],
+            );
 
             return response()->json([
                 'class' => $this->payload(
@@ -71,6 +78,7 @@ class ClassController extends Controller
 
         return DB::transaction(function () use ($data, $request, $class): JsonResponse {
             $class = Classroom::query()->whereKey($class->id)->lockForUpdate()->firstOrFail();
+            $previousTeacherId = $class->teacher_id;
             $attributes = $this->classAttributes($data);
             $targetTeacherId = array_key_exists('teacher_id', $attributes)
                 ? $attributes['teacher_id']
@@ -105,6 +113,12 @@ class ClassController extends Controller
                     'description' => $class->description,
                 ]);
             }
+            RealtimeUpdates::publish(
+                ['/classes', '/dashboard'],
+                userIds: array_filter([$previousTeacherId, $class->teacher_id]),
+                roles: ['admin', 'student'],
+                classIds: [$class->id],
+            );
 
             return response()->json([
                 'class' => $this->payload(
@@ -125,6 +139,11 @@ class ClassController extends Controller
         ]);
         $class->certificates_unlocked = $data['certificatesUnlocked'];
         $class->save();
+        RealtimeUpdates::publish(
+            ['/classes'],
+            userIds: [$user->id],
+            classIds: [$class->id],
+        );
 
         return response()->json([
             'class' => $this->payload(
@@ -171,6 +190,12 @@ class ClassController extends Controller
             }
 
             $class->students()->syncWithoutDetaching([$student->id => ['enrolled_at' => now()]]);
+            RealtimeUpdates::publish(
+                ['/classes', '/dashboard', '/schedules', '/classes/{classId}/students'],
+                userIds: [$student->id],
+                roles: ['student'],
+                classIds: [$class->id],
+            );
 
             return response()->json([
                 'enrolled' => true,

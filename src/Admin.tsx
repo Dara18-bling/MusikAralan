@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "./api";
+import { watchApi } from "./api";
 import type { AdminView } from "./admin/adminTypes";
 import { AdminDashboard } from "./admin/AdminDashboard";
 import { AdminAccounts } from "./admin/AdminAccounts";
@@ -79,7 +79,6 @@ export default function Admin({ view }: { view: AdminView }) {
         );
         setLoading(false);
       },
-      15_000,
     );
 
     return () => {
@@ -92,7 +91,6 @@ export default function Admin({ view }: { view: AdminView }) {
     "/dashboard",
     ({ dashboard }) => setDashboardData(dashboard),
     (error) => console.error("Could not load admin dashboard metrics:", error),
-    POLL_INTERVAL_TWO_MINUTES,
   ), []);
 
   if (view === "dash") {

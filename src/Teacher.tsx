@@ -3,8 +3,6 @@ import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import {
   apiPatch,
-  POLL_INTERVAL_DAY,
-  POLL_INTERVAL_TWO_MINUTES,
   refreshApi,
   watchApi,
 } from "./api";
@@ -61,7 +59,6 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
         setTeacherAccessUntil(user.accessUntil || null);
       },
       (error) => console.error("Could not load teacher profile:", error),
-      POLL_INTERVAL_DAY,
     );
   }, [userId, loggedInTeacherName]);
 
@@ -77,7 +74,6 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
         console.error("Could not load assigned classes:", error);
         setClassesLoaded(true);
       },
-      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [userId]);
 

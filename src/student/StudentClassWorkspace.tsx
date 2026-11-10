@@ -5,7 +5,6 @@ import { toast } from "react-toastify";
 import { Breadcrumbs } from "../app/Breadcrumbs";
 import {
   apiPost,
-  POLL_INTERVAL_TWO_MINUTES,
   refreshApi,
   watchApi,
 } from "../api";
@@ -142,7 +141,6 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class materials:"),
-      POLL_INTERVAL_TWO_MINUTES,
     );
     const stopAssessments = watchApi<{ data: AssessmentSummary[] }>(
       `${classPath}/assessments`,
@@ -151,7 +149,6 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class assessments:"),
-      POLL_INTERVAL_TWO_MINUTES,
     );
     const stopClassmates = watchApi<{ count: number }>(
       `${classPath}/students`,
@@ -160,7 +157,6 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load classmates:"),
-      POLL_INTERVAL_TWO_MINUTES,
     );
     const stopProgress = watchApi<{ progress: Progress }>(
       `${classPath}/progress`,
@@ -169,7 +165,6 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class progress:"),
-      POLL_INTERVAL_TWO_MINUTES,
     );
     const stopSchedules = watchApi<{ data: Schedule[] }>(
       "/schedules",
@@ -178,7 +173,6 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class sessions:"),
-      POLL_INTERVAL_TWO_MINUTES,
     );
 
     return () => {

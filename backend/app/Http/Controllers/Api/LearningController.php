@@ -12,6 +12,7 @@ use App\Models\Module;
 use App\Models\ModuleProgress;
 use App\Models\QuizAttempt;
 use App\Models\User;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -107,6 +108,7 @@ class LearningController extends Controller
             'allow_late_submissions' => $data['allowLateSubmissions'] ?? false,
             'max_points' => $data['maxPoints'] ?? 100,
         ]);
+        $this->broadcastClassChange($class->id, ['/classes/{classId}/materials', '/classes/{classId}/students']);
 
         return response()->json(['material' => $this->materialPayload($material, $user)], 201);
     }
@@ -139,6 +141,7 @@ class LearningController extends Controller
             'allow_late_submissions' => $data['allowLateSubmissions'] ?? $item->allow_late_submissions,
             'max_points' => $data['maxPoints'] ?? $item->max_points,
         ])->save();
+        $this->broadcastClassChange($class->id, ['/classes/{classId}/materials', '/classes/{classId}/students']);
 
         return response()->json(['material' => $this->materialPayload($item->fresh(), $user)]);
     }
@@ -196,6 +199,10 @@ class LearningController extends Controller
                 'message' => 'The file was removed, but the material record could not be deleted. Please retry.',
             ], 500);
         }
+        $this->broadcastClassChange(
+            $class->id,
+            ['/classes/{classId}/materials', '/classes/{classId}/progress', '/classes/{classId}/students'],
+        );
 
         return response()->json([
             'deleted' => true,
@@ -359,6 +366,7 @@ class LearningController extends Controller
 
             return $assessment->load('questions');
         });
+        $this->broadcastClassChange($class->id, ['/classes/{classId}/assessments']);
 
         return response()->json(
             ['assessment' => $this->assessmentPayload($assessment, true)],
@@ -461,6 +469,16 @@ class LearningController extends Controller
 
             return $attempt;
         });
+        $this->broadcastClassChange(
+            $class->id,
+            [
+                '/classes/{classId}/assessments',
+                '/classes/{classId}/progress',
+                '/classes/{classId}/students',
+                '/quiz-attempts',
+            ],
+            (int) $user->id,
+        );
 
         return response()->json([
             'attempt' => [
@@ -534,6 +552,11 @@ class LearningController extends Controller
         DB::table('material_completions')->updateOrInsert(
             ['student_id' => $user->id, 'material_id' => $material->id],
             ['completed_at' => now()],
+        );
+        $this->broadcastClassChange(
+            $class->id,
+            ['/classes/{classId}/progress', '/classes/{classId}/students'],
+            (int) $user->id,
         );
 
         return response()->json(['completed' => true]);
@@ -638,6 +661,11 @@ class LearningController extends Controller
         if ($oldPath && $oldPath !== $newPath) {
             $this->deleteAssignmentUpload($diskName, $oldPath, $material->id, $user->id);
         }
+        $this->broadcastClassChange(
+            $class->id,
+            ['/classes/{classId}/students'],
+            (int) $user->id,
+        );
 
         return response()->json(['submission' => $this->submissionPayload($submission)], 201);
     }
@@ -684,6 +712,11 @@ class LearningController extends Controller
             'graded_by' => $user->id,
             'graded_at' => now(),
         ])->save();
+        $this->broadcastClassChange(
+            $class->id,
+            ['/classes/{classId}/students'],
+            (int) $submission->student_id,
+        );
 
         return response()->json(['submission' => $this->submissionPayload($submission->load('student:id,name,email'), true)]);
     }
@@ -758,6 +791,19 @@ class LearningController extends Controller
                 return $payload;
             })->values(),
         ];
+    }
+
+    /**
+     * @param  array<int, string>  $topics
+     */
+    private function broadcastClassChange(int $classId, array $topics, ?int $userId = null): void
+    {
+        RealtimeUpdates::publish(
+            array_values(array_unique([...$topics, '/dashboard'])),
+            userIds: $userId === null ? [] : [$userId],
+            roles: ['admin'],
+            classIds: [$classId],
+        );
     }
 
     private function ensureClassAccess($user, Classroom $class): void

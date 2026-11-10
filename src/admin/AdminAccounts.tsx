@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch } from "../api";
+import { apiGet, apiPatch, subscribeToRealtimeDataChanges } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
@@ -104,8 +104,11 @@ export function AdminAccounts({
 
   useEffect(() => {
     void fetchUsers();
-    const interval = window.setInterval(() => void fetchUsers(), 15_000);
-    return () => window.clearInterval(interval);
+    return subscribeToRealtimeDataChanges(({ topics }) => {
+      if (topics.includes("/admin/users") || topics.includes("/admin/users/summary")) {
+        void fetchUsers();
+      }
+    });
   }, [fetchUsers]);
 
   useEffect(() => {

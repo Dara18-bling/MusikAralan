@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProfileEditRequest;
 use App\Models\User;
 use App\Notifications\PasswordResetCodeNotification;
+use App\Support\RealtimeUpdates;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -76,6 +77,10 @@ class AuthController extends Controller
             'status' => 'pending',
             'date_requested' => now(),
         ]);
+        RealtimeUpdates::publish(
+            ['/admin/users/summary', '/admin/users', '/dashboard'],
+            roles: ['admin'],
+        );
 
         return response()->json(['user' => $this->userPayload($user)], 201);
     }
@@ -187,6 +192,7 @@ class AuthController extends Controller
                 : (int) substr($data['birthday'], 0, 4);
         }
         $user->save();
+        RealtimeUpdates::publish(['/me'], userIds: [$user->id]);
 
         return response()->json(['user' => $this->userPayload($user)]);
     }
@@ -202,6 +208,7 @@ class AuthController extends Controller
         $user->phone_number = $data['phoneNumber'];
         $user->messenger_link = $data['messengerLink'];
         $user->save();
+        RealtimeUpdates::publish(['/me'], userIds: [$user->id]);
 
         return response()->json(['user' => $this->userPayload($user)]);
     }
@@ -329,6 +336,7 @@ class AuthController extends Controller
         }
 
         $previousStatus = $target->status;
+        $affectedClassIds = $target->classes()->pluck('classes.id')->all();
         $target->status = $status;
         if ($status === 'approved' && isset($data['role'])) {
             $target->role = $data['role'];
@@ -341,6 +349,20 @@ class AuthController extends Controller
             $target->approved_at = now();
         }
         $target->save();
+        RealtimeUpdates::publish(
+            [
+                '/admin/users/summary',
+                '/admin/users',
+                '/dashboard',
+                '/me',
+                '/classes',
+                '/classes/{classId}/students',
+                '/classes/{classId}/progress',
+            ],
+            userIds: [$target->id],
+            roles: ['admin', 'student'],
+            classIds: $affectedClassIds,
+        );
 
         return response()->json(['user' => $this->userPayload($target)]);
     }

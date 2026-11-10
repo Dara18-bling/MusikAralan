@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { watchApi } from "../api";
 import { Card, Pill } from "../ui";
 
 interface StudentListProps {
@@ -20,7 +20,6 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
       `/classes/${classId}/students`,
       ({ data }) => setStudents(data),
       (error) => console.error("Could not load enrolled students:", error),
-      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [classId, studentIds.join("|")]);
 
@@ -33,7 +32,6 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
       `/classes/${classId}/materials`,
       ({ data }) => setMaterialCount(data.length),
       (error) => console.error("Could not load class material count:", error),
-      POLL_INTERVAL_TWO_MINUTES,
     );
   }, [classId]);
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Support\RealtimeUpdates;
 
 class AnnouncementController extends Controller
 {
@@ -45,6 +46,10 @@ class AnnouncementController extends Controller
             $id,
             $item['targetGroupId'] ?? null,
         );
+        RealtimeUpdates::publish(
+            ['/announcements'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['announcement' => $this->find($id)], 201);
     }
@@ -62,6 +67,10 @@ class AnnouncementController extends Controller
             'content' => $item['content'],
             'updated_at' => now(),
         ]);
+        RealtimeUpdates::publish(
+            ['/announcements'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['announcement' => $this->find($id)]);
     }
@@ -69,6 +78,10 @@ class AnnouncementController extends Controller
     public function destroy(string $id): JsonResponse
     {
         abort_unless(DB::table('announcements')->where('id', $id)->delete(), 404);
+        RealtimeUpdates::publish(
+            ['/announcements'],
+            roles: ['admin', 'student', 'teacher'],
+        );
 
         return response()->json(['deleted' => true]);
     }
