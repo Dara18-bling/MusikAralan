@@ -22,7 +22,7 @@ export function AdminChatbot() {
       setChatbotReplies(saved.filter((item) => !item.deleted));
     } catch (err) {
       console.error(err);
-      toast.error("Could not load chatbot responses.");
+      toast.error("Could not load help entries.");
     }
     setChatbotLoading(false);
   };
@@ -64,10 +64,10 @@ export function AdminChatbot() {
       }
       refreshApi("/chatbot-responses");
       setEditingReplyId(null);
-      toast.success("Chatbot response saved.");
+      toast.success("Help entry saved.");
     } catch (err) {
       console.error(err);
-      toast.error("Could not save chatbot response.");
+      toast.error("Could not save help entry.");
     }
     setChatbotSaving(null);
   };
@@ -90,7 +90,7 @@ export function AdminChatbot() {
       setShowAddReply(false);
     } catch (err) {
       console.error(err);
-      toast.error("Could not add chatbot response.");
+      toast.error("Could not add help entry.");
     }
     setCreatingReply(false);
   };
@@ -98,7 +98,7 @@ export function AdminChatbot() {
   const deleteChatbotReply = async (reply: ChatbotResponse) => {
     if (
       !window.confirm(
-        `Delete the chatbot response for "${reply.keywords || "the default reply"}"?`
+        `Delete the help entry for "${reply.keywords || "the default entry"}"?`
       )
     )
       return;
@@ -114,7 +114,7 @@ export function AdminChatbot() {
       if (editingReplyId === reply.id) setEditingReplyId(null);
     } catch (err) {
       console.error(err);
-      toast.error("Could not delete chatbot response.");
+      toast.error("Could not delete help entry.");
     }
   };
 
@@ -130,8 +130,8 @@ export function AdminChatbot() {
     <>
       <Title
         kicker="Support Tools"
-        title="Chatbot Replies"
-        sub="View and manage the answers Music Helper gives to common questions."
+        title="Help Search Content"
+        sub="Manage the entries learners see when searching for help."
       />
       <Card className="mt-5">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -150,19 +150,19 @@ export function AdminChatbot() {
               {chatbotLoading ? "Refreshing..." : "Refresh"}
             </Btn>
             <Btn variant="soft" onClick={() => setShowAddReply(true)}>
-              Add response
+              Add help entry
             </Btn>
           </div>
         </div>
         <p className="mb-3 text-sm text-mute">
-          A single exact or partial keyword match can trigger a reply, including replies added later.
+          Searches are matched against these keywords; closer matches appear first.
         </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] table-fixed text-left text-sm">
             <thead>
               <tr className="border-b border-line text-mute">
                 <th className="w-1/4 pb-2 pr-3 font-medium">User question or keyword</th>
-                <th className="pb-2 pr-3 font-medium">Chatbot response</th>
+                <th className="pb-2 pr-3 font-medium">Help entry</th>
                 <th className="w-36 pb-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -202,7 +202,7 @@ export function AdminChatbot() {
                   <td colSpan={3} className="py-6 text-center text-mute">
                     {chatbotReplies.length
                       ? "No replies match your search."
-                      : "No chatbot replies available."}
+                      : "No help entries available."}
                   </td>
                 </tr>
               )}
@@ -230,11 +230,11 @@ export function AdminChatbot() {
             <section
               role="dialog"
               aria-modal="true"
-              aria-labelledby="edit-chatbot-reply-title"
+              aria-labelledby="edit-help-entry-title"
               className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
             >
-              <h2 id="edit-chatbot-reply-title" className="font-display text-2xl font-bold">
-                Edit chatbot response
+              <h2 id="edit-help-entry-title" className="font-display text-2xl font-bold">
+                Edit help entry
               </h2>
               <form
                 className="mt-5 grid gap-4"
@@ -255,7 +255,7 @@ export function AdminChatbot() {
                   />
                 </label>
                 <label className="grid gap-1.5 text-sm font-semibold">
-                  Chatbot response
+                  Help guidance
                   <textarea
                     required
                     value={reply.response}
@@ -302,18 +302,18 @@ export function AdminChatbot() {
           <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="add-chatbot-reply-title"
+            aria-labelledby="add-help-entry-title"
             className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
           >
-            <h2 id="add-chatbot-reply-title" className="font-display text-2xl font-bold">
-              Add chatbot response
+            <h2 id="add-help-entry-title" className="font-display text-2xl font-bold">
+              Add help entry
             </h2>
             <p className="mt-1 text-sm text-mute">
-              One exact or partial keyword match is enough to trigger this answer.
+              Searches containing these keywords will show this entry among their matches.
             </p>
             <form className="mt-5 grid gap-4" onSubmit={createChatbotReply}>
               <label className="grid gap-1.5 text-sm font-semibold">
-                User question or keyword
+                Help topic or keywords
                 <textarea
                   autoFocus
                   required
@@ -324,12 +324,12 @@ export function AdminChatbot() {
                 />
               </label>
               <label className="grid gap-1.5 text-sm font-semibold">
-                Chatbot response
+                Help guidance
                 <textarea
                   required
                   value={newReplyResponse}
                   onChange={(event) => setNewReplyResponse(event.target.value)}
-                  placeholder="Write the answer the chatbot should send..."
+                  placeholder="Write guidance that will appear in search results..."
                   className="min-h-28 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
                 />
               </label>

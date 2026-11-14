@@ -54,7 +54,9 @@ export function Login() {
     localStorage.setItem("darkMode", String(darkMode));
   }, [darkMode]);
 
-  const handleLogin = async () => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loading) return;
     if (!email || !password) {
       toast.warning("Please enter email and password.");
       return;
@@ -226,7 +228,7 @@ export function Login() {
           </div>
 
           {mode === "login" ? (
-            <form>
+            <form onSubmit={handleLogin}>
               <p className="mt-1 text-center text-mute">
                 For members and aspirants only.
               </p>
@@ -274,7 +276,6 @@ export function Login() {
 
                 <button
                   type="submit"
-                  onClick={handleLogin}
                   disabled={loading}
                   className="w-full rounded-full bg-[var(--p1)] py-3 text-base font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
                 >
@@ -284,6 +285,7 @@ export function Login() {
                 <p className="text-center text-sm text-mute">
                   New aspirant?{" "}
                   <button
+                    type="button"
                     onClick={() => setMode("signup")}
                     className="font-semibold text-p1 hover:underline"
                   >

@@ -13,7 +13,7 @@ php artisan storage:link
 php artisan serve
 ```
 
-The API uses 12-hour Sanctum bearer tokens for authentication. Configure MySQL connection variables and `FRONTEND_URL` in `.env`. Set `FIREBASE_CREDENTIALS` only if importing legacy Firestore data.
+The API uses 12-hour Sanctum bearer tokens for authentication. Configure MySQL connection variables and set `FRONTEND_URL` in `.env` to the frontend's exact origin (the local Vite server defaults to `http://localhost:8443`). For multiple origins, separate them with commas. After changing backend environment values, clear Laravel's cached configuration with `php artisan config:clear`. Set `FIREBASE_CREDENTIALS` only if importing legacy Firestore data.
 
 For a new deployment, run migrations first, then create the initial administrator with `php artisan musik:setup-admin`. The command accepts optional `--name` and `--email` options and prompts for the password twice without displaying it. It refuses to run once any user account exists.
 

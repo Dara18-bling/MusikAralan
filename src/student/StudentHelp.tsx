@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
   ChevronDown,
   Download,
-  MessageCircle,
+  Search,
   Smartphone,
   Type,
   Video,
@@ -76,12 +76,12 @@ const categories: { title: string; guides: Guide[] }[] = [
     title: "Getting help",
     guides: [
       {
-        title: "Using the Chatbot",
-        summary: "Ask Music Helper a question.",
-        icon: MessageCircle,
+        title: "Searching the Help Center",
+        summary: "Find guidance for common MusikAralan questions.",
+        icon: Search,
         instructions: [
-          "Open the Music Helper chatbot.",
-          "Type a short question about using MusikAralan, then send it.",
+          "Open the Help Center from the bottom-right corner of your dashboard.",
+          "Enter a keyword or question and select Search to view matching help entries.",
           "If you still need help, contact your teacher or class administrator.",
         ],
       },

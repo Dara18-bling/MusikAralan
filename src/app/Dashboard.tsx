@@ -16,7 +16,7 @@ import {
 import { DASHBOARD_VIEW, NAV, type Role } from "./AppTypes";
 import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
-import { Chatbot } from "./Chatbot";
+import { HelpSearch } from "./HelpSearch";
 import { Gospel } from "../student/Gospel";
 
 export function Dashboard() {
@@ -302,7 +302,7 @@ export function Dashboard() {
           )}
         </main>
       </div>
-      {(role === "student" || role === "admin") && <Chatbot isAdmin={role === "admin"} />}
+      {(role === "student" || role === "admin") && <HelpSearch isAdmin={role === "admin"} />}
     </div>
   );
 }

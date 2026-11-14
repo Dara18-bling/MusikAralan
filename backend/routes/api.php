@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::post('/assessments/{assessment}/attempts', [LearningController::class, 'submitAssessmentAttempt']);
 
         Route::get('/announcements', [AnnouncementController::class, 'index']);
+        Route::get('/chatbot-responses/search', [ChatbotController::class, 'search']);
         Route::get('/chatbot-responses', [ChatbotController::class, 'index']);
         Route::middleware('role:admin')->group(function (): void {
             Route::post('/gospel-verses', [GospelVerseController::class, 'store']);

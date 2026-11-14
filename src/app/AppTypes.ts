@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
-  MessageCircle,
   Music,
   User,
   Users,
@@ -49,7 +48,7 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
     ["news", Megaphone, "Announcements"],
     ["gospel", BookHeart, "Gospel Verses"],
     ["classes", BookOpen, "Manage Classes"],
-    ["bot", MessageCircle, "Chatbot Replies"],
+    ["bot", LifeBuoy, "Help Search Content"],
     ["profile", User, "Admin Profile"],
   ],
 };
