@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { FileText, Video } from "lucide-react";
 import { toast } from "react-toastify";
-import { apiDelete, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../api";
+import {
+  apiDelete,
+  POLL_INTERVAL_HOUR,
+  refreshApi,
+  watchApi,
+} from "../api";
 import { Card } from "../ui";
 import { StudentMaterialViewer } from "../student/StudentMaterialViewer";
 import type { Material } from "../student/StudentClassWorkspace";
@@ -35,7 +40,7 @@ export function TeacherMaterials({ classId, className }: TeacherMaterialsProps) 
         setLoadError(true);
         setLoaded(true);
       },
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
   }, [classId]);
 

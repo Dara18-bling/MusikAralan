@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 import { Breadcrumbs } from "../app/Breadcrumbs";
 import {
   apiPost,
-  POLL_INTERVAL_TWO_MINUTES,
+  POLL_INTERVAL_HOUR,
   refreshApi,
   watchApi,
 } from "../api";
@@ -142,7 +142,7 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class materials:"),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
     const stopAssessments = watchApi<{ data: AssessmentSummary[] }>(
       `${classPath}/assessments`,
@@ -151,7 +151,7 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class assessments:"),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
     const stopClassmates = watchApi<{ count: number }>(
       `${classPath}/students`,
@@ -160,7 +160,7 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load classmates:"),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
     const stopProgress = watchApi<{ progress: Progress }>(
       `${classPath}/progress`,
@@ -169,7 +169,7 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class progress:"),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
     const stopSchedules = watchApi<{ data: Schedule[] }>(
       "/schedules",
@@ -178,7 +178,7 @@ export function StudentClassWorkspace({
         setLoading(false);
       },
       reportError("Could not load class sessions:"),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
 
     return () => {

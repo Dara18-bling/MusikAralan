@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiPost, apiRequest, POLL_INTERVAL_TWO_MINUTES, refreshApi, watchApi } from "../../api";
+import {
+  apiPost,
+  apiRequest,
+  POLL_INTERVAL_HOUR,
+  refreshApi,
+  watchApi,
+} from "../../api";
 import {
   ensureAbsoluteUrl,
   parseAndConvertMediaUrl,
@@ -61,7 +67,7 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
       },
       (error) =>
         console.error("Could not load published class materials:", error),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
   }, [classId]);
 

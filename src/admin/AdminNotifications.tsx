@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserRound, UserRoundPen } from "lucide-react";
-import { apiGet, watchApi } from "../api";
+import { apiGet, POLL_INTERVAL_HOUR, watchApi } from "../api";
 import { Btn, Card, Title } from "../ui";
 
 interface PendingAccountRequest {
@@ -64,7 +64,7 @@ export function AdminNotifications({
         );
         setEditRequestsLoading(false);
       },
-      60_000,
+      POLL_INTERVAL_HOUR,
     );
   }, [pendingEditCount]);
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch } from "../api";
+import { apiGet, apiPatch, POLL_INTERVAL_HOUR } from "../api";
 import { Btn, Card, Input, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
@@ -114,7 +114,10 @@ export function AdminAccounts({
 
   useEffect(() => {
     void fetchUsers();
-    const interval = window.setInterval(() => void fetchUsers(), 60_000);
+    const interval = window.setInterval(
+      () => void fetchUsers(),
+      POLL_INTERVAL_HOUR,
+    );
     return () => window.clearInterval(interval);
   }, [fetchUsers]);
 

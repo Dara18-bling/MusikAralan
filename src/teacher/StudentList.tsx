@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { POLL_INTERVAL_TWO_MINUTES, watchApi } from "../api";
+import { POLL_INTERVAL_HOUR, watchApi } from "../api";
 import { Card, Pill } from "../ui";
 
 interface RosterStudent {
@@ -74,7 +74,7 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
         setLoadError("Could not load enrolled students.");
         setLoading(false);
       },
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
   }, [classId, page, studentIds.join("|")]);
 
@@ -87,7 +87,7 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
       `/classes/${classId}/materials`,
       ({ data }) => setMaterialCount(data.length),
       (error) => console.error("Could not load class material count:", error),
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
   }, [classId]);
 

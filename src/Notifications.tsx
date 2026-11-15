@@ -5,7 +5,7 @@ import {
   apiPatch,
   apiPost,
   POLL_INTERVAL_DAY,
-  POLL_INTERVAL_TEN_MINUTES,
+  POLL_INTERVAL_HOUR,
   refreshApi,
   watchApi,
 } from "./api";
@@ -66,7 +66,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }, (listenerError) => {
       console.error("Could not load announcements:", listenerError);
       setError("Announcements are unavailable right now.");
-    }, POLL_INTERVAL_TEN_MINUTES);
+    }, POLL_INTERVAL_HOUR);
 
     const unsubscribeSavedNotifications = watchApi<{ data: any[] }>("/notifications", ({ data }) => {
       setSavedNotifications(data.map((item) => ({
@@ -91,7 +91,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     }, (listenerError) => {
       console.error("Could not load saved notifications:", listenerError);
       setError("Saved notifications are unavailable right now.");
-    }, POLL_INTERVAL_TEN_MINUTES);
+    }, POLL_INTERVAL_HOUR);
 
     const unsubscribeClasses = watchApi<{ data: any[] }>("/classes", ({ data }) => {
       if (role === "teacher") {

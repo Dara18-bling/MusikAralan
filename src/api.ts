@@ -5,8 +5,7 @@ const API_BASE_URL = (
 const AUTH_TOKEN_KEY = "musikAralanApiToken";
 
 export const POLL_INTERVAL_DAY = 24 * 60 * 60 * 1000;
-export const POLL_INTERVAL_TEN_MINUTES = 60 * 60 * 1000;
-export const POLL_INTERVAL_TWO_MINUTES = 60 * 60 * 1000;
+export const POLL_INTERVAL_HOUR = 60 * 60 * 1000;
 
 const apiWatchers = new Map<string, Set<() => void>>();
 let activeApiRequests = 0;

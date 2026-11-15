@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 import {
   ApiError,
   apiPost,
-  POLL_INTERVAL_TWO_MINUTES,
+  POLL_INTERVAL_HOUR,
   refreshApi,
   watchApi,
 } from "../api";
@@ -62,7 +62,7 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
           setClassesLoaded(true);
           toast.error("Could not load your classes.");
         },
-        POLL_INTERVAL_TWO_MINUTES,
+        POLL_INTERVAL_HOUR,
       ),
     [userId],
   );

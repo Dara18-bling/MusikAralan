@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import {
   apiPatch,
   POLL_INTERVAL_DAY,
-  POLL_INTERVAL_TWO_MINUTES,
+  POLL_INTERVAL_HOUR,
   refreshApi,
   watchApi,
 } from "./api";
@@ -77,7 +77,7 @@ export default function Teacher({ view, userId, go }: TeacherProps) {
         console.error("Could not load assigned classes:", error);
         setClassesLoaded(true);
       },
-      POLL_INTERVAL_TWO_MINUTES,
+      POLL_INTERVAL_HOUR,
     );
   }, [userId]);
 
