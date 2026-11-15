@@ -164,6 +164,40 @@ class RelationalSchemaTest extends TestCase
         Auth::forgetGuards();
     }
 
+    public function test_student_can_leave_an_enrolled_class(): void
+    {
+        $teacher = User::query()->create([
+            'firebase_uid' => 'leave-class-teacher',
+            'name' => 'Leave Class Teacher',
+            'email' => 'leave-class-teacher@example.test',
+            'role' => 'teacher',
+            'status' => 'approved',
+        ]);
+        $student = User::query()->create([
+            'firebase_uid' => 'leave-class-student',
+            'name' => 'Leave Class Student',
+            'email' => 'leave-class-student@example.test',
+            'role' => 'student',
+            'status' => 'approved',
+        ]);
+        $class = Classroom::query()->create([
+            'name' => 'Leave Class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+
+        $this->withToken($student->createToken('leave-class')->plainTextToken)
+            ->deleteJson("/api/classes/{$class->id}/enroll")
+            ->assertOk()
+            ->assertJsonPath('left', true)
+            ->assertJsonPath('classId', (string) $class->id);
+
+        $this->assertDatabaseMissing('enrollments', [
+            'class_id' => $class->id,
+            'student_id' => $student->id,
+        ]);
+    }
+
     public function test_authenticated_user_can_update_contact_details_without_verification_status(): void
     {
         $user = User::query()->create([

@@ -181,6 +181,20 @@ class ClassController extends Controller
         });
     }
 
+    public function leave(Request $request, Classroom $class): JsonResponse
+    {
+        $student = $request->attributes->get('app_user');
+        abort_unless($student->role === 'student', 403);
+
+        $removed = $class->students()->detach($student->id);
+        abort_unless($removed > 0, 404, 'You are not enrolled in this class.');
+
+        return response()->json([
+            'left' => true,
+            'classId' => (string) $class->id,
+        ]);
+    }
+
     public function students(Request $request, Classroom $class): JsonResponse
     {
         $user = $request->attributes->get('app_user');

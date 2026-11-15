@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import { toast } from "react-toastify";
 import { Breadcrumbs } from "../app/Breadcrumbs";
 import {
+  apiDelete,
   apiPost,
   POLL_INTERVAL_HOUR,
   refreshApi,
@@ -88,7 +89,8 @@ export type WorkspaceTab =
   | "materials"
   | "live"
   | "assessments"
-  | "completion";
+  | "completion"
+  | "leave";
 
 interface StudentClassWorkspaceProps {
   classInfo: ClassCatalogItem;
@@ -97,6 +99,7 @@ interface StudentClassWorkspaceProps {
   selectedMaterialId: string;
   onSelectTab: (tab: WorkspaceTab) => void;
   onOpenMaterial: (materialId: string) => void;
+  onLeaveClass: () => void;
 }
 
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -105,6 +108,7 @@ const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "live", label: "Live Sessions" },
   { id: "assessments", label: "Assessments" },
   { id: "completion", label: "Completion Requirements" },
+  { id: "leave", label: "Leave class" },
 ];
 
 export function StudentClassWorkspace({
@@ -114,6 +118,7 @@ export function StudentClassWorkspace({
   selectedMaterialId,
   onSelectTab,
   onOpenMaterial,
+  onLeaveClass,
 }: StudentClassWorkspaceProps) {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
@@ -253,6 +258,27 @@ export function StudentClassWorkspace({
     }
   };
 
+  const leaveClass = async () => {
+    if (
+      !window.confirm(
+        `Leave ${classInfo.name}? You will lose access to this class and its materials.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiDelete(`/classes/${classInfo.id}/enroll`);
+      toast.success(`You left ${classInfo.name}.`);
+      onLeaveClass();
+    } catch (requestError) {
+      console.error("Could not leave class:", requestError);
+      toast.error(
+        `Could not leave this class: ${requestError instanceof Error ? requestError.message : "Please check your connection and try again."}`,
+      );
+    }
+  };
+
   const downloadCertificate = () => {
     if (!certificateAvailable) return;
     const certificate = new jsPDF({ orientation: "landscape" });
@@ -368,8 +394,12 @@ export function StudentClassWorkspace({
               onClick={() => onSelectTab(tab.id)}
               className={`-mb-px border-b-2 px-4 py-3 text-sm font-semibold transition ${
                 activeTab === tab.id
-                  ? "border-[var(--p1)] text-p1"
-                  : "border-transparent text-mute hover:border-line hover:text-ink"
+                  ? tab.id === "leave"
+                    ? "border-red-600 text-red-700"
+                    : "border-[var(--p1)] text-p1"
+                  : tab.id === "leave"
+                    ? "border-transparent text-red-600 hover:border-red-300 hover:text-red-700"
+                    : "border-transparent text-mute hover:border-line hover:text-ink"
               }`}
             >
               {tab.label}
@@ -618,6 +648,26 @@ export function StudentClassWorkspace({
               </button>
             </Card>
           </>
+        )}
+
+        {activeTab === "leave" && (
+          <Card className="border-red-300 bg-red-50">
+            <Label>Danger zone</Label>
+            <h2 className="mt-2 font-display text-2xl text-red-800">
+              Leave this class
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-red-700">
+              Leaving removes your enrollment and access to this class&apos;s
+              materials, assessments, sessions, and completion progress.
+            </p>
+            <button
+              type="button"
+              onClick={() => void leaveClass()}
+              className="mt-5 rounded-full bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              Leave {classInfo.name}
+            </button>
+          </Card>
         )}
       </section>
     </>

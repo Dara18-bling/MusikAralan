@@ -24,6 +24,7 @@ const WORKSPACE_TABS: WorkspaceTab[] = [
   "live",
   "assessments",
   "completion",
+  "leave",
 ];
 
 export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
@@ -157,6 +158,26 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
               : `/student/classes/${selectedClass.id}/materials`,
           )
         }
+        onLeaveClass={() => {
+          setEnrolledClassIds((current) =>
+            current.filter((id) => id !== selectedClass.id),
+          );
+          setClassCatalog((current) =>
+            current.map((classItem) =>
+              classItem.id === selectedClass.id
+                ? {
+                    ...classItem,
+                    enrolledStudentIds: (classItem.enrolledStudentIds || []).filter(
+                      (id) => id !== userId,
+                    ),
+                  }
+                : classItem,
+            ),
+          );
+          refreshApi("/classes");
+          refreshApi("/dashboard");
+          navigate("/student/materials");
+        }}
       />
     );
   }

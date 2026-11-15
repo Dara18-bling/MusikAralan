@@ -49,6 +49,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::post('/classes/{class}/notifications', [UserNotificationController::class, 'notifyClass']);
         Route::get('/classes/{class}/enrollment-notice', [ClassController::class, 'enrollmentNotice']);
         Route::post('/classes/{class}/enroll', [ClassController::class, 'enrollment']);
+        Route::delete('/classes/{class}/enroll', [ClassController::class, 'leave']);
         Route::get('/classes/{class}/students', [ClassController::class, 'students']);
         Route::get('/classes/{class}/materials', [LearningController::class, 'materials']);
         Route::post('/classes/{class}/materials', [LearningController::class, 'createMaterial']);
