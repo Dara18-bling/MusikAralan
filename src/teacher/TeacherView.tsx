@@ -18,7 +18,8 @@ export function ExpiryBanner({
     return watchApi<{ user: { accessUntil?: string | null } }>(
       "/me",
       ({ user }) => setAccessUntil(String(user.accessUntil || "")),
-      (error) => console.error("Could not load teacher access end date:", error),
+      (error) =>
+        console.error("Could not load teacher access end date:", error),
     );
   }, [userId]);
 
@@ -49,7 +50,10 @@ export function ExpiryBanner({
   const progress =
     remainingMs === null
       ? 0
-      : Math.max(0, Math.min(100, (remainingMs / (30 * 24 * 60 * 60 * 1000)) * 100));
+      : Math.max(
+          0,
+          Math.min(100, (remainingMs / (30 * 24 * 60 * 60 * 1000)) * 100),
+        );
 
   return (
     <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-p2/30 bg-p2-soft px-4 py-3 text-sm">
@@ -59,11 +63,16 @@ export function ExpiryBanner({
       <span className="flex-1">
         {expiryDate ? (
           expired ? (
-            <>{teacherName}, your guest access expired on <b>{expiryLabel}</b>.</>
+            <>
+              {teacherName}, your guest access expired on <b>{expiryLabel}</b>.
+            </>
           ) : (
             <>
               {teacherName}, your guest access ends in{" "}
-              <b>{days} d {hours} h {minutes} m</b> ({expiryLabel}).
+              <b>
+                {days} d {hours} h {minutes} m
+              </b>{" "}
+              ({expiryLabel}).
             </>
           )
         ) : (

@@ -64,7 +64,7 @@ export function AdminNotifications({
         );
         setEditRequestsLoading(false);
       },
-      15_000,
+      60_000,
     );
   }, [pendingEditCount]);
 
@@ -81,7 +81,9 @@ export function AdminNotifications({
             <div className="flex items-center gap-3">
               <UserRound className="h-6 w-6 text-p1" aria-hidden="true" />
               <div>
-                <h2 className="font-display text-xl font-bold">Account requests</h2>
+                <h2 className="font-display text-xl font-bold">
+                  Account requests
+                </h2>
                 <p className="text-sm text-mute">
                   {pendingCount} pending approval{pendingCount === 1 ? "" : "s"}
                 </p>
@@ -99,7 +101,9 @@ export function AdminNotifications({
                   className="flex flex-wrap items-center justify-between gap-2 py-3"
                 >
                   <div>
-                    <p className="font-semibold">{request.name || "New account"}</p>
+                    <p className="font-semibold">
+                      {request.name || "New account"}
+                    </p>
                     <p className="text-sm text-mute">{request.email}</p>
                   </div>
                   <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
@@ -120,9 +124,12 @@ export function AdminNotifications({
             <div className="flex items-center gap-3">
               <UserRoundPen className="h-6 w-6 text-p1" aria-hidden="true" />
               <div>
-                <h2 className="font-display text-xl font-bold">Profile edit requests</h2>
+                <h2 className="font-display text-xl font-bold">
+                  Profile edit requests
+                </h2>
                 <p className="text-sm text-mute">
-                  {pendingEditCount} pending edit{pendingEditCount === 1 ? "" : "s"}
+                  {pendingEditCount} pending edit
+                  {pendingEditCount === 1 ? "" : "s"}
                 </p>
               </div>
             </div>
@@ -134,12 +141,20 @@ export function AdminNotifications({
             </Btn>
           </div>
           {editRequestError && (
-            <p role="alert" className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-700">
+            <p
+              role="alert"
+              className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-700"
+            >
               Could not load profile edit requests: {editRequestError}
             </p>
           )}
-          {editRequestsLoading && editRequests.length === 0 && !editRequestError ? (
-            <p role="status" className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-mute">
+          {editRequestsLoading &&
+          editRequests.length === 0 &&
+          !editRequestError ? (
+            <p
+              role="status"
+              className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-mute"
+            >
               Loading profile edit requests…
             </p>
           ) : editRequests.length > 0 ? (

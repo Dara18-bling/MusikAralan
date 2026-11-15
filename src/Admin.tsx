@@ -47,7 +47,8 @@ export default function Admin({ view }: { view: AdminView }) {
         setAccountListenerError("");
         if (
           !initialSnapshot &&
-          summary.pendingCount > (previousPendingCount.current ?? summary.pendingCount)
+          summary.pendingCount >
+            (previousPendingCount.current ?? summary.pendingCount)
         ) {
           const newRequests = summary.pendingRequests
             .filter((user) => !knownUserIds.current.has(user.id))
@@ -57,7 +58,7 @@ export default function Admin({ view }: { view: AdminView }) {
             setNewRequestNotice(
               newRequests.length === 1
                 ? `New access request from ${newRequests[0]}.`
-                : `${newRequests.length} new access requests received.`
+                : `${newRequests.length} new access requests received.`,
             );
           } else {
             setNewRequestNotice("New access request received.");
@@ -65,7 +66,9 @@ export default function Admin({ view }: { view: AdminView }) {
           window.clearTimeout(noticeTimer);
           noticeTimer = window.setTimeout(() => setNewRequestNotice(""), 8000);
         }
-        knownUserIds.current = new Set(summary.pendingRequests.map((user) => user.id));
+        knownUserIds.current = new Set(
+          summary.pendingRequests.map((user) => user.id),
+        );
         previousPendingCount.current = summary.pendingCount;
         initialSnapshot = false;
         setLoading(false);
@@ -75,11 +78,11 @@ export default function Admin({ view }: { view: AdminView }) {
         setAccountListenerError(
           error instanceof Error
             ? error.message
-            : "Could not receive live account requests."
+            : "Could not receive live account requests.",
         );
         setLoading(false);
       },
-      15_000,
+      60_000,
     );
 
     return () => {
@@ -88,12 +91,24 @@ export default function Admin({ view }: { view: AdminView }) {
     };
   }, []);
 
-  useEffect(() => watchApi<{ dashboard: { users: number; classes: number; modules: number; materials: number } }>(
-    "/dashboard",
-    ({ dashboard }) => setDashboardData(dashboard),
-    (error) => console.error("Could not load admin dashboard metrics:", error),
-    POLL_INTERVAL_TWO_MINUTES,
-  ), []);
+  useEffect(
+    () =>
+      watchApi<{
+        dashboard: {
+          users: number;
+          classes: number;
+          modules: number;
+          materials: number;
+        };
+      }>(
+        "/dashboard",
+        ({ dashboard }) => setDashboardData(dashboard),
+        (error) =>
+          console.error("Could not load admin dashboard metrics:", error),
+        POLL_INTERVAL_TWO_MINUTES,
+      ),
+    [],
+  );
 
   if (view === "dash") {
     return (
@@ -113,7 +128,9 @@ export default function Admin({ view }: { view: AdminView }) {
       <AdminAccounts
         newRequestNotice={newRequestNotice}
         accountListenerError={accountListenerError}
-        pendingProfileEditRequestCount={adminUserSummary?.pendingProfileEditRequestCount ?? 0}
+        pendingProfileEditRequestCount={
+          adminUserSummary?.pendingProfileEditRequestCount ?? 0
+        }
       />
     );
   }

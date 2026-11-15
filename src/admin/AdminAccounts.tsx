@@ -114,7 +114,7 @@ export function AdminAccounts({
 
   useEffect(() => {
     void fetchUsers();
-    const interval = window.setInterval(() => void fetchUsers(), 15_000);
+    const interval = window.setInterval(() => void fetchUsers(), 60_000);
     return () => window.clearInterval(interval);
   }, [fetchUsers]);
 

@@ -75,6 +75,95 @@ class RelationalSchemaTest extends TestCase
         $this->getJson('/api/me')->assertUnauthorized();
     }
 
+    public function test_teacher_roster_is_paginated_and_progress_queries_are_batched(): void
+    {
+        $teacher = User::query()->create([
+            'firebase_uid' => 'roster-teacher',
+            'name' => 'Roster Teacher',
+            'email' => 'roster-teacher@example.test',
+            'role' => 'teacher',
+            'status' => 'approved',
+        ]);
+        $class = Classroom::query()->create([
+            'name' => 'Roster Pagination Class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $students = [];
+        for ($index = 1; $index <= 12; $index++) {
+            $student = User::query()->create([
+                'firebase_uid' => "roster-student-{$index}",
+                'name' => sprintf('Roster Student %02d', $index),
+                'email' => "roster-student-{$index}@example.test",
+                'role' => 'student',
+                'status' => 'approved',
+            ]);
+            $class->students()->attach($student->id, ['enrolled_at' => now()]);
+            $students[] = $student;
+        }
+
+        $material = Material::query()->create([
+            'class_id' => $class->id,
+            'teacher_id' => $teacher->id,
+            'title' => 'Roster lesson',
+            'description' => 'Lesson for roster progress.',
+            'kind' => 'Module',
+        ]);
+        DB::table('material_completions')->insert([
+            'student_id' => $students[0]->id,
+            'material_id' => $material->id,
+            'completed_at' => now(),
+        ]);
+        $assessment = Assessment::query()->create([
+            'class_id' => $class->id,
+            'title' => 'Roster assessment',
+            'passing_percent' => 70,
+        ]);
+        DB::table('assessment_attempts')->insert([
+            'assessment_id' => $assessment->id,
+            'student_id' => $students[0]->id,
+            'score' => 90,
+            'passed' => true,
+            'submitted_at' => now(),
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $firstPage = $this->withToken($teacher->createToken('roster-page-one')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/students?page=1");
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $firstPage
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('currentPage', 1)
+            ->assertJsonPath('lastPage', 2)
+            ->assertJsonPath('perPage', 10)
+            ->assertJsonPath('total', 12)
+            ->assertJsonPath('from', 1)
+            ->assertJsonPath('to', 10)
+            ->assertJsonPath('data.0.classProgress.completedMaterialIds.0', (string) $material->id)
+            ->assertJsonPath('data.0.classProgress.assessmentScore', 90)
+            ->assertJsonPath('data.0.classProgress.assessmentPassed', true);
+
+        $progressQueries = collect($queries)->filter(
+            fn (array $query): bool => str_contains($query['query'], 'material_completions')
+                || str_contains($query['query'], 'assessment_attempts'),
+        );
+        $this->assertCount(3, $progressQueries);
+
+        Auth::forgetGuards();
+        $this->withToken($teacher->createToken('roster-page-two')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/students?page=2")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('currentPage', 2)
+            ->assertJsonPath('from', 11)
+            ->assertJsonPath('to', 12)
+            ->assertJsonPath('data.0.name', 'Roster Student 11');
+        Auth::forgetGuards();
+    }
+
     public function test_authenticated_user_can_update_contact_details_without_verification_status(): void
     {
         $user = User::query()->create([

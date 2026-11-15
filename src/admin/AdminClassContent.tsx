@@ -88,6 +88,7 @@ export function AdminClassContent({
         )}
         {activeTab === "students" && (
           <StudentList
+            key={classInfo.id}
             classId={classInfo.id}
             studentIds={classInfo.enrolledStudentIds || []}
           />

@@ -13,6 +13,8 @@ use Illuminate\Validation\Rule;
 
 class ClassController extends Controller
 {
+    private const STUDENTS_PER_PAGE = 10;
+
     private const SOFT_CLASS_LIMIT = 3;
 
     private const HARD_CLASS_LIMIT = 5;
@@ -193,10 +195,86 @@ class ClassController extends Controller
         } else {
             $this->ensureAssignedTeacher($request, $class);
         }
+        $validated = $request->validate([
+            'page' => ['sometimes', 'integer', 'min:1'],
+        ]);
         $studentsQuery = $class->students()->where('users.status', 'approved');
-        $students = $studentsQuery->orderBy('users.name')->get();
+        $students = $studentsQuery->orderBy('users.name')->orderBy('users.id')->paginate(
+            self::STUDENTS_PER_PAGE,
+            ['users.*'],
+            'page',
+            $validated['page'] ?? 1,
+        );
+        $studentIds = $students->getCollection()->modelKeys();
 
-        $data = $students->map(function (User $student) use ($class): array {
+        $completedMaterials = collect();
+        $deletedCompletedMaterials = collect();
+        $latestAttempts = collect();
+        if ($studentIds !== []) {
+            $completedMaterials = DB::table('material_completions')
+                ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+                ->whereIn('material_completions.student_id', $studentIds)
+                ->where('materials.class_id', $class->id)
+                ->whereNull('materials.deleted_at')
+                ->get([
+                    'material_completions.student_id',
+                    'material_completions.material_id',
+                ])
+                ->groupBy('student_id');
+
+            $deletedCompletedMaterials = DB::table('material_completions')
+                ->join('materials', 'materials.id', '=', 'material_completions.material_id')
+                ->whereIn('material_completions.student_id', $studentIds)
+                ->where('materials.class_id', $class->id)
+                ->whereNotNull('materials.deleted_at')
+                ->orderBy('material_completions.completed_at')
+                ->get([
+                    'material_completions.student_id',
+                    'materials.id',
+                    'materials.title',
+                    'material_completions.completed_at',
+                ])
+                ->groupBy('student_id');
+
+            $latestAttemptsByStudent = DB::table('assessment_attempts')
+                ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
+                ->where('assessments.class_id', $class->id)
+                ->whereIn('assessment_attempts.student_id', $studentIds)
+                ->select('assessment_attempts.student_id')
+                ->selectRaw('MAX(assessment_attempts.submitted_at) as latest_submitted_at')
+                ->groupBy('assessment_attempts.student_id');
+
+            $latestAttempts = DB::table('assessment_attempts')
+                ->joinSub($latestAttemptsByStudent, 'latest_attempts', function ($join): void {
+                    $join->on(
+                        'assessment_attempts.student_id',
+                        '=',
+                        'latest_attempts.student_id',
+                    )->on(
+                        'assessment_attempts.submitted_at',
+                        '=',
+                        'latest_attempts.latest_submitted_at',
+                    );
+                })
+                ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
+                ->where('assessments.class_id', $class->id)
+                ->orderByDesc('assessment_attempts.id')
+                ->get([
+                    'assessment_attempts.student_id',
+                    'assessment_attempts.score',
+                    'assessment_attempts.passed',
+                ])
+                ->unique('student_id')
+                ->keyBy('student_id');
+        }
+
+        $data = $students->getCollection()->map(function (User $student) use (
+            $completedMaterials,
+            $deletedCompletedMaterials,
+            $latestAttempts,
+        ): array {
+            $attempt = $latestAttempts->get($student->id);
+
             return [
                 'id' => (string) $student->id,
                 'name' => $student->name,
@@ -204,11 +282,35 @@ class ClassController extends Controller
                 'birthday' => $student->birthday?->format('Y-m-d'),
                 'birthYear' => $student->birth_year,
                 'status' => $student->status,
-                'classProgress' => $this->studentProgress($student, $class),
+                'classProgress' => [
+                    'completedMaterialIds' => $completedMaterials
+                        ->get($student->id, collect())
+                        ->pluck('material_id')
+                        ->map(fn ($id) => (string) $id)
+                        ->all(),
+                    'deletedCompletedMaterials' => $deletedCompletedMaterials
+                        ->get($student->id, collect())
+                        ->map(fn ($material) => [
+                            'id' => (string) $material->id,
+                            'title' => $material->title,
+                            'completedAt' => $material->completed_at,
+                        ])
+                        ->all(),
+                    'assessmentScore' => $attempt?->score,
+                    'assessmentPassed' => (bool) ($attempt?->passed ?? false),
+                ],
             ];
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => $data,
+            'currentPage' => $students->currentPage(),
+            'lastPage' => $students->lastPage(),
+            'perPage' => $students->perPage(),
+            'total' => $students->total(),
+            'from' => $students->firstItem(),
+            'to' => $students->lastItem(),
+        ]);
     }
 
     public function enrollmentNotice(Request $request, Classroom $class): JsonResponse
@@ -329,45 +431,4 @@ class ClassController extends Controller
         abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
     }
 
-    private function studentProgress(User $student, Classroom $class): array
-    {
-        $completed = DB::table('material_completions')
-            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
-            ->where('material_completions.student_id', $student->id)
-            ->where('materials.class_id', $class->id)
-            ->whereNull('materials.deleted_at')
-            ->pluck('material_completions.material_id')
-            ->map(fn ($id) => (string) $id)
-            ->all();
-        $deletedCompletedMaterials = DB::table('material_completions')
-            ->join('materials', 'materials.id', '=', 'material_completions.material_id')
-            ->where('material_completions.student_id', $student->id)
-            ->where('materials.class_id', $class->id)
-            ->whereNotNull('materials.deleted_at')
-            ->orderBy('material_completions.completed_at')
-            ->get([
-                'materials.id',
-                'materials.title',
-                'material_completions.completed_at',
-            ])
-            ->map(fn ($material) => [
-                'id' => (string) $material->id,
-                'title' => $material->title,
-                'completedAt' => $material->completed_at,
-            ])
-            ->all();
-        $attempt = DB::table('assessment_attempts')
-            ->join('assessments', 'assessments.id', '=', 'assessment_attempts.assessment_id')
-            ->where('assessment_attempts.student_id', $student->id)
-            ->where('assessments.class_id', $class->id)
-            ->orderByDesc('assessment_attempts.submitted_at')
-            ->first();
-
-        return [
-            'completedMaterialIds' => $completed,
-            'deletedCompletedMaterials' => $deletedCompletedMaterials,
-            'assessmentScore' => $attempt?->score,
-            'assessmentPassed' => (bool) ($attempt?->passed ?? false),
-        ];
-    }
 }
