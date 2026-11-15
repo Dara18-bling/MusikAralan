@@ -147,12 +147,16 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         abort_unless(
-            $user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id,
+            $user->role === 'admin'
+                || ($user->role === 'teacher' && (int) $class->teacher_id === (int) $user->id),
             403,
         );
 
         $item = $class->materials()->withTrashed()->findOrFail($material);
-        abort_unless((int) $item->teacher_id === (int) $user->id, 403);
+        abort_unless(
+            $user->role === 'admin' || (int) $item->teacher_id === (int) $user->id,
+            403,
+        );
 
         $fileDeleted = false;
         if (is_string($item->storage_path) && $item->storage_path !== '') {
@@ -312,6 +316,7 @@ class LearningController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'passingPercent' => ['required', 'integer', 'between:0,100'],
             'allowsRetakes' => ['sometimes', 'boolean'],
+            'shuffleOrder' => ['sometimes', 'boolean'],
             'questions' => ['required', 'array', 'min:1'],
             'questions.*.q' => ['required', 'string'],
             'questions.*.type' => ['required', Rule::in(['multiple', 'truefalse', 'identification'])],
@@ -344,6 +349,7 @@ class LearningController extends Controller
             $assessment->title = $data['title'];
             $assessment->passing_percent = $data['passingPercent'];
             $assessment->allows_retakes = $data['allowsRetakes'] ?? true;
+            $assessment->shuffle_order = $data['shuffleOrder'] ?? ($assessment->shuffle_order ?? false);
             $assessment->save();
             $assessment->questions()->delete();
             foreach (array_values($data['questions']) as $position => $question) {
@@ -700,8 +706,9 @@ class LearningController extends Controller
             'mediaUrl' => $this->materialUrl($material->media_url, $material->storage_path),
             'streamUrl' => $this->materialUrl($material->stream_url, $material->storage_path),
             'teacherName' => $material->teacher?->name,
-            'canDelete' => $user?->role === 'teacher'
-                && (int) $material->teacher_id === (int) $user->id,
+            'canDelete' => $user?->role === 'admin'
+                || ($user?->role === 'teacher'
+                    && (int) $material->teacher_id === (int) $user->id),
             'createdAt' => $material->created_at?->toISOString(),
             'isAssignment' => $material->is_assignment,
             'availableFrom' => $material->available_from?->toISOString(),
@@ -743,6 +750,7 @@ class LearningController extends Controller
             'title' => $assessment->title,
             'passingPercent' => $assessment->passing_percent,
             'allowsRetakes' => $assessment->allows_retakes,
+            'shuffleOrder' => $assessment->shuffle_order,
             'questions' => $assessment->questions->map(function (AssessmentQuestion $question) use ($includeAnswers): array {
                 $payload = [
                     'id' => (string) $question->id,

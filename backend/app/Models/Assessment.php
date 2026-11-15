@@ -8,12 +8,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Assessment extends Model
 {
-    protected $fillable = ['class_id', 'module_id', 'assessment_code', 'title', 'passing_percent', 'allows_retakes'];
+    protected $fillable = [
+        'class_id',
+        'module_id',
+        'assessment_code',
+        'title',
+        'passing_percent',
+        'allows_retakes',
+        'shuffle_order',
+    ];
 
     protected function casts(): array
     {
         return [
             'allows_retakes' => 'boolean',
+            'shuffle_order' => 'boolean',
         ];
     }
 

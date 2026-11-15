@@ -265,6 +265,68 @@ class DashboardAndScheduleTest extends TestCase
             ->assertOk();
     }
 
+    public function test_assessment_shuffle_order_can_be_toggled(): void
+    {
+        $teacher = $this->createUser('assessment-shuffle-teacher@example.test', 'teacher');
+        $student = $this->createUser('assessment-shuffle-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Assessment shuffle class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $teacherToken = $teacher->createToken('assessment-shuffle-teacher')->plainTextToken;
+        $question = [[
+            'q' => 'Which clef is used for higher notes?',
+            'o' => ['Treble', 'Bass'],
+            'a' => 0,
+            'type' => 'multiple',
+        ]];
+
+        $assessmentId = $this->withToken($teacherToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'Music basics',
+                'passingPercent' => 70,
+                'questions' => $question,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('assessment.shuffleOrder', false)
+            ->json('assessment.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessment-shuffle-student')->plainTextToken)
+            ->getJson("/api/assessments/{$assessmentId}")
+            ->assertOk()
+            ->assertJsonPath('assessment.shuffleOrder', false);
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->putJson("/api/assessments/{$assessmentId}", [
+                'title' => 'Music basics',
+                'passingPercent' => 70,
+                'shuffleOrder' => true,
+                'questions' => $question,
+            ])
+            ->assertOk()
+            ->assertJsonPath('assessment.shuffleOrder', true);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessment-shuffle-enabled')->plainTextToken)
+            ->getJson("/api/assessments/{$assessmentId}")
+            ->assertOk()
+            ->assertJsonPath('assessment.shuffleOrder', true);
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->putJson("/api/assessments/{$assessmentId}", [
+                'title' => 'Music basics',
+                'passingPercent' => 70,
+                'shuffleOrder' => false,
+                'questions' => $question,
+            ])
+            ->assertOk()
+            ->assertJsonPath('assessment.shuffleOrder', false);
+    }
+
     public function test_class_can_have_multiple_assessments_with_isolated_questions_and_attempts(): void
     {
         $teacher = $this->createUser('multiple-assessments-teacher@example.test', 'teacher');
@@ -690,6 +752,79 @@ class DashboardAndScheduleTest extends TestCase
         $this->withToken($otherTeacher->createToken('unauthorized-private-material')->plainTextToken)
             ->getJson("/api/classes/{$class->id}/materials")
             ->assertForbidden();
+    }
+
+    public function test_admin_can_manage_class_materials_and_view_student_assessment_progress(): void
+    {
+        $admin = $this->createUser('class-content-admin@example.test', 'admin');
+        $teacher = $this->createUser('class-content-teacher@example.test', 'teacher');
+        $student = $this->createUser('class-content-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Admin-managed class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $material = Material::query()->create([
+            'class_id' => $class->id,
+            'teacher_id' => $teacher->id,
+            'title' => 'Lesson notes',
+            'description' => 'Class lesson notes.',
+            'kind' => 'Module',
+            'media_url' => 'https://example.test/lesson.pdf',
+            'stream_url' => 'https://example.test/lesson.pdf',
+        ]);
+        $adminToken = $admin->createToken('class-content-admin')->plainTextToken;
+
+        $this->withToken($adminToken)
+            ->getJson("/api/classes/{$class->id}/materials")
+            ->assertOk()
+            ->assertJsonPath('data.0.title', 'Lesson notes')
+            ->assertJsonPath('data.0.mediaUrl', 'https://example.test/lesson.pdf')
+            ->assertJsonPath('data.0.canDelete', true);
+
+        $assessmentId = $this->withToken($adminToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'Music basics',
+                'passingPercent' => 70,
+                'questions' => [[
+                    'q' => 'Which clef is used for higher notes?',
+                    'o' => ['Treble', 'Bass'],
+                    'a' => 0,
+                    'type' => 'multiple',
+                ]],
+            ])
+            ->assertCreated()
+            ->json('assessment.id');
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('class-content-student')->plainTextToken)
+            ->postJson("/api/assessments/{$assessmentId}/attempts", [
+                'answers' => ['0'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('attempt.score', 100);
+
+        Auth::forgetGuards();
+        $this->withToken($adminToken)
+            ->getJson("/api/assessments/{$assessmentId}")
+            ->assertOk()
+            ->assertJsonPath('assessment.questions.0.q', 'Which clef is used for higher notes?')
+            ->assertJsonPath('assessment.questions.0.a', 0);
+
+        Auth::forgetGuards();
+        $this->withToken($adminToken)
+            ->getJson("/api/classes/{$class->id}/students")
+            ->assertOk()
+            ->assertJsonPath('data.0.classProgress.assessmentScore', 100)
+            ->assertJsonPath('data.0.classProgress.assessmentPassed', true);
+
+        Auth::forgetGuards();
+        $this->withToken($adminToken)
+            ->deleteJson("/api/classes/{$class->id}/materials/{$material->id}")
+            ->assertOk()
+            ->assertJsonPath('deleted', true);
+
+        $this->assertSoftDeleted('materials', ['id' => $material->id]);
     }
 
     public function test_teacher_can_soft_delete_their_upload_and_student_history_shows_deleted_notice(): void

@@ -39,7 +39,38 @@ interface AssessmentQuestion {
 }
 
 interface AssessmentDetails extends AssessmentSummary {
+  shuffleOrder: boolean;
   questions: AssessmentQuestion[];
+}
+
+interface DisplayQuestion {
+  questionIndex: number;
+  optionIndexes: number[];
+}
+
+function shuffledIndexes(length: number): number[] {
+  const indexes = Array.from({ length }, (_, index) => index);
+  for (let index = indexes.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
+  }
+  return indexes;
+}
+
+function getDisplayQuestions(assessment: AssessmentDetails): DisplayQuestion[] {
+  const questionIndexes = assessment.shuffleOrder
+    ? shuffledIndexes(assessment.questions.length)
+    : assessment.questions.map((_, index) => index);
+
+  return questionIndexes.map((questionIndex) => {
+    const question = assessment.questions[questionIndex];
+    return {
+      questionIndex,
+      optionIndexes: assessment.shuffleOrder
+        ? shuffledIndexes(question.o.length)
+        : question.o.map((_, index) => index),
+    };
+  });
 }
 
 interface StudentAssessmentsProps {
@@ -55,6 +86,7 @@ export function StudentAssessments({
   const [selectedAssessment, setSelectedAssessment] =
     useState<AssessmentDetails | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [displayQuestions, setDisplayQuestions] = useState<DisplayQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedScores, setExpandedScores] = useState("");
@@ -83,6 +115,7 @@ export function StudentAssessments({
         `/assessments/${assessmentId}`,
       );
       setSelectedAssessment(assessment);
+      setDisplayQuestions(getDisplayQuestions(assessment));
       setAnswers({});
     } catch (error) {
       console.error("Could not load assessment questions:", error);
@@ -95,8 +128,9 @@ export function StudentAssessments({
   const submitAssessment = async () => {
     if (!selectedAssessment) return;
     if (
-      selectedAssessment.questions.some(
-        (_, index) => answers[index] === undefined || answers[index] === "",
+      displayQuestions.some(
+        ({ questionIndex }) =>
+          answers[questionIndex] === undefined || answers[questionIndex] === "",
       )
     ) {
       toast.warning("Answer every question before submitting.");
@@ -146,6 +180,7 @@ export function StudentAssessments({
           : `Assessment score: ${attempt.score}%. Review the materials and try again.`,
       );
       setSelectedAssessment(null);
+      setDisplayQuestions([]);
       setAnswers({});
     } catch (error) {
       console.error("Could not submit assessment:", error);
@@ -176,50 +211,57 @@ export function StudentAssessments({
           sub={`Passing score: ${selectedAssessment.passingPercent}%`}
         />
         <div className="mt-5 grid gap-4">
-          {selectedAssessment.questions.map((question, index) => (
-            <Card key={question.id}>
-              <fieldset>
-                <legend className="font-semibold">
-                  {index + 1}. {question.q}
-                </legend>
-                {question.type === "identification" ? (
-                  <input
-                    value={answers[index] || ""}
-                    onChange={(event) =>
-                      setAnswers((current) => ({
-                        ...current,
-                        [index]: event.target.value,
-                      }))
-                    }
-                    placeholder="Your answer"
-                    className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
-                  />
-                ) : (
-                  <div className="mt-3 grid gap-2">
-                    {question.o.map((option, optionIndex) => (
-                      <label
-                        key={optionIndex}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="radio"
-                          name={`assessment-${selectedAssessment.id}-question-${index}`}
-                          checked={answers[index] === String(optionIndex)}
-                          onChange={() =>
-                            setAnswers((current) => ({
-                              ...current,
-                              [index]: String(optionIndex),
-                            }))
-                          }
-                        />
-                        {option}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </fieldset>
-            </Card>
-          ))}
+          {displayQuestions.map(
+            ({ questionIndex, optionIndexes }, displayIndex) => {
+              const question = selectedAssessment.questions[questionIndex];
+              return (
+                <Card key={question.id}>
+                  <fieldset>
+                    <legend className="font-semibold">
+                      {displayIndex + 1}. {question.q}
+                    </legend>
+                    {question.type === "identification" ? (
+                      <input
+                        value={answers[questionIndex] || ""}
+                        onChange={(event) =>
+                          setAnswers((current) => ({
+                            ...current,
+                            [questionIndex]: event.target.value,
+                          }))
+                        }
+                        placeholder="Your answer"
+                        className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                      />
+                    ) : (
+                      <div className="mt-3 grid gap-2">
+                        {optionIndexes.map((optionIndex) => (
+                          <label
+                            key={optionIndex}
+                            className="flex items-center gap-2 text-sm"
+                          >
+                            <input
+                              type="radio"
+                              name={`assessment-${selectedAssessment.id}-question-${question.id}`}
+                              checked={
+                                answers[questionIndex] === String(optionIndex)
+                              }
+                              onChange={() =>
+                                setAnswers((current) => ({
+                                  ...current,
+                                  [questionIndex]: String(optionIndex),
+                                }))
+                              }
+                            />
+                            {question.o[optionIndex]}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+                </Card>
+              );
+            },
+          )}
           <button
             type="button"
             onClick={() => void submitAssessment()}

@@ -4,6 +4,7 @@ import { ApiError, apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import type { ClassFilter } from "./adminTypes";
+import { AdminClassContent } from "./AdminClassContent";
 
 interface AdminClassesProps {
   accountTeachers: string[];
@@ -11,6 +12,7 @@ interface AdminClassesProps {
 
 export function AdminClasses({ accountTeachers }: AdminClassesProps) {
   const [managedClasses, setManagedClasses] = useState<ClassCatalogItem[]>([]);
+  const [contentClass, setContentClass] = useState<ClassCatalogItem | null>(null);
   const [editingClass, setEditingClass] = useState<ClassCatalogItem | null>(null);
   const [classFilter, setClassFilter] = useState<ClassFilter>("all");
   const [classSearch, setClassSearch] = useState("");
@@ -205,6 +207,15 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     return matchesFilter && terms.every((term) => searchableText.includes(term));
   });
 
+  if (contentClass) {
+    return (
+      <AdminClassContent
+        classInfo={contentClass}
+        onBack={() => setContentClass(null)}
+      />
+    );
+  }
+
   return (
     <>
       <Title
@@ -286,6 +297,13 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
                     </td>
                     <td className="py-4">
                       <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setContentClass(c)}
+                          className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
+                        >
+                          Manage content
+                        </button>
                         {c.deleted ? (
                           <button
                             type="button"

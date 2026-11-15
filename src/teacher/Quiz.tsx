@@ -21,6 +21,7 @@ interface AssessmentSummary {
 }
 
 interface AssessmentDetails extends AssessmentSummary {
+  shuffleOrder: boolean;
   questions: Question[];
 }
 
@@ -37,11 +38,7 @@ const emptyQuestion = (): Question => ({
   type: "multiple",
 });
 
-export function Quiz({
-  classId,
-  assessmentId,
-  onAssessmentChange,
-}: QuizProps) {
+export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
   const [assessmentsLoaded, setAssessmentsLoaded] = useState(false);
   const [assessmentCode, setAssessmentCode] = useState("");
@@ -49,6 +46,7 @@ export function Quiz({
   const [title, setTitle] = useState("");
   const [passingPercent, setPassingPercent] = useState(70);
   const [allowsRetakes, setAllowsRetakes] = useState(true);
+  const [shuffleOrder, setShuffleOrder] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -57,6 +55,7 @@ export function Quiz({
     setTitle("");
     setPassingPercent(70);
     setAllowsRetakes(true);
+    setShuffleOrder(false);
     setQs([emptyQuestion()]);
   };
 
@@ -68,6 +67,7 @@ export function Quiz({
       setTitle("");
       setPassingPercent(70);
       setAllowsRetakes(true);
+      setShuffleOrder(false);
       setQs([emptyQuestion()]);
       return;
     }
@@ -118,6 +118,7 @@ export function Quiz({
         setTitle(assessment.title);
         setPassingPercent(assessment.passingPercent);
         setAllowsRetakes(assessment.allowsRetakes ?? true);
+        setShuffleOrder(assessment.shuffleOrder ?? false);
         setQs(
           assessment.questions.length
             ? assessment.questions.map((question) => ({
@@ -184,6 +185,7 @@ export function Quiz({
         questions: qs,
         passingPercent,
         allowsRetakes,
+        shuffleOrder,
       };
       const response = assessmentId
         ? await apiPut<{ assessment: AssessmentDetails }>(
@@ -200,6 +202,7 @@ export function Quiz({
       setTitle(assessment.title);
       setPassingPercent(assessment.passingPercent);
       setAllowsRetakes(assessment.allowsRetakes ?? true);
+      setShuffleOrder(assessment.shuffleOrder ?? false);
       setQs(
         assessment.questions.map((question) => ({
           ...question,
@@ -288,6 +291,17 @@ export function Quiz({
             />
             Allow students to retake this assessment
           </label>
+          <div className="grid gap-1">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={shuffleOrder}
+                disabled={saving || loading}
+                onChange={(event) => setShuffleOrder(event.target.checked)}
+              />
+              Shuffle questions and answers
+            </label>
+          </div>
         </Card>
 
         {qs.map((question, index) => (

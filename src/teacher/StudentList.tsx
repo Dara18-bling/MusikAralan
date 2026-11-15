@@ -55,7 +55,7 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
               const birthYear = Number(s.birthYear || s.birthday?.slice(0, 4));
               const age = birthYear > 0 ? new Date().getFullYear() - birthYear : null;
               const ageGroup = age === null ? "Not provided" : age <= 12 ? "Kids" : age <= 25 ? "Youth" : "Adults";
-              const progress = classId ? s.classProgress?.[classId] || {} : {};
+              const progress = s.classProgress || {};
               const completedCount = Array.isArray(progress.completedMaterialIds) ? progress.completedMaterialIds.length : 0;
               return (
                 <tr key={s.id}>
