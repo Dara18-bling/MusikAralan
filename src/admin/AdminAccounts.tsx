@@ -11,7 +11,9 @@ function getMessengerUrl(value: unknown): string | null {
 
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+    return url.protocol === "https:" || url.protocol === "http:"
+      ? url.href
+      : null;
   } catch {
     return null;
   }
@@ -45,7 +47,9 @@ export function AdminAccounts({
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>({});
+  const [rolesToAssign, setRolesToAssign] = useState<Record<string, string>>(
+    {},
+  );
   const [accessDates, setAccessDates] = useState<Record<string, string>>({});
   const [activeFilter, setActiveFilter] = useState<AccountFilter>("pending");
   const [showEditRequests, setShowEditRequests] = useState(
@@ -61,7 +65,13 @@ export function AdminAccounts({
   const [editPhone, setEditPhone] = useState("");
   const [editMessengerLink, setEditMessengerLink] = useState("");
   const [savingUser, setSavingUser] = useState(false);
-  const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(null);
+  const [statusConfirmation, setStatusConfirmation] = useState<{
+    user: any;
+    newStatus: "inactive" | "approved";
+  } | null>(null);
+  const [teacherDateUserId, setTeacherDateUserId] = useState<string | null>(
+    null,
+  );
   const requestId = useRef(0);
 
   const fetchUsers = useCallback(async () => {
@@ -155,7 +165,9 @@ export function AdminAccounts({
     } catch (error) {
       console.error("Could not update account details:", error);
       toast.error(
-        error instanceof Error ? error.message : "Could not update account details.",
+        error instanceof Error
+          ? error.message
+          : "Could not update account details.",
       );
     } finally {
       setSavingUser(false);
@@ -165,10 +177,10 @@ export function AdminAccounts({
   const updateAccountStatus = async (
     uid: string,
     newStatus: UserStatus,
-    roleToAssign?: string
+    roleToAssign?: string,
   ) => {
     const isPendingRequest = users.some(
-      (user) => user.id === uid && user.status === "pending"
+      (user) => user.id === uid && user.status === "pending",
     );
     if (
       isPendingRequest &&
@@ -177,7 +189,9 @@ export function AdminAccounts({
       !accessDates[uid]
     ) {
       setTeacherDateUserId(uid);
-      toast.warning("Set an access end date before approving a teacher account.");
+      toast.warning(
+        "Set an access end date before approving a teacher account.",
+      );
       return;
     }
     try {
@@ -197,7 +211,7 @@ export function AdminAccounts({
       toast.error(
         `Could not update account${error.code ? ` (${error.code})` : ""}: ${
           error.message || "Check your API connection and try again."
-        }`
+        }`,
       );
     }
   };
@@ -253,211 +267,234 @@ export function AdminAccounts({
           </button>
         </div>
         {showEditRequests ? (
-          <AdminProfileEditRequests pendingCount={pendingProfileEditRequestCount} />
+          <AdminProfileEditRequests
+            pendingCount={pendingProfileEditRequestCount}
+          />
         ) : (
           <>
-        <input
-          type="search"
-          value={accountSearch}
-          onChange={(event) => setAccountSearch(event.target.value)}
-          placeholder="Search name, email, account type, or status..."
-          aria-label="Search accounts by name, email, account type, or status"
-          className="mb-4 w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-p1"
-        />
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["all", "All"],
-                ["student", "Students"],
-                ["teacher", "Teachers"],
-                ["admin", "Admins"],
-                ["pending", "Pending"],
-                ["activated", "Activated"],
-                ["deactivated", "Deactivated"],
-              ] as [AccountFilter, string][]
-            ).map(([filter, label]) => (
-              <button
-                key={filter}
-                onClick={() => {
-                  setActiveFilter(filter);
-                  setCurrentPage(1);
-                }}
-                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
-                  activeFilter === filter
-                    ? "bg-p1 text-white"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
+            <input
+              type="search"
+              value={accountSearch}
+              onChange={(event) => setAccountSearch(event.target.value)}
+              placeholder="Search name, email, account type, or status..."
+              aria-label="Search accounts by name, email, account type, or status"
+              className="mb-4 w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-p1"
+            />
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["all", "All"],
+                    ["student", "Students"],
+                    ["teacher", "Teachers"],
+                    ["admin", "Admins"],
+                    ["pending", "Pending"],
+                    ["activated", "Activated"],
+                    ["deactivated", "Deactivated"],
+                  ] as [AccountFilter, string][]
+                ).map(([filter, label]) => (
+                  <button
+                    key={filter}
+                    onClick={() => {
+                      setActiveFilter(filter);
+                      setCurrentPage(1);
+                    }}
+                    className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
+                      activeFilter === filter
+                        ? "bg-p1 text-white"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <Btn variant="ghost" onClick={() => void fetchUsers()}>
+                {loading ? "Refreshing..." : "Refresh List"}
+              </Btn>
+            </div>
+            {listError && (
+              <p
+                role="alert"
+                className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700"
               >
-                {label}
-              </button>
-            ))}
-          </div>
-          <Btn variant="ghost" onClick={() => void fetchUsers()}>
-            {loading ? "Refreshing..." : "Refresh List"}
-          </Btn>
-        </div>
-        {listError && (
-          <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
-            Could not load accounts: {listError}
-          </p>
-        )}
-        {loading && users.length === 0 && !listError ? (
-          <div className="py-10 text-center text-mute">Loading accounts…</div>
-        ) : total === 0 ? (
-          <div className="text-center py-10 text-mute">
-            No {activeFilter} accounts right now.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-mute">
-                  <th className="pb-3 font-medium">Name</th>
-                  <th className="pb-3 font-medium">Email</th>
-                  <th className="pb-3 font-medium">Messenger</th>
-                  {activeFilter !== "pending" && (
-                    <th className="pb-3 font-medium">Account type</th>
-                  )}
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Requested</th>
-                  {activeFilter === "pending" && (
-                    <th className="pb-3 font-medium">User type</th>
-                  )}
-                  <th className="pb-3 text-center font-medium">Details</th>
-                  <th className="pb-3 text-center font-medium">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {users.map((u) => {
-                  const currentRole = rolesToAssign[u.id] || u.role || "student";
-                  const messengerUrl = getMessengerUrl(u.messengerLink);
-                  return (
-                    <tr key={u.id}>
-                      <td className="py-4 font-semibold">{u.name}</td>
-                      <td className="py-4">{u.email}</td>
-                      <td className="max-w-48 truncate py-4">
-                        {messengerUrl ? (
-                          <a
-                            href={messengerUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-p1 underline"
-                            title={u.messengerLink}
-                          >
-                            {u.messengerLink}
-                          </a>
-                        ) : (
-                          u.messengerLink || "—"
-                        )}
-                      </td>
+                Could not load accounts: {listError}
+              </p>
+            )}
+            {loading && users.length === 0 && !listError ? (
+              <div className="py-10 text-center text-mute">
+                Loading accounts…
+              </div>
+            ) : total === 0 ? (
+              <div className="text-center py-10 text-mute">
+                No {activeFilter} accounts right now.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-line text-mute">
+                      <th className="pb-3 font-medium">Name</th>
+                      <th className="pb-3 font-medium">Email</th>
+                      <th className="pb-3 font-medium">Messenger</th>
                       {activeFilter !== "pending" && (
-                        <td className="py-4 capitalize">
-                          {activeFilter === "all" && u.status === "pending"
-                            ? "Pending"
-                            : u.role || "—"}
-                        </td>
+                        <th className="pb-3 font-medium">Account type</th>
                       )}
-                      <td className="py-4 capitalize">{u.status || "—"}</td>
-                      <td className="py-4">
-                        {u.dateRequested
-                          ? new Date(u.dateRequested).toLocaleDateString()
-                          : "—"}
-                      </td>
+                      <th className="pb-3 font-medium">Status</th>
+                      <th className="pb-3 font-medium">Requested</th>
                       {activeFilter === "pending" && (
-                        <td className="py-4">
-                          {u.status === "pending" && (
-                            <select
-                              aria-label={`Role for ${u.name}`}
-                              value={currentRole}
-                              onChange={(e) => {
-                                const role = e.target.value;
-                                handleRoleChange(u.id, role);
-                                if (role === "teacher") setTeacherDateUserId(u.id);
-                              }}
-                              className="rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-semibold"
-                            >
-                              <option value="student">Student</option>
-                              <option value="teacher">Teacher</option>
-                              <option value="admin">Admin</option>
-                            </select>
-                          )}
-                        </td>
+                        <th className="pb-3 font-medium">User type</th>
                       )}
-                      <td className="py-4 text-center">
-                        <button
-                          onClick={() => setSelectedUser(u)}
-                          className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-200"
-                        >
-                          View
-                        </button>
-                      </td>
-                      <td className="py-4">
-                        <div className="flex justify-center gap-2">
-                          {u.status === "pending" ? (
-                            <>
-                              <button
-                                onClick={() =>
-                                  updateAccountStatus(u.id, "approved", currentRole)
-                                }
-                                className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => updateAccountStatus(u.id, "rejected")}
-                                className="rounded-full border border-red-200 text-red-500 px-4 py-1.5 font-semibold hover:bg-red-50"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                updateAccountStatus(
-                                  u.id,
-                                  u.status === "approved" ? "inactive" : "approved",
-                                  u.role || "student"
-                                )
-                              }
-                              className="rounded-full border border-orange-200 text-orange-500 px-4 py-1.5 font-semibold hover:bg-orange-50"
-                            >
-                              {u.status === "approved" ? "Deactivate" : "Activate"}
-                            </button>
-                          )}
-                        </div>
-                      </td>
+                      <th className="pb-3 text-center font-medium">Details</th>
+                      <th className="pb-3 text-center font-medium">Action</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div className="mt-5 flex flex-col items-center gap-2">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-              disabled={currentPage <= 1 || loading}
-              className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={() => setCurrentPage((page) => Math.min(lastPage, page + 1))}
-              disabled={currentPage >= lastPage || loading}
-              className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-          <p className="text-sm text-mute" aria-live="polite">
-            Showing {firstResult}–{lastResult} out of {total} accounts · Page{" "}
-            {currentPage} out of {lastPage}
-          </p>
-        </div>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {users.map((u) => {
+                      const currentRole =
+                        rolesToAssign[u.id] || u.role || "student";
+                      const messengerUrl = getMessengerUrl(u.messengerLink);
+                      return (
+                        <tr key={u.id}>
+                          <td className="py-4 font-semibold">{u.name}</td>
+                          <td className="py-4">{u.email}</td>
+                          <td className="max-w-48 truncate py-4">
+                            {messengerUrl ? (
+                              <a
+                                href={messengerUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-p1 underline"
+                                title={u.messengerLink}
+                              >
+                                {u.messengerLink}
+                              </a>
+                            ) : (
+                              u.messengerLink || "—"
+                            )}
+                          </td>
+                          {activeFilter !== "pending" && (
+                            <td className="py-4 capitalize">
+                              {activeFilter === "all" && u.status === "pending"
+                                ? "Pending"
+                                : u.role || "—"}
+                            </td>
+                          )}
+                          <td className="py-4 capitalize">{u.status || "—"}</td>
+                          <td className="py-4">
+                            {u.dateRequested
+                              ? new Date(u.dateRequested).toLocaleDateString()
+                              : "—"}
+                          </td>
+                          {activeFilter === "pending" && (
+                            <td className="py-4">
+                              {u.status === "pending" && (
+                                <select
+                                  aria-label={`Role for ${u.name}`}
+                                  value={currentRole}
+                                  onChange={(e) => {
+                                    const role = e.target.value;
+                                    handleRoleChange(u.id, role);
+                                    if (role === "teacher")
+                                      setTeacherDateUserId(u.id);
+                                  }}
+                                  className="rounded-lg border border-line bg-white px-3 py-1.5 text-sm font-semibold"
+                                >
+                                  <option value="student">Student</option>
+                                  <option value="teacher">Teacher</option>
+                                  <option value="admin">Admin</option>
+                                </select>
+                              )}
+                            </td>
+                          )}
+                          <td className="py-4 text-center">
+                            <button
+                              onClick={() => setSelectedUser(u)}
+                              className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-200"
+                            >
+                              View
+                            </button>
+                          </td>
+                          <td className="py-4">
+                            <div className="flex justify-center gap-2">
+                              {u.status === "pending" ? (
+                                <>
+                                  <button
+                                    onClick={() =>
+                                      updateAccountStatus(
+                                        u.id,
+                                        "approved",
+                                        currentRole,
+                                      )
+                                    }
+                                    className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      updateAccountStatus(u.id, "rejected")
+                                    }
+                                    className="rounded-full border border-red-200 text-red-500 px-4 py-1.5 font-semibold hover:bg-red-50"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    setStatusConfirmation({
+                                      user: u,
+                                      newStatus:
+                                        u.status === "approved"
+                                          ? "inactive"
+                                          : "approved",
+                                    })
+                                  }
+                                  className="rounded-full border border-orange-200 text-orange-500 px-4 py-1.5 font-semibold hover:bg-orange-50"
+                                >
+                                  {u.status === "approved"
+                                    ? "Deactivate"
+                                    : "Reactivate"}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
+                  disabled={currentPage <= 1 || loading}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.min(lastPage, page + 1))
+                  }
+                  disabled={currentPage >= lastPage || loading}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <p className="text-sm text-mute" aria-live="polite">
+                Showing {firstResult}–{lastResult} out of {total} accounts ·
+                Page {currentPage} out of {lastPage}
+              </p>
+            </div>
           </>
         )}
       </Card>
@@ -467,25 +504,38 @@ export function AdminAccounts({
           <Card className="w-full max-w-md">
             <h3 className="text-xl font-bold mb-4">User Details</h3>
             <div className="grid gap-2 break-words">
-              <p><strong>Name:</strong> {selectedUser.name}</p>
-              <p><strong>Email:</strong> {selectedUser.email}</p>
+              <p>
+                <strong>Name:</strong> {selectedUser.name}
+              </p>
+              <p>
+                <strong>Email:</strong> {selectedUser.email}
+              </p>
               <p>
                 <strong>Birthday:</strong>{" "}
                 {selectedUser.birthday
                   ? (() => {
-                      const [year, month, day] = selectedUser.birthday.split("-");
+                      const [year, month, day] =
+                        selectedUser.birthday.split("-");
                       return `${month}/${day}/${year}`;
                     })()
                   : selectedUser.birthYear || "Not provided"}
               </p>
-              {Number(selectedUser.birthYear || selectedUser.birthday?.slice(0, 4)) > 0 && (
+              {Number(
+                selectedUser.birthYear || selectedUser.birthday?.slice(0, 4),
+              ) > 0 && (
                 <p>
                   <strong>Age:</strong>{" "}
                   {new Date().getFullYear() -
-                    Number(selectedUser.birthYear || selectedUser.birthday?.slice(0, 4))}
+                    Number(
+                      selectedUser.birthYear ||
+                        selectedUser.birthday?.slice(0, 4),
+                    )}
                 </p>
               )}
-              <p><strong>Phone Number:</strong> {selectedUser.phoneNumber || "Not provided"}</p>
+              <p>
+                <strong>Phone Number:</strong>{" "}
+                {selectedUser.phoneNumber || "Not provided"}
+              </p>
               <p>
                 <strong>Messenger Link:</strong>{" "}
                 {selectedMessengerUrl ? (
@@ -507,10 +557,16 @@ export function AdminAccounts({
                   {new Date(selectedUser.dateRequested).toLocaleString()}
                 </p>
               )}
-              <p><strong>Role:</strong> {selectedUser.role || "N/A"}</p>
-              <p><strong>Status:</strong> {selectedUser.status}</p>
+              <p>
+                <strong>Role:</strong> {selectedUser.role || "N/A"}
+              </p>
+              <p>
+                <strong>Status:</strong> {selectedUser.status}
+              </p>
               {selectedUser.accessUntil && (
-                <p><strong>Access Until:</strong> {selectedUser.accessUntil}</p>
+                <p>
+                  <strong>Access Until:</strong> {selectedUser.accessUntil}
+                </p>
               )}
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -548,13 +604,20 @@ export function AdminAccounts({
             aria-labelledby="edit-account-title"
             className="my-auto w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
           >
-            <h3 id="edit-account-title" className="font-display text-2xl font-bold">
+            <h3
+              id="edit-account-title"
+              className="font-display text-2xl font-bold"
+            >
               Edit account details
             </h3>
             <p className="mt-1 text-sm text-mute">
-              Update profile and contact information for {editingUser.name || editingUser.email}.
+              Update profile and contact information for{" "}
+              {editingUser.name || editingUser.email}.
             </p>
-            <form className="mt-5 grid gap-4" onSubmit={(event) => void saveUserDetails(event)}>
+            <form
+              className="mt-5 grid gap-4"
+              onSubmit={(event) => void saveUserDetails(event)}
+            >
               <label className="grid gap-1.5 text-sm font-semibold">
                 Full Name
                 <Input
@@ -669,6 +732,58 @@ export function AdminAccounts({
               </button>
             </div>
           </Card>
+        </div>
+      )}
+
+      {statusConfirmation && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-status-confirmation-title"
+            className="w-full max-w-md rounded-2xl border border-line bg-white p-6 shadow-2xl"
+          >
+            <h3
+              id="account-status-confirmation-title"
+              className="font-display text-xl font-bold"
+            >
+              Confirm{" "}
+              {statusConfirmation.newStatus === "inactive"
+                ? "deactivation"
+                : "reactivation"}
+            </h3>
+            <p className="mt-2 text-sm text-mute">
+              Change {statusConfirmation.user.name || "this account"}'s status
+              to {statusConfirmation.newStatus}?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setStatusConfirmation(null)}
+                className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { user, newStatus } = statusConfirmation;
+                  setStatusConfirmation(null);
+                  void updateAccountStatus(
+                    user.id,
+                    newStatus,
+                    user.role || "student",
+                  );
+                }}
+                className="grad rounded-full px-4 py-2 text-sm font-semibold text-white"
+              >
+                Confirm{" "}
+                {statusConfirmation.newStatus === "inactive"
+                  ? "deactivation"
+                  : "reactivation"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </>
