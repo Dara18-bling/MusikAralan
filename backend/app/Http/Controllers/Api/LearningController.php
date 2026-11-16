@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\UserNotificationController;
 use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
 use App\Models\AssignmentSubmission;
@@ -107,6 +108,11 @@ class LearningController extends Controller
             'allow_late_submissions' => $data['allowLateSubmissions'] ?? false,
             'max_points' => $data['maxPoints'] ?? 100,
         ]);
+        UserNotificationController::notifyClassTeacher(
+            $class,
+            'Material uploaded',
+            sprintf('"%s" was uploaded to %s.', $material->title, $class->name),
+        );
 
         return response()->json(['material' => $this->materialPayload($material, $user)], 201);
     }
@@ -200,6 +206,12 @@ class LearningController extends Controller
                 'message' => 'The file was removed, but the material record could not be deleted. Please retry.',
             ], 500);
         }
+
+        UserNotificationController::notifyClassTeacher(
+            $class,
+            'Material removed',
+            sprintf('"%s" was removed from %s.', $item->title, $class->name),
+        );
 
         return response()->json([
             'deleted' => true,
@@ -365,6 +377,12 @@ class LearningController extends Controller
 
             return $assessment->load('questions');
         });
+
+        UserNotificationController::notifyClassTeacher(
+            $class,
+            'Assessment updated',
+            sprintf('The assessment for %s was updated.', $class->name),
+        );
 
         return response()->json(
             ['assessment' => $this->assessmentPayload($assessment, true)],

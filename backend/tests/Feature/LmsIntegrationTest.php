@@ -88,6 +88,59 @@ class LmsIntegrationTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_class_changes_notify_the_current_teacher(): void
+    {
+        $teacher = $this->createUser('content-change-teacher@example.test', 'teacher');
+        $admin = $this->createUser('content-change-admin@example.test', 'admin');
+        $class = Classroom::query()->create([
+            'name' => 'Content changes class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $adminToken = $admin->createToken('content-changes')->plainTextToken;
+
+        $materialId = $this->withToken($adminToken)
+            ->postJson("/api/classes/{$class->id}/materials", [
+                'title' => 'New module',
+                'description' => 'New module description.',
+                'kind' => 'Module',
+                'mediaUrl' => 'https://example.test/module.pdf',
+            ])
+            ->assertCreated()
+            ->json('material.id');
+
+        $this->assertSame(
+            ['Material uploaded'],
+            $teacher->fresh()->notifications()->get()->map(fn ($notification) => $notification->data['title'])->values()->all(),
+        );
+        $this->withToken($adminToken)
+            ->deleteJson("/api/classes/{$class->id}/materials/{$materialId}")
+            ->assertOk();
+        $this->assertSame(
+            ['Material uploaded', 'Material removed'],
+            $teacher->fresh()->notifications()->get()->map(fn ($notification) => $notification->data['title'])->values()->all(),
+        );
+
+        $this->withToken($adminToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'New assessment',
+                'passingPercent' => 70,
+                'questions' => [[
+                    'q' => 'Which note is this?',
+                    'o' => ['A', 'B'],
+                    'a' => 0,
+                    'type' => 'multiple',
+                ]],
+            ])
+            ->assertCreated();
+
+        $notifications = $teacher->fresh()->notifications()->get();
+        $this->assertSame(
+            ['Material uploaded', 'Material removed', 'Assessment updated'],
+            $notifications->map(fn ($notification) => $notification->data['title'])->values()->all(),
+        );
+        $this->assertSame((string) $class->id, (string) $notifications->last()->data['classId']);
+    }
+
     private function createUser(string $email, string $role, string $status = 'approved'): User
     {
         return User::query()->create([

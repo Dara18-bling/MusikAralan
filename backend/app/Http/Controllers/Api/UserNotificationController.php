@@ -106,4 +106,22 @@ class UserNotificationController extends Controller
             ));
         }
     }
+
+    public static function notifyClassTeacher(
+        Classroom $class,
+        string $title,
+        string $content,
+    ): void {
+        $teacher = $class->teacher;
+        if (! $teacher) {
+            return;
+        }
+
+        $teacher->notify(new AppMessageNotification(
+            'class',
+            $title,
+            $content,
+            classId: $class->id,
+        ));
+    }
 }
