@@ -19,6 +19,12 @@ function getMessengerUrl(value: unknown): string | null {
   }
 }
 
+function formatAccessUntil(value: unknown): string {
+  if (typeof value !== "string" || !value) return "—";
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+}
+
 interface AdminAccountsProps {
   newRequestNotice: string;
   accountListenerError: string;
@@ -64,6 +70,7 @@ export function AdminAccounts({
   const [editBirthday, setEditBirthday] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editMessengerLink, setEditMessengerLink] = useState("");
+  const [editAccessUntil, setEditAccessUntil] = useState("");
   const [savingUser, setSavingUser] = useState(false);
   const [statusConfirmation, setStatusConfirmation] = useState<{
     user: any;
@@ -143,6 +150,7 @@ export function AdminAccounts({
     setEditBirthday(user.birthday || "");
     setEditPhone(user.phoneNumber || "");
     setEditMessengerLink(user.messengerLink || "");
+    setEditAccessUntil(user.role === "teacher" ? user.accessUntil || "" : "");
   };
 
   const saveUserDetails = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -150,15 +158,19 @@ export function AdminAccounts({
     if (!editingUser) return;
     setSavingUser(true);
     try {
+      const updateData: Record<string, string | null> = {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        birthday: editBirthday || null,
+        phoneNumber: editPhone.trim() || null,
+        messengerLink: editMessengerLink.trim() || null,
+      };
+      if (editingUser.role === "teacher" && editAccessUntil) {
+        updateData.accessUntil = editAccessUntil;
+      }
       const { user } = await apiPatch<{ user: any }>(
         `/admin/users/${encodeURIComponent(editingUser.id)}`,
-        {
-          name: editName.trim(),
-          email: editEmail.trim(),
-          birthday: editBirthday || null,
-          phoneNumber: editPhone.trim() || null,
-          messengerLink: editMessengerLink.trim() || null,
-        },
+        updateData,
       );
       setUsers((current) =>
         current.map((item) => (item.id === user.id ? user : item)),
@@ -334,7 +346,7 @@ export function AdminAccounts({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-max min-w-[1100px] border-separate border-spacing-x-3 text-left text-sm lg:min-w-[1250px] lg:border-spacing-x-6">
                   <thead>
                     <tr className="border-b border-line text-mute">
                       <th className="pb-3 font-medium">Name</th>
@@ -343,6 +355,7 @@ export function AdminAccounts({
                       {activeFilter !== "pending" && (
                         <th className="pb-3 font-medium">Account type</th>
                       )}
+                      <th className="pb-3 font-medium">Teacher access until</th>
                       <th className="pb-3 font-medium">Status</th>
                       <th className="pb-3 font-medium">Requested</th>
                       {activeFilter === "pending" && (
@@ -383,6 +396,13 @@ export function AdminAccounts({
                                 : u.role || "—"}
                             </td>
                           )}
+                          <td className="py-4">
+                            {u.role === "teacher"
+                              ? formatAccessUntil(
+                                  u.accessUntil || accessDates[u.id],
+                                )
+                              : "—"}
+                          </td>
                           <td className="py-4 capitalize">{u.status || "—"}</td>
                           <td className="py-4">
                             {u.dateRequested
@@ -668,6 +688,19 @@ export function AdminAccounts({
                   placeholder="https://m.me/yourname"
                 />
               </label>
+              {editingUser.role === "teacher" && (
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Access Expiry
+                  <Input
+                    type="date"
+                    value={editAccessUntil}
+                    onChange={(event) => setEditAccessUntil(event.target.value)}
+                  />
+                  <span className="text-xs font-normal text-mute">
+                    The teacher will retain access through this date.
+                  </span>
+                </label>
+              )}
               <div className="flex justify-end gap-2">
                 <button
                   type="button"

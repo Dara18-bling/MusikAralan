@@ -76,11 +76,11 @@ const categories: { title: string; guides: Guide[] }[] = [
     title: "Getting help",
     guides: [
       {
-        title: "Searching the Help Center",
+        title: "Searching the Search Guides",
         summary: "Find guidance for common MusikAralan questions.",
         icon: Search,
         instructions: [
-          "Open the Help Center from the bottom-right corner of your dashboard.",
+          "Open Search Guides from the bottom-right corner of your dashboard.",
           "Enter a keyword or question and select Search to view matching help entries.",
           "If you still need help, contact your teacher or class administrator.",
         ],

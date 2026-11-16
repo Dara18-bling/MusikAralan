@@ -75,7 +75,7 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
                 </span>
                 <div>
                   <h2 id="help-search-title" className="font-display text-xl font-bold">
-                    Help Center
+                    Search Guides
                   </h2>
                   <p className="mt-1 text-sm text-mute">
                     Search guidance for classes, materials, assessments, and your account.
@@ -187,7 +187,7 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
         className="grad ml-auto flex h-14 items-center gap-2 rounded-full px-5 text-base font-semibold text-white shadow-xl transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--p1)]"
       >
         {open ? <X className="h-5 w-5" /> : <Search className="h-5 w-5" />}
-        {open ? "Close" : "Help Center"}
+        {open ? "Close" : "Search Guides"}
       </button>
     </div>
   );

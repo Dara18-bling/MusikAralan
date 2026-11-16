@@ -48,7 +48,7 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
     ["news", Megaphone, "Announcements"],
     ["gospel", BookHeart, "Gospel Verses"],
     ["classes", BookOpen, "Manage Classes"],
-    ["bot", LifeBuoy, "Help Search Content"],
+    ["bot", LifeBuoy, "Search Guides Content"],
     ["profile", User, "Admin Profile"],
   ],
 };

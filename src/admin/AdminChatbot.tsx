@@ -130,7 +130,7 @@ export function AdminChatbot() {
     <>
       <Title
         kicker="Support Tools"
-        title="Help Search Content"
+        title="Search Guides Content"
         sub="Manage the entries learners see when searching for help."
       />
       <Card className="mt-5">

@@ -28,6 +28,14 @@ interface UploadFormProps {
   onPublish: () => void;
 }
 
+const TYPE_DESCRIPTORS: Record<UploadKind, string> = {
+  Module: "Lesson notes, handouts, study guides, worksheets, PDFs, documents, or presentations",
+  "Vocal Guide": "Audio practice tracks, vocal exercises, melody guides, or pronunciation recordings",
+  "Video Guide": "Rehearsal videos, demonstrations, tutorials, or technique walkthroughs",
+  Others: "Reference links, spreadsheets, images, supplementary files, or miscellaneous resources",
+  Assignment: "Student tasks, worksheets, quizzes, projects, or other work to submit",
+};
+
 export function UploadForm({
   kind,
   setKind,
@@ -182,6 +190,9 @@ export function UploadForm({
           </button>
         ))}
       </div>
+      <p className="mt-2 rounded-xl border border-p1/20 bg-p1-soft/30 px-3 py-2 text-xs text-mute">
+        Counts as {kind}: {TYPE_DESCRIPTORS[kind]}.
+      </p>
 
       <div className="mt-5 grid gap-4">
         <label className="grid gap-1.5 text-sm font-semibold">
