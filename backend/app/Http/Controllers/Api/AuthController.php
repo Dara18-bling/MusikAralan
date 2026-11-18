@@ -171,14 +171,10 @@ class AuthController extends Controller
         abort_unless($user->role === 'admin', 403, 'Submit profile changes for administrator review.');
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'birthday' => ['sometimes', 'nullable', 'date', 'before_or_equal:today', 'after_or_equal:1920-01-01'],
         ]);
         if (array_key_exists('name', $data)) {
             $user->name = trim($data['name']);
-        }
-        if (array_key_exists('email', $data)) {
-            $user->email = strtolower($data['email']);
         }
         if (array_key_exists('birthday', $data)) {
             $user->birthday = $data['birthday'];

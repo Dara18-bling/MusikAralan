@@ -172,14 +172,12 @@ export function ProfileView({
       const currentDetails = savedProfile;
       const proposedDetails = {
         name: fullName.trim(),
-        email: email.trim(),
         birthday,
         phone: phone.trim(),
         messengerLink: messengerLink.trim(),
       };
       const changes: Record<string, string | null> = {};
       if (proposedDetails.name !== currentDetails.name) changes.name = proposedDetails.name;
-      if (proposedDetails.email !== currentDetails.email) changes.email = proposedDetails.email;
       if (proposedDetails.birthday !== currentDetails.birthday) changes.birthday = proposedDetails.birthday || null;
       if (proposedDetails.phone !== currentDetails.phone) changes.phoneNumber = proposedDetails.phone || null;
       if (proposedDetails.messengerLink !== currentDetails.messengerLink) {
@@ -194,7 +192,6 @@ export function ProfileView({
       if (role === "admin") {
         const { user } = await apiPatch<{ user: { name: string; email: string; birthday: string | null; phoneNumber: string | null; messengerLink: string | null } }>("/me", {
           name: proposedDetails.name,
-          email: proposedDetails.email,
           birthday: proposedDetails.birthday || null,
         });
         const { user: updatedUser } = await apiPatch<{ user: typeof user }>("/me/contact-details", {
@@ -336,8 +333,8 @@ export function ProfileView({
             <Input
               type="email"
               value={email}
-              disabled={isPendingProfileRequest}
-              onChange={(event) => setEmail(event.target.value)}
+              disabled
+              readOnly
             />
           </Field>
           {role === "admin" && (

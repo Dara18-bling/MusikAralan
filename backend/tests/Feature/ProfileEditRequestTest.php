@@ -50,7 +50,7 @@ class ProfileEditRequestTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.userId', (string) $user->id)
             ->assertJsonPath('data.0.current.name', 'Profile User')
-            ->assertJsonPath('data.0.changes.email', 'updated-profile@example.test');
+            ->assertJsonMissingPath('data.0.changes.email');
 
         Auth::forgetGuards();
         $this->withToken($admin->createToken('profile-approve')->plainTextToken)
@@ -61,7 +61,7 @@ class ProfileEditRequestTest extends TestCase
             ->assertJsonPath('request.status', 'approved');
 
         $this->assertSame('Updated Profile User', $user->fresh()->name);
-        $this->assertSame('updated-profile@example.test', $user->fresh()->email);
+        $this->assertSame('profile-user@example.test', $user->fresh()->email);
         $this->assertSame('1998-06-12', $user->fresh()->birthday->format('Y-m-d'));
         $this->assertSame(1998, $user->fresh()->birth_year);
         $this->assertSame('09171234567', $user->fresh()->phone_number);

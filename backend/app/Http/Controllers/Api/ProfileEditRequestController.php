@@ -33,7 +33,6 @@ class ProfileEditRequestController extends Controller
 
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
-            'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'birthday' => ['sometimes', 'nullable', 'date', 'before_or_equal:today', 'after_or_equal:1920-01-01'],
             'phoneNumber' => ['sometimes', 'nullable', 'regex:/^(?:\\d{11}|\\+[1-9]\\d{7,14})$/'],
             'messengerLink' => ['sometimes', 'nullable', 'string', 'max:2048'],
