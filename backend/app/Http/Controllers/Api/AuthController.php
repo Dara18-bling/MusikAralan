@@ -62,6 +62,10 @@ class AuthController extends Controller
             'birthday' => ['required', 'date', 'before_or_equal:2021-12-31', 'after_or_equal:1920-01-01'],
             'phoneNumber' => ['required', 'regex:/^\\d{11}$/'],
             'messengerLink' => ['nullable', 'string', 'max:2048'],
+        ], [
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'password.regex' => 'Password must include at least one letter, one number, and one special character.',
         ]);
 
         $user = User::query()->create([
@@ -118,6 +122,10 @@ class AuthController extends Controller
             'code' => ['required', 'string', 'size:8', 'alpha_num'],
             'email' => ['required', 'email', 'max:255'],
             'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S+$/'],
+        ], [
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'password.regex' => 'Password must include at least one letter, one number, and one special character.',
         ]);
         $email = strtolower(trim($data['email']));
         $status = DB::transaction(function () use ($data, $email): bool {

@@ -46,12 +46,19 @@ export function hasApiToken() {
 export class ApiError extends Error {
   status: number;
   code?: string;
+  errors?: Record<string, string[]>;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    errors?: Record<string, string[]>,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.errors = errors;
   }
 }
 
@@ -104,12 +111,22 @@ export async function apiRequest<T>(
       }
       const body =
         payload && typeof payload === "object"
-          ? (payload as { message?: string; code?: string })
+          ? (payload as {
+              message?: string;
+              code?: string;
+              errors?: Record<string, string[]>;
+            })
           : {};
+      const validationMessages = body.errors
+        ? Object.values(body.errors).flat().filter(Boolean)
+        : [];
       throw new ApiError(
-        body.message || `Request failed with status ${response.status}.`,
+        validationMessages.length
+          ? validationMessages.join(" ")
+          : body.message || `Request failed with status ${response.status}.`,
         response.status,
         body.code,
+        body.errors,
       );
     }
     return payload as T;
