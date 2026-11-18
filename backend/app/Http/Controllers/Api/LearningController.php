@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Api\UserNotificationController;
 use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
 use App\Models\AssignmentSubmission;
@@ -234,17 +233,25 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
-        $assessments = $class->assessments()->withCount('questions')->orderBy('id')->get();
+        $assessments = $class->assessments()
+            ->withCount('questions')
+            ->when(
+                $user->role === 'student',
+                fn ($query) => $query->with([
+                    'attempts' => fn ($attempts) => $attempts
+                        ->where('student_id', $user->id)
+                        ->latest('submitted_at')
+                        ->orderByDesc('id')
+                        ->limit(10),
+                ]),
+            )
+            ->orderBy('id')
+            ->get();
 
         return response()->json([
             'data' => $assessments->map(function (Assessment $assessment) use ($user): array {
                 $attempts = $user->role === 'student'
-                    ? $assessment->attempts()
-                        ->where('student_id', $user->id)
-                        ->latest('submitted_at')
-                        ->orderByDesc('id')
-                        ->limit(10)
-                        ->get()
+                    ? $assessment->attempts
                     : collect();
                 $latestAttempt = $attempts->first();
 
