@@ -12,8 +12,8 @@ import type { TeacherWorkspaceTab } from "./types";
 const TABS: { id: TeacherWorkspaceTab; label: string }[] = [
   { id: "dashboard", label: "Class Dashboard" },
   { id: "live", label: "Live Sessions" },
-  { id: "upload", label: "Upload Content" },
-  { id: "materials", label: "View Content" },
+  { id: "upload", label: "Upload Material" },
+  { id: "materials", label: "View Material" },
   { id: "assessments", label: "Assessment Builder" },
   { id: "students", label: "My Students" },
   { id: "certifications", label: "Certifications" },
@@ -61,7 +61,11 @@ export function TeacherClassWorkspace({
           { label: classInfo.name },
           ...(activeTab === "dashboard"
             ? []
-            : [{ label: TABS.find((tab) => tab.id === activeTab)?.label || "" }]),
+            : [
+                {
+                  label: TABS.find((tab) => tab.id === activeTab)?.label || "",
+                },
+              ]),
         ]}
       />
       <Title
@@ -132,16 +136,10 @@ export function TeacherClassWorkspace({
           <Meet classes={[classInfo]} fixedClassId={classInfo.id} />
         )}
         {activeTab === "upload" && (
-          <Upload
-            classId={classInfo.id}
-            teacherName={teacherName}
-          />
+          <Upload classId={classInfo.id} teacherName={teacherName} />
         )}
         {activeTab === "materials" && (
-          <TeacherMaterials
-            classId={classInfo.id}
-            className={classInfo.name}
-          />
+          <TeacherMaterials classId={classInfo.id} className={classInfo.name} />
         )}
         {activeTab === "assessments" && (
           <Quiz

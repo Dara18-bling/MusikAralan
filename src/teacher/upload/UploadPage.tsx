@@ -27,6 +27,20 @@ function todayAt(time: "00:00" | "23:59") {
   return `${date}T${time}`;
 }
 
+function currentDateTimeLocal() {
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  const currentTime = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join(":");
+  return `${date}T${currentTime}`;
+}
+
 export function UploadPage({ classId, teacherName }: UploadProps) {
   const [kind, setKind] = useState<UploadKind>("Module");
   const [titlesByKind, setTitlesByKind] = useState<Record<string, string>>({
@@ -41,7 +55,7 @@ export function UploadPage({ classId, teacherName }: UploadProps) {
   const [fileError, setFileError] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [recent, setRecent] = useState<RecentMaterial[]>([]);
-  const [availableFrom, setAvailableFrom] = useState(() => todayAt("00:00"));
+  const [availableFrom, setAvailableFrom] = useState(currentDateTimeLocal);
   const [dueAt, setDueAt] = useState(() => todayAt("23:59"));
   const [allowLateSubmissions, setAllowLateSubmissions] = useState(false);
   const [maxUploadSizeMb, setMaxUploadSizeMb] = useState(8);

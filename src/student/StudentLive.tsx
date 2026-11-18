@@ -31,6 +31,10 @@ export function StudentLive() {
       <div className="grid gap-4">
         {schedules.map((session) => (
           <Card key={session.id} className="flex flex-wrap items-center gap-5">
+            {(() => {
+              const sessionPast = new Date(session.startsAt).getTime() <= Date.now();
+              return (
+                <>
             <div className="grid h-14 w-14 place-items-center rounded-2xl bg-p1-soft text-p1">
               <Video className="h-6 w-6" />
             </div>
@@ -42,12 +46,19 @@ export function StudentLive() {
               {session.description && <p className="mt-1 text-sm text-mute">{session.description}</p>}
             </div>
             {session.joinUrl ? (
-              <a href={session.joinUrl} target="_blank" rel="noreferrer">
-                <Btn className="px-8 py-3 text-base">Open meeting link</Btn>
-              </a>
+              sessionPast ? (
+                <Btn disabled className="px-8 py-3 text-base">Join session</Btn>
+              ) : (
+                <a href={session.joinUrl} target="_blank" rel="noreferrer">
+                  <Btn className="px-8 py-3 text-base">Join session</Btn>
+                </a>
+              )
             ) : (
               <span className="text-sm text-mute">Meeting link not provided</span>
             )}
+                </>
+              );
+            })()}
           </Card>
         ))}
         {!schedules.length && !error && <Card className="py-8 text-center text-mute">No sessions have been scheduled for your classes.</Card>}

@@ -3,6 +3,20 @@ import { Btn, Card, Input } from "../../ui";
 import type { ProcessedMedia, UploadKind } from "./types";
 import { getFileIcon, getLinkPlaceholder, UPLOAD_KINDS } from "./uploadUtils";
 
+function currentDateTimeLocal() {
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  const time = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join(":");
+  return `${date}T${time}`;
+}
+
 interface UploadFormProps {
   kind: UploadKind;
   setKind: (kind: UploadKind) => void;
@@ -222,6 +236,7 @@ export function UploadForm({
                 Opens
                 <Input
                   type="datetime-local"
+                  min={currentDateTimeLocal()}
                   value={availableFrom}
                   onChange={(event) => setAvailableFrom(event.target.value)}
                   required
@@ -231,6 +246,7 @@ export function UploadForm({
                 Due
                 <Input
                   type="datetime-local"
+                  min={currentDateTimeLocal()}
                   value={dueAt}
                   onChange={(event) => setDueAt(event.target.value)}
                   required

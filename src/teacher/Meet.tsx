@@ -26,6 +26,20 @@ interface MeetProps {
   fixedClassId?: string;
 }
 
+function currentDateTimeLocal() {
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  const time = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join(":");
+  return `${date}T${time}`;
+}
+
 export function Meet({ classes, fixedClassId }: MeetProps) {
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [classId, setClassId] = useState("");
@@ -39,12 +53,17 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const stopSchedules = watchApi<{ data: ScheduleItem[] }>("/schedules", ({ data }) => {
-      setSchedules(data);
-    }, (listenerError) => {
-      console.error("Could not load scheduled meetings:", listenerError);
-      setError("Scheduled sessions could not be loaded.");
-    }, POLL_INTERVAL_HOUR);
+    const stopSchedules = watchApi<{ data: ScheduleItem[] }>(
+      "/schedules",
+      ({ data }) => {
+        setSchedules(data);
+      },
+      (listenerError) => {
+        console.error("Could not load scheduled meetings:", listenerError);
+        setError("Scheduled sessions could not be loaded.");
+      },
+      POLL_INTERVAL_HOUR,
+    );
     return () => {
       stopSchedules();
     };
@@ -76,7 +95,11 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
     setTitle(item.title);
     setDescription(item.description || "");
     const date = new Date(item.startsAt);
-    setStartsAt(new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
+    setStartsAt(
+      new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+        .toISOString()
+        .slice(0, 16),
+    );
     setJoinUrl(item.joinUrl || "");
     setError("");
   }
@@ -94,12 +117,15 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
         joinUrl: joinUrl || null,
       };
       if (editingId) {
-        const { schedule } = await apiPut<{ schedule: Omit<ScheduleItem, "canManage"> }>(
-          `/schedules/${encodeURIComponent(editingId)}`,
-          payload,
-        );
+        const { schedule } = await apiPut<{
+          schedule: Omit<ScheduleItem, "canManage">;
+        }>(`/schedules/${encodeURIComponent(editingId)}`, payload);
         setSchedules((current) =>
-          current.map((item) => item.id === editingId ? { ...schedule, canManage: item.canManage } : item),
+          current.map((item) =>
+            item.id === editingId
+              ? { ...schedule, canManage: item.canManage }
+              : item,
+          ),
         );
       } else {
         await apiPost("/schedules", payload);
@@ -109,25 +135,36 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
       resetForm();
     } catch (scheduleError) {
       console.error("Could not save scheduled session:", scheduleError);
-      setError(scheduleError instanceof Error ? scheduleError.message : "The session could not be saved.");
+      setError(
+        scheduleError instanceof Error
+          ? scheduleError.message
+          : "The session could not be saved.",
+      );
     } finally {
       setSending(false);
     }
   }
 
   async function deleteSession(item: ScheduleItem) {
-    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`))
+      return;
     setError("");
     setDeletingId(item.id);
     try {
       await apiDelete(`/schedules/${encodeURIComponent(item.id)}`);
-      setSchedules((current) => current.filter((schedule) => schedule.id !== item.id));
+      setSchedules((current) =>
+        current.filter((schedule) => schedule.id !== item.id),
+      );
       refreshApi("/schedules");
       refreshApi("/dashboard");
       if (editingId === item.id) resetForm();
     } catch (deleteError) {
       console.error("Could not delete scheduled session:", deleteError);
-      setError(deleteError instanceof Error ? deleteError.message : "The session could not be deleted.");
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "The session could not be deleted.",
+      );
     } finally {
       setDeletingId(null);
     }
@@ -140,36 +177,97 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
 
   return (
     <>
-      {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          {error}
+        </p>
+      )}
       <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
         <Card>
           {!classes.length ? (
-            <p className="text-sm text-mute">You need an assigned class before scheduling a student session.</p>
+            <p className="text-sm text-mute">
+              You need an assigned class before scheduling a student session.
+            </p>
           ) : (
-            <form className="grid content-start gap-3" onSubmit={(event) => void scheduleSession(event)}>
+            <form
+              className="grid content-start gap-3"
+              onSubmit={(event) => void scheduleSession(event)}
+            >
               <Label>{editingId ? "Edit session" : "New session"}</Label>
               {fixedClassId ? (
-                <p className="text-sm font-semibold">Class: {fixedClass?.name || "Selected class"}</p>
+                <p className="text-sm font-semibold">
+                  Class: {fixedClass?.name || "Selected class"}
+                </p>
               ) : (
                 <label className="grid gap-1 text-sm font-semibold">
                   Class
-                  <select value={classId} onChange={(event) => setClassId(event.target.value)} required className="rounded-xl border border-line bg-white px-3 py-2">
-                    {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  <select
+                    value={classId}
+                    onChange={(event) => setClassId(event.target.value)}
+                    required
+                    className="rounded-xl border border-line bg-white px-3 py-2"
+                  >
+                    {classes.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
               )}
-              <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Session title" required maxLength={255} />
-              <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Meeting details (optional)" maxLength={10000} className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--p1)] focus:ring-2 focus:ring-p1-soft" />
+              <Input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Session title"
+                required
+                maxLength={255}
+              />
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                placeholder="Meeting details (optional)"
+                maxLength={10000}
+                className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm outline-none focus:border-[var(--p1)] focus:ring-2 focus:ring-p1-soft"
+              />
               <label className="grid gap-1 text-sm font-semibold">
                 Date and time
-                <Input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} required />
+                <Input
+                  type="datetime-local"
+                  min={currentDateTimeLocal()}
+                  value={startsAt}
+                  onChange={(event) => setStartsAt(event.target.value)}
+                  required
+                />
               </label>
-              <Input type="url" value={joinUrl} onChange={(event) => setJoinUrl(event.target.value)} placeholder="Secure meeting link (optional)" />
+              <Input
+                type="url"
+                value={joinUrl}
+                onChange={(event) => setJoinUrl(event.target.value)}
+                placeholder="Secure meeting link (optional)"
+              />
               <Btn disabled={sending || !classId}>
-                {sending ? "Saving session…" : editingId ? "Update session" : "Schedule and notify students"}
+                {sending
+                  ? "Saving session…"
+                  : editingId
+                    ? "Update session"
+                    : "Schedule and notify students"}
               </Btn>
-              {editingId && <button type="button" className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft" onClick={resetForm}>Cancel edit</button>}
-              <p className="text-xs text-mute">Students enrolled in this class receive an in-app notification. Paste a real HTTPS meeting link; the app does not generate one.</p>
+              {editingId && (
+                <button
+                  type="button"
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft"
+                  onClick={resetForm}
+                >
+                  Cancel edit
+                </button>
+              )}
+              <p className="text-xs text-mute">
+                Students enrolled in this class receive an in-app notification.
+                Paste a real HTTPS meeting link; the app does not generate one.
+              </p>
             </form>
           )}
         </Card>
@@ -177,28 +275,82 @@ export function Meet({ classes, fixedClassId }: MeetProps) {
           <Label>Scheduled sessions</Label>
           <ul className="mt-2 divide-y divide-line">
             {visibleSchedules.map((item) => (
-              <li key={item.id} className="flex flex-wrap items-center gap-3 py-3">
-                <span className="flex-1">
-                  <b>{item.title}</b>
-                  <br />
-                  <span className="text-sm text-mute">{item.className || "All students"} · {new Date(item.startsAt).toLocaleString()}</span>
-                </span>
-                {item.joinUrl && (
-                  <button type="button" className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold" onClick={() => void navigator.clipboard?.writeText(item.joinUrl!)}>
-                    Copy link
-                  </button>
-                )}
-                {item.canManage && (
-                  <>
-                    <Btn variant="ghost" onClick={() => editSession(item)}>Edit</Btn>
-                    <Btn variant="ghost" disabled={deletingId === item.id} onClick={() => void deleteSession(item)}>
-                      {deletingId === item.id ? "Deleting…" : "Delete"}
-                    </Btn>
-                  </>
-                )}
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center gap-3 py-3"
+              >
+                {(() => {
+                  const sessionPast =
+                    new Date(item.startsAt).getTime() <= Date.now();
+                  return (
+                    <>
+                      <span className="flex-1">
+                        <b>{item.title}</b>
+                        <br />
+                        <span className="text-sm text-mute">
+                          {item.className || "All students"} ·{" "}
+                          {new Date(item.startsAt).toLocaleString()}
+                        </span>
+                      </span>
+                      {item.joinUrl &&
+                        (sessionPast ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="rounded-full bg-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-500"
+                          >
+                            Join Session
+                          </button>
+                        ) : (
+                          <a
+                            href={item.joinUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-full bg-p1 px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110"
+                          >
+                            Join Session
+                          </a>
+                        ))}
+                      <div className="flex flex-col items-stretch gap-2">
+                        {item.joinUrl && (
+                          <button
+                            type="button"
+                            className="rounded-full border border-line px-3 py-1.5 text-sm font-semibold"
+                            onClick={() =>
+                              void navigator.clipboard?.writeText(item.joinUrl!)
+                            }
+                          >
+                            Copy link
+                          </button>
+                        )}
+                        {item.canManage && (
+                          <>
+                            <Btn
+                              variant="ghost"
+                              onClick={() => editSession(item)}
+                            >
+                              Edit
+                            </Btn>
+                            <Btn
+                              variant="ghost"
+                              disabled={deletingId === item.id}
+                              onClick={() => void deleteSession(item)}
+                            >
+                              {deletingId === item.id ? "Deleting…" : "Delete"}
+                            </Btn>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </li>
             ))}
-            {!visibleSchedules.length && <li className="py-5 text-center text-sm text-mute">No sessions have been scheduled yet.</li>}
+            {!visibleSchedules.length && (
+              <li className="py-5 text-center text-sm text-mute">
+                No sessions have been scheduled yet.
+              </li>
+            )}
           </ul>
         </Card>
       </div>

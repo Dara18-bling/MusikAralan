@@ -199,7 +199,9 @@ export function StudentClassWorkspace({
     const stopSchedules = watchApi<{ data: Schedule[] }>(
       "/schedules",
       ({ data }) => {
-        setSchedules(data.filter((schedule) => schedule.classId === classInfo.id));
+        setSchedules(
+          data.filter((schedule) => schedule.classId === classInfo.id),
+        );
         setLoading(false);
       },
       reportError("Could not load class sessions:"),
@@ -226,8 +228,7 @@ export function StudentClassWorkspace({
   );
   const completedMaterialCount = materials.length - incompleteMaterials.length;
   const completedRequirements =
-    completedMaterialCount +
-    assessments.length - unpassedAssessments.length;
+    completedMaterialCount + assessments.length - unpassedAssessments.length;
   const requirementCount = materials.length + assessments.length;
   const progressTotal = materials.length || assessments.length;
   const completionPercent = progressTotal
@@ -239,16 +240,20 @@ export function StudentClassWorkspace({
           100,
       )
     : 0;
-  const classFinished = requirementCount > 0 && completedRequirements === requirementCount;
+  const classFinished =
+    requirementCount > 0 && completedRequirements === requirementCount;
   const certificateAvailable =
     classFinished && classInfo.certificatesUnlocked !== false;
   const upcomingSessions = useMemo(
     () =>
       schedules
-        .filter((schedule) => new Date(schedule.startsAt).getTime() >= Date.now())
+        .filter(
+          (schedule) => new Date(schedule.startsAt).getTime() >= Date.now(),
+        )
         .sort(
           (left, right) =>
-            new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime(),
+            new Date(left.startsAt).getTime() -
+            new Date(right.startsAt).getTime(),
         ),
     [schedules],
   );
@@ -269,7 +274,10 @@ export function StudentClassWorkspace({
         date: dateKey(date),
         title: schedule.title,
         type: "session",
-        time: date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        time: date.toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
         joinUrl: schedule.joinUrl,
       };
     });
@@ -283,7 +291,10 @@ export function StudentClassWorkspace({
           date: dateKey(date),
           title: material.title,
           type: "opening",
-          time: date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          time: date.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
           materialId: material.id,
         });
       }
@@ -294,13 +305,20 @@ export function StudentClassWorkspace({
           date: dateKey(date),
           title: material.title,
           type: "deadline",
-          time: date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          time: date.toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          }),
           materialId: material.id,
         });
       }
     });
 
-    return events.sort((left, right) => left.date.localeCompare(right.date) || left.time.localeCompare(right.time));
+    return events.sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        left.time.localeCompare(right.time),
+    );
   }, [materials, schedules]);
   const calendarEventsByDate = useMemo(() => {
     const grouped = new Map<string, typeof calendarEvents>();
@@ -328,7 +346,9 @@ export function StudentClassWorkspace({
 
   const markMaterialComplete = async (materialId: string): Promise<boolean> => {
     try {
-      await apiPost(`/classes/${classInfo.id}/materials/${materialId}/complete`);
+      await apiPost(
+        `/classes/${classInfo.id}/materials/${materialId}/complete`,
+      );
       setProgress((current) => ({
         ...current,
         completedMaterialIds: [
@@ -378,10 +398,16 @@ export function StudentClassWorkspace({
     certificate.setFontSize(25);
     certificate.text(userName || "Student", 148, 101, { align: "center" });
     certificate.setFontSize(16);
-    certificate.text(`has completed ${classInfo.name}`, 148, 121, { align: "center" });
+    certificate.text(`has completed ${classInfo.name}`, 148, 121, {
+      align: "center",
+    });
     certificate.setFontSize(12);
-    certificate.text(`Issued ${new Date().toLocaleDateString()}`, 148, 145, { align: "center" });
-    certificate.save(`${classInfo.name.replace(/[^a-z0-9]+/gi, "-")}-certificate.pdf`);
+    certificate.text(`Issued ${new Date().toLocaleDateString()}`, 148, 145, {
+      align: "center",
+    });
+    certificate.save(
+      `${classInfo.name.replace(/[^a-z0-9]+/gi, "-")}-certificate.pdf`,
+    );
   };
 
   if (selectedMaterialId) {
@@ -391,12 +417,20 @@ export function StudentClassWorkspace({
           <Breadcrumbs
             items={[
               { label: "Classes", href: "/student/materials" },
-              { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
-              { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+              {
+                label: classInfo.name,
+                href: `/student/classes/${classInfo.id}/dashboard`,
+              },
+              {
+                label: "Materials",
+                href: `/student/classes/${classInfo.id}/materials`,
+              },
               { label: "Material" },
             ]}
           />
-          <Card className="animate-pulse py-12 text-center text-mute">Loading material…</Card>
+          <Card className="animate-pulse py-12 text-center text-mute">
+            Loading material…
+          </Card>
         </>
       );
     }
@@ -406,8 +440,14 @@ export function StudentClassWorkspace({
           <Breadcrumbs
             items={[
               { label: "Classes", href: "/student/materials" },
-              { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
-              { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+              {
+                label: classInfo.name,
+                href: `/student/classes/${classInfo.id}/dashboard`,
+              },
+              {
+                label: "Materials",
+                href: `/student/classes/${classInfo.id}/materials`,
+              },
               { label: "Material" },
             ]}
           />
@@ -429,8 +469,14 @@ export function StudentClassWorkspace({
         <Breadcrumbs
           items={[
             { label: "Classes", href: "/student/materials" },
-            { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
-            { label: "Materials", href: `/student/classes/${classInfo.id}/materials` },
+            {
+              label: classInfo.name,
+              href: `/student/classes/${classInfo.id}/dashboard`,
+            },
+            {
+              label: "Materials",
+              href: `/student/classes/${classInfo.id}/materials`,
+            },
             { label: selectedMaterial.title },
           ]}
         />
@@ -459,8 +505,14 @@ export function StudentClassWorkspace({
         <Breadcrumbs
           items={[
             { label: "Classes", href: "/student/materials" },
-            { label: classInfo.name, href: `/student/classes/${classInfo.id}/dashboard` },
-            { label: TABS.find((tab) => tab.id === activeTab)?.label || "Dashboard" },
+            {
+              label: classInfo.name,
+              href: `/student/classes/${classInfo.id}/dashboard`,
+            },
+            {
+              label:
+                TABS.find((tab) => tab.id === activeTab)?.label || "Dashboard",
+            },
           ]}
         />
       )}
@@ -471,7 +523,11 @@ export function StudentClassWorkspace({
       />
 
       <div className="mb-6 overflow-x-auto border-b border-line">
-        <div className="flex min-w-max gap-1" role="tablist" aria-label={`${classInfo.name} sections`}>
+        <div
+          className="flex min-w-max gap-1"
+          role="tablist"
+          aria-label={`${classInfo.name} sections`}
+        >
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -504,7 +560,10 @@ export function StudentClassWorkspace({
         className="grid gap-5"
       >
         {error && (
-          <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          >
             {error}
           </p>
         )}
@@ -514,13 +573,21 @@ export function StudentClassWorkspace({
               <Card>
                 <Label>Learning materials</Label>
                 <p className="mt-2 font-display text-3xl">{materials.length}</p>
-                <p className="text-sm text-mute">{completedMaterialIds.length} completed</p>
+                <p className="text-sm text-mute">
+                  {completedMaterialIds.length} completed
+                </p>
               </Card>
               <Card>
                 <Label>Assessments</Label>
-                <p className="mt-2 font-display text-3xl">{assessments.length}</p>
+                <p className="mt-2 font-display text-3xl">
+                  {assessments.length}
+                </p>
                 <p className="text-sm text-mute">
-                  {assessments.filter((item) => item.latestAttempt?.passed).length} passed
+                  {
+                    assessments.filter((item) => item.latestAttempt?.passed)
+                      .length
+                  }{" "}
+                  passed
                 </p>
               </Card>
               <Card>
@@ -535,27 +602,52 @@ export function StudentClassWorkspace({
                 <Label>Next live session</Label>
                 {nextSession ? (
                   <>
-                    <h2 className="mt-2 font-display text-2xl">{nextSession.title}</h2>
-                    <p className="mt-1 text-sm text-mute">{new Date(nextSession.startsAt).toLocaleString()}</p>
+                    <h2 className="mt-2 font-display text-2xl">
+                      {nextSession.title}
+                    </h2>
+                    <p className="mt-1 text-sm text-mute">
+                      {new Date(nextSession.startsAt).toLocaleString()}
+                    </p>
                     {nextSession.joinUrl && (
-                      <a href={nextSession.joinUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white">
+                      <a
+                        href={nextSession.joinUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 inline-flex items-center gap-2 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white"
+                      >
                         <Video className="h-4 w-4" /> Join session
                       </a>
                     )}
                   </>
                 ) : (
-                  <p className="mt-2 text-sm text-mute">No upcoming sessions are scheduled for this class.</p>
+                  <p className="mt-2 text-sm text-mute">
+                    No upcoming sessions are scheduled for this class.
+                  </p>
                 )}
               </Card>
               <Card>
                 <Label>Materials completed</Label>
-                <p className="mt-2 font-display text-4xl">{completionPercent}%</p>
-                <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Class completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
-                  <div className="h-full grad transition-all" style={{ width: `${completionPercent}%` }} />
+                <p className="mt-2 font-display text-4xl">
+                  {completionPercent}%
+                </p>
+                <div
+                  className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100"
+                  role="progressbar"
+                  aria-label="Class completion"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={completionPercent}
+                >
+                  <div
+                    className="h-full grad transition-all"
+                    style={{ width: `${completionPercent}%` }}
+                  />
                 </div>
                 <p className="mt-2 text-sm text-mute">
-                  {completedMaterialCount} of {materials.length} materials complete
-                  {unpassedAssessments.length > 0 && ` · ${unpassedAssessments.length} assessment${unpassedAssessments.length === 1 ? "" : "s"} still need passing`}
+                  {completedMaterialCount} of {materials.length} materials
+                  complete
+                  {unpassedAssessments.length > 0 &&
+                    ` · ${unpassedAssessments.length} assessment${unpassedAssessments.length === 1 ? "" : "s"} still need passing`}
                 </p>
               </Card>
             </div>
@@ -577,9 +669,19 @@ export function StudentClassWorkspace({
                           </span>
                         )}
                       </div>
-                      <h2 className="mt-1 font-display text-xl">{material.title}</h2>
-                      {material.description && <p className="mt-1 whitespace-pre-wrap text-sm text-mute">{material.description}</p>}
-                      {material.teacherName && <p className="mt-1 text-xs text-mute">Uploaded by {material.teacherName}</p>}
+                      <h2 className="mt-1 font-display text-xl">
+                        {material.title}
+                      </h2>
+                      {material.description && (
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-mute">
+                          {material.description}
+                        </p>
+                      )}
+                      {material.teacherName && (
+                        <p className="mt-1 text-xs text-mute">
+                          Uploaded by {material.teacherName}
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -593,7 +695,9 @@ export function StudentClassWorkspace({
               );
             })}
             {!loading && materials.length === 0 && (
-              <Card className="text-center text-mute">No materials have been published for this class yet.</Card>
+              <Card className="text-center text-mute">
+                No materials have been published for this class yet.
+              </Card>
             )}
           </div>
         )}
@@ -618,7 +722,11 @@ export function StudentClassWorkspace({
                     onClick={() =>
                       setCalendarMonth(
                         (month) =>
-                          new Date(month.getFullYear(), month.getMonth() - 1, 1),
+                          new Date(
+                            month.getFullYear(),
+                            month.getMonth() - 1,
+                            1,
+                          ),
                       )
                     }
                     className="rounded-full border border-line p-2 text-mute transition hover:border-p1 hover:text-p1"
@@ -629,7 +737,11 @@ export function StudentClassWorkspace({
                     type="button"
                     onClick={() =>
                       setCalendarMonth(
-                        new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+                        new Date(
+                          new Date().getFullYear(),
+                          new Date().getMonth(),
+                          1,
+                        ),
                       )
                     }
                     className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
@@ -642,7 +754,11 @@ export function StudentClassWorkspace({
                     onClick={() =>
                       setCalendarMonth(
                         (month) =>
-                          new Date(month.getFullYear(), month.getMonth() + 1, 1),
+                          new Date(
+                            month.getFullYear(),
+                            month.getMonth() + 1,
+                            1,
+                          ),
                       )
                     }
                     className="rounded-full border border-line p-2 text-mute transition hover:border-p1 hover:text-p1"
@@ -653,16 +769,27 @@ export function StudentClassWorkspace({
               </div>
               <div className="mt-5 overflow-x-auto">
                 <div className="grid min-w-[42rem] grid-cols-7 border-l border-t border-line text-sm">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                    <div key={day} className="border-b border-r border-line bg-slate-50 p-2 text-center font-semibold text-mute">
-                      {day}
-                    </div>
-                  ))}
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                    (day) => (
+                      <div
+                        key={day}
+                        className="border-b border-r border-line bg-slate-50 p-2 text-center font-semibold text-mute"
+                      >
+                        {day}
+                      </div>
+                    ),
+                  )}
                   {calendarCells.map((day, index) => {
                     const date = day
-                      ? new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), day)
+                      ? new Date(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth(),
+                          day,
+                        )
                       : null;
-                    const events = date ? calendarEventsByDate.get(dateKey(date)) || [] : [];
+                    const events = date
+                      ? calendarEventsByDate.get(dateKey(date)) || []
+                      : [];
                     return (
                       <div
                         key={date ? dateKey(date) : `empty-${index}`}
@@ -670,37 +797,41 @@ export function StudentClassWorkspace({
                       >
                         {date && (
                           <>
-                            <p className={`mb-2 text-right font-semibold ${dateKey(date) === dateKey(new Date()) ? "text-p1" : "text-mute"}`}>
+                            <p
+                              className={`mb-2 text-right font-semibold ${dateKey(date) === dateKey(new Date()) ? "text-p1" : "text-mute"}`}
+                            >
                               {day}
                             </p>
                             <div className="grid gap-1">
                               {events.map((event) => {
-                              const eventClass =
-                                event.type === "deadline"
-                                  ? "bg-red-50 text-red-700"
-                                  : event.type === "opening"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-p1-soft text-p1";
-                              const content = (
-                                <>
-                                  <span className="block truncate font-semibold">
-                                    {event.type === "deadline"
-                                      ? "Due: "
-                                      : event.type === "opening"
-                                        ? "Opens: "
-                                        : ""}
-                                    {event.title}
-                                  </span>
-                                  <span className="block truncate text-[11px] opacity-80">
-                                    {event.time}
-                                  </span>
-                                </>
-                              );
+                                const eventClass =
+                                  event.type === "deadline"
+                                    ? "bg-red-50 text-red-700"
+                                    : event.type === "opening"
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-p1-soft text-p1";
+                                const content = (
+                                  <>
+                                    <span className="block truncate font-semibold">
+                                      {event.type === "deadline"
+                                        ? "Due: "
+                                        : event.type === "opening"
+                                          ? "Opens: "
+                                          : ""}
+                                      {event.title}
+                                    </span>
+                                    <span className="block truncate text-[11px] opacity-80">
+                                      {event.time}
+                                    </span>
+                                  </>
+                                );
                                 return event.materialId ? (
                                   <button
                                     key={event.id}
                                     type="button"
-                                    onClick={() => onOpenMaterial(event.materialId!)}
+                                    onClick={() =>
+                                      onOpenMaterial(event.materialId!)
+                                    }
                                     className={`w-full rounded-md px-2 py-1 text-left text-xs ${eventClass}`}
                                   >
                                     {content}
@@ -716,7 +847,10 @@ export function StudentClassWorkspace({
                                     {content}
                                   </a>
                                 ) : (
-                                  <div key={event.id} className={`rounded-md px-2 py-1 text-xs ${eventClass}`}>
+                                  <div
+                                    key={event.id}
+                                    className={`rounded-md px-2 py-1 text-xs ${eventClass}`}
+                                  >
                                     {content}
                                   </div>
                                 );
@@ -731,12 +865,20 @@ export function StudentClassWorkspace({
               </div>
             </Card>
             <div className="flex flex-wrap gap-3 text-sm text-mute">
-              <span className="rounded-full bg-p1-soft px-3 py-1 text-p1">Sessions</span>
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">Assignment openings</span>
-              <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">Assignment deadlines</span>
+              <span className="rounded-full bg-p1-soft px-3 py-1 text-p1">
+                Sessions
+              </span>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                Assignment openings
+              </span>
+              <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">
+                Assignment deadlines
+              </span>
             </div>
             {!loading && calendarEvents.length === 0 && (
-              <Card className="text-center text-mute">No important dates have been scheduled for this class.</Card>
+              <Card className="text-center text-mute">
+                No important dates have been scheduled for this class.
+              </Card>
             )}
           </div>
         )}
@@ -744,39 +886,73 @@ export function StudentClassWorkspace({
         {activeTab === "live" && (
           <div className="grid gap-4">
             {schedules.map((schedule) => (
-              <Card key={schedule.id} className="flex flex-wrap items-center gap-4">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-p1-soft text-p1">
-                  <Video className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-xl">{schedule.title}</h2>
-                  <p className="text-sm text-mute">{new Date(schedule.startsAt).toLocaleString()}</p>
-                  {schedule.description && <p className="mt-1 text-sm text-mute">{schedule.description}</p>}
-                </div>
-                {schedule.joinUrl?.trim() ? (
-                  <a
-                    href={schedule.joinUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex shrink-0 items-center justify-center rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
-                  >
-                    Join session
-                  </a>
-                ) : (
-                  <p className="shrink-0 text-sm text-mute">
-                    Contact your teacher for the meeting link.
-                  </p>
-                )}
+              <Card
+                key={schedule.id}
+                className="flex flex-wrap items-center gap-4"
+              >
+                {(() => {
+                  const sessionPast =
+                    new Date(schedule.startsAt).getTime() <= Date.now();
+                  return (
+                    <>
+                      <div className="grid h-12 w-12 place-items-center rounded-xl bg-p1-soft text-p1">
+                        <Video className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-display text-xl">
+                          {schedule.title}
+                        </h2>
+                        <p className="text-sm text-mute">
+                          {new Date(schedule.startsAt).toLocaleString()}
+                        </p>
+                        {schedule.description && (
+                          <p className="mt-1 text-sm text-mute">
+                            {schedule.description}
+                          </p>
+                        )}
+                      </div>
+                      {schedule.joinUrl?.trim() ? (
+                        sessionPast ? (
+                          <button
+                            type="button"
+                            disabled
+                            className="inline-flex shrink-0 items-center justify-center rounded-full bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-500"
+                          >
+                            Join Session
+                          </button>
+                        ) : (
+                          <a
+                            href={schedule.joinUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex shrink-0 items-center justify-center rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110"
+                          >
+                            Join Session
+                          </a>
+                        )
+                      ) : (
+                        <p className="shrink-0 text-sm text-mute">
+                          Contact your teacher for the meeting link.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </Card>
             ))}
             {!loading && schedules.length === 0 && (
-              <Card className="text-center text-mute">No sessions have been scheduled for this class.</Card>
+              <Card className="text-center text-mute">
+                No sessions have been scheduled for this class.
+              </Card>
             )}
           </div>
         )}
 
         {activeTab === "assessments" && (
-          <StudentAssessments classId={classInfo.id} className={classInfo.name} />
+          <StudentAssessments
+            classId={classInfo.id}
+            className={classInfo.name}
+          />
         )}
 
         {activeTab === "completion" && (
@@ -785,33 +961,57 @@ export function StudentClassWorkspace({
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <Label>Material completion progress</Label>
-                  <p className="mt-2 font-display text-4xl">{completionPercent}%</p>
+                  <p className="mt-2 font-display text-4xl">
+                    {completionPercent}%
+                  </p>
                 </div>
                 <p className="text-sm text-mute">
-                  {completedMaterialCount} of {materials.length} materials complete
+                  {completedMaterialCount} of {materials.length} materials
+                  complete
                 </p>
               </div>
-              <div className="mt-4 flex h-4 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Material completion progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={completionPercent}>
+              <div
+                className="mt-4 flex h-4 overflow-hidden rounded-full bg-slate-100"
+                role="progressbar"
+                aria-label="Material completion progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={completionPercent}
+              >
                 {completedMaterialCount > 0 && (
                   <div
                     className="bg-emerald-500 transition-all"
-                    style={{ width: `${materials.length ? completedMaterialCount / materials.length * 100 : completionPercent}%` }}
+                    style={{
+                      width: `${materials.length ? (completedMaterialCount / materials.length) * 100 : completionPercent}%`,
+                    }}
                   />
                 )}
                 {materials.length > 0 && incompleteMaterials.length > 0 && (
                   <div
                     className="bg-amber-400 transition-all"
-                    style={{ width: `${incompleteMaterials.length / materials.length * 100}%` }}
+                    style={{
+                      width: `${(incompleteMaterials.length / materials.length) * 100}%`,
+                    }}
                   />
                 )}
               </div>
               <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-                <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-sm bg-emerald-500" />Completed: {completedMaterialCount} materials</span>
-                <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-sm bg-amber-400" />Haven't done yet: {incompleteMaterials.length} materials</span>
-                <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-sm bg-p1" />To be graded: {unpassedAssessments.length} assessments</span>
+                <span className="flex items-center gap-2">
+                  <i className="h-3 w-3 rounded-sm bg-emerald-500" />
+                  Completed: {completedMaterialCount} materials
+                </span>
+                <span className="flex items-center gap-2">
+                  <i className="h-3 w-3 rounded-sm bg-amber-400" />
+                  Haven't done yet: {incompleteMaterials.length} materials
+                </span>
+                <span className="flex items-center gap-2">
+                  <i className="h-3 w-3 rounded-sm bg-p1" />
+                  To be graded: {unpassedAssessments.length} assessments
+                </span>
               </div>
               <p className="mt-3 text-xs text-mute">
-                Assessment attempts are automatically graded when submitted. This count includes assessments still needing a passing attempt.
+                Assessment attempts are automatically graded when submitted.
+                This count includes assessments still needing a passing attempt.
               </p>
             </Card>
             <div className="grid gap-5 md:grid-cols-2">
@@ -819,10 +1019,14 @@ export function StudentClassWorkspace({
                 <Label>Haven't done yet</Label>
                 {incompleteMaterials.length ? (
                   <ul className="mt-3 list-inside list-disc space-y-2 text-sm">
-                    {incompleteMaterials.map((material) => <li key={material.id}>{material.title}</li>)}
+                    {incompleteMaterials.map((material) => (
+                      <li key={material.id}>{material.title}</li>
+                    ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-sm text-mute">All learning materials are complete.</p>
+                  <p className="mt-3 text-sm text-mute">
+                    All learning materials are complete.
+                  </p>
                 )}
               </Card>
               {deletedCompletedMaterials.length > 0 && (
@@ -830,12 +1034,20 @@ export function StudentClassWorkspace({
                   <Label>Historical completion records</Label>
                   <ul className="mt-3 space-y-3 text-sm">
                     {deletedCompletedMaterials.map((material) => (
-                      <li key={material.id} className="rounded-lg bg-slate-50 p-3">
+                      <li
+                        key={material.id}
+                        className="rounded-lg bg-slate-50 p-3"
+                      >
                         <p className="font-semibold">{material.title}</p>
-                        <p className="mt-1 text-mute">This material has been deleted</p>
+                        <p className="mt-1 text-mute">
+                          This material has been deleted
+                        </p>
                         {material.completedAt && (
                           <p className="mt-1 text-xs text-mute">
-                            Completed {new Date(material.completedAt).toLocaleDateString()}
+                            Completed{" "}
+                            {new Date(
+                              material.completedAt,
+                            ).toLocaleDateString()}
                           </p>
                         )}
                       </li>
@@ -850,12 +1062,15 @@ export function StudentClassWorkspace({
                     {unpassedAssessments.map((assessment) => (
                       <li key={assessment.id}>
                         {assessment.assessmentCode} · {assessment.title}
-                        {assessment.latestAttempt && ` · Latest score ${assessment.latestAttempt.score}%`}
+                        {assessment.latestAttempt &&
+                          ` · Latest score ${assessment.latestAttempt.score}%`}
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-sm text-mute">All assessment requirements have been passed.</p>
+                  <p className="mt-3 text-sm text-mute">
+                    All assessment requirements have been passed.
+                  </p>
                 )}
               </Card>
             </div>
