@@ -9,7 +9,9 @@ export function AdminNews() {
   const [newsContent, setNewsContent] = useState("");
   const [isPreview, setIsPreview] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [previewAnnouncement, setPreviewAnnouncement] = useState<any | null>(null);
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<any | null>(
+    null,
+  );
   const [newsLoading, setNewsLoading] = useState(false);
 
   const fetchNews = async () => {
@@ -133,7 +135,7 @@ export function AdminNews() {
               <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">
                 Preview
               </span>
-              <h4 className="text-xl font-bold">
+              <h4 className="text-xl font-bold break-all">
                 {newsTitle || "Untitled Announcement"}
               </h4>
               <p className="mt-2 break-all text-gray-700 whitespace-pre-wrap">
@@ -151,7 +153,9 @@ export function AdminNews() {
           </div>
           <div className="flex flex-col gap-4">
             {announcements.length === 0 ? (
-              <div className="text-sm text-gray-500">No announcements posted.</div>
+              <div className="text-sm text-gray-500">
+                No announcements posted.
+              </div>
             ) : (
               announcements.map((a) => (
                 <div

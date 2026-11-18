@@ -302,7 +302,7 @@ export function ProfileView({
         sub="Edit your account information."
       />
       <Card
-        className={`mt-5 w-full ${role === "admin" ? "max-w-none [&_button]:text-base [&_input]:text-base [&_label>span]:text-base [&_p]:text-base" : "max-w-xl"}`}
+        className={`mt-5 w-full max-w-none ${role === "admin" ? "[&_button]:text-base [&_input]:text-base [&_label>span]:text-base [&_p]:text-base" : ""}`}
       >
         <div
           className={`grid gap-4 ${role === "admin" ? "lg:grid-cols-2" : ""}`}

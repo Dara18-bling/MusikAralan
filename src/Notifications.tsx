@@ -335,15 +335,17 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
                         aria-expanded={!collapsedClassIds.has(group.classId)}
                         aria-controls={`class-announcements-${group.classId}-content`}
                         onClick={() => toggleClassAnnouncements(group.classId)}
-                        className="flex w-full items-center gap-2 py-2 text-left font-semibold hover:text-p1"
+                        className="flex w-full min-w-0 items-center gap-2 py-2 text-left font-semibold hover:text-p1"
                       >
                         {collapsedClassIds.has(group.classId) ? (
                           <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
                         ) : (
                           <ChevronDown className="h-4 w-4 shrink-0" aria-hidden="true" />
                         )}
-                        {group.className} Announcement
-                        <span className="ml-auto text-xs font-normal text-mute">
+                        <span className="min-w-0 break-all">
+                          {group.className} Announcement
+                        </span>
+                        <span className="ml-auto shrink-0 text-xs font-normal text-mute">
                           {group.notices.length}
                         </span>
                       </button>
