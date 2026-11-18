@@ -82,7 +82,7 @@ export function AdminNews() {
         sub="Create, edit, or delete announcements."
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
-        <Card>
+        <Card className="min-w-0">
           <Label>
             {editingId ? "Edit Announcement" : "Create New Announcement"}
           </Label>
@@ -90,13 +90,13 @@ export function AdminNews() {
             <input
               type="text"
               placeholder="Announcement Title"
-              className="w-full rounded-lg border border-line p-3"
+              className="w-full rounded-lg border border-line p-3 break-all"
               value={newsTitle}
               onChange={(e) => setNewsTitle(e.target.value)}
             />
             <textarea
               placeholder="Write your announcement here..."
-              className="w-full rounded-lg border border-line p-3 min-h-[150px]"
+              className="w-full rounded-lg border border-line p-3 min-h-[150px] break-all"
               value={newsContent}
               onChange={(e) => setNewsContent(e.target.value)}
             />
@@ -136,7 +136,7 @@ export function AdminNews() {
               <h4 className="text-xl font-bold">
                 {newsTitle || "Untitled Announcement"}
               </h4>
-              <p className="mt-2 text-gray-700 whitespace-pre-wrap">
+              <p className="mt-2 break-all text-gray-700 whitespace-pre-wrap">
                 {newsContent || "No content written yet."}
               </p>
             </div>
@@ -158,13 +158,13 @@ export function AdminNews() {
                   key={a.id}
                   className="p-4 border border-line rounded-lg flex justify-between items-start"
                 >
-                  <div>
-                    <h4 className="font-bold">{a.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                  <div className="min-w-0">
+                    <h4 className="break-all font-bold">{a.title}</h4>
+                    <p className="mt-1 break-all text-sm text-gray-600 line-clamp-2">
                       {a.content}
                     </p>
                   </div>
-                  <div className="flex flex-col gap-2 ml-4">
+                  <div className="ml-4 flex shrink-0 flex-col gap-2">
                     <button
                       onClick={() => setPreviewAnnouncement(a)}
                       className="text-p1 hover:underline text-sm font-semibold"
@@ -202,19 +202,21 @@ export function AdminNews() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="announcement-preview-title"
-            className="w-full max-w-xl rounded-2xl border border-line bg-white p-6 shadow-2xl"
+            className="flex max-h-[90vh] w-full max-w-xl flex-col rounded-2xl border border-line bg-white p-6 shadow-2xl"
           >
             <Label>Announcement preview</Label>
             <h2
               id="announcement-preview-title"
-              className="mt-2 font-display text-2xl font-bold"
+              className="mt-2 break-all font-display text-2xl font-bold"
             >
               {previewAnnouncement.title}
             </h2>
-            <p className="mt-4 whitespace-pre-wrap text-ink">
-              {previewAnnouncement.content}
-            </p>
-            <div className="mt-6 flex justify-end">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <p className="mt-4 break-all whitespace-pre-wrap text-ink">
+                {previewAnnouncement.content}
+              </p>
+            </div>
+            <div className="mt-6 flex shrink-0 justify-end">
               <Btn variant="ghost" onClick={() => setPreviewAnnouncement(null)}>
                 Close
               </Btn>

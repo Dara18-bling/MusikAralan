@@ -237,7 +237,7 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
               <Bell className="mt-1 h-4 w-4 shrink-0 text-p1" />
             )}
             <span className="min-w-0 flex-1">
-              <span className="block font-semibold">{notice.title}</span>
+              <span className="block break-all font-semibold">{notice.title}</span>
               <span className="mt-0.5 block text-xs text-mute">
                 {notice.createdAt > 0
                   ? new Date(notice.createdAt).toLocaleString()
@@ -404,15 +404,15 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setSelectedNotice(null);
         }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="notice-title" className="w-full max-w-xl rounded-2xl border border-line bg-white p-6 shadow-2xl">
+          <section role="dialog" aria-modal="true" aria-labelledby="notice-title" className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-line bg-white p-6 shadow-2xl">
             <Label>{selectedNotice.source}</Label>
-            <h2 id="notice-title" className="mt-2 font-display text-2xl font-bold">{selectedNotice.title}</h2>
+            <h2 id="notice-title" className="mt-2 break-all font-display text-2xl font-bold">{selectedNotice.title}</h2>
             {selectedNotice.createdAt > 0 && (
               <time className="mt-1 block text-xs text-mute">
                 {new Date(selectedNotice.createdAt).toLocaleString()}
               </time>
             )}
-            <p className="mt-4 whitespace-pre-wrap text-ink">{selectedNotice.detail || "There is no additional message."}</p>
+            <p className="mt-4 break-all whitespace-pre-wrap text-ink">{selectedNotice.detail || "There is no additional message."}</p>
             <div className="mt-6 flex justify-end">
               <button type="button" onClick={() => setSelectedNotice(null)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft">Close</button>
             </div>
