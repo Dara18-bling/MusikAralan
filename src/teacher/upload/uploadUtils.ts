@@ -50,13 +50,16 @@ const EXTENSION_KIND: Record<string, UploadKind> = {
 };
 
 function getExtension(resource: string) {
-  let path = resource.trim();
-  try {
-    path = new URL(path.includes("://") ? path : `https://${path}`).pathname;
-  } catch {
-    path = path.split(/[?#]/, 1)[0];
+  const normalized = resource.trim();
+  let path = normalized;
+  if (normalized.includes("://")) {
+    try {
+      path = new URL(normalized).pathname;
+    } catch {
+      path = normalized;
+    }
   }
-  const fileName = path.split("/").pop() || "";
+  const fileName = path.split(/[\/\\]/).pop()?.split(/[?#]/, 1)[0] || "";
   const extension = fileName.match(/\.([a-z0-9]+)$/i)?.[1];
   return extension?.toLowerCase() || "";
 }

@@ -43,11 +43,15 @@ interface UploadFormProps {
 }
 
 const TYPE_DESCRIPTORS: Record<UploadKind, string> = {
-  Module: "Lesson notes, handouts, study guides, worksheets, PDFs, documents, or presentations",
-  "Vocal Guide": "Audio practice tracks, vocal exercises, melody guides, or pronunciation recordings",
-  "Video Guide": "Rehearsal videos, demonstrations, tutorials, or technique walkthroughs",
-  Others: "Reference links, spreadsheets, images, supplementary files, or miscellaneous resources",
-  Assignment: "Student tasks, worksheets, quizzes, projects, or other work to submit",
+  Module:
+    "PDF, DOC, DOCX, ODT, PPT, PPTX, RTF, or TXT files; Google Docs or Slides links",
+  "Vocal Guide":
+    "AAC, AIF, AIFF, FLAC, M4A, MP3, OGA, OGG, WAV, or WMA files and audio links",
+  "Video Guide":
+    "MOV, MP4, MPEG, MPG, OGV, WEBM, 3GP, or 3G2 files; YouTube or video links",
+  Others: "XLS, XLSX, ODS, or CSV files and other links or resources",
+  Assignment:
+    "Manually selected student tasks, worksheets, quizzes, or projects using any supported file or link",
 };
 
 export function UploadForm({
@@ -78,7 +82,7 @@ export function UploadForm({
 
   return (
     <Card>
-      <div className="rounded-2xl border border-line bg-slate-50/60 p-4">
+      <div className="rounded-2xl border border-line bg-slate-50 p-4">
         <label className="flex items-center gap-2 text-sm font-semibold text-ink">
           <LinkIcon className="h-4 w-4 text-p1" />
           Media / Streaming Link (Google Drive, YouTube, Docs, Sheets)
@@ -230,7 +234,9 @@ export function UploadForm({
 
         {kind === "Assignment" && (
           <div className="grid gap-4 rounded-2xl border border-p1/20 bg-p1-soft/20 p-4">
-            <p className="text-sm font-semibold text-ink">Assignment schedule</p>
+            <p className="text-sm font-semibold text-ink">
+              Assignment schedule
+            </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-1.5 text-sm font-semibold">
                 Opens
@@ -257,7 +263,9 @@ export function UploadForm({
               <input
                 type="checkbox"
                 checked={allowLateSubmissions}
-                onChange={(event) => setAllowLateSubmissions(event.target.checked)}
+                onChange={(event) =>
+                  setAllowLateSubmissions(event.target.checked)
+                }
                 className="h-4 w-4 accent-[var(--p1)]"
               />
               Allow late submissions
