@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { apiGet, apiPatch, POLL_INTERVAL_HOUR } from "../api";
-import { Btn, Card, Input, Title } from "../ui";
+import { Btn, Card, Input, TableScrollHint, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
 
@@ -345,8 +345,10 @@ export function AdminAccounts({
                 No {activeFilter} accounts right now.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-max min-w-[1100px] border-separate border-spacing-x-3 text-left text-sm lg:min-w-[1250px] lg:border-spacing-x-6">
+              <div className="px-2 sm:px-4">
+                <TableScrollHint />
+                <div className="overflow-x-auto">
+                <table className="w-max min-w-[1100px] border-separate border-spacing-x-3 text-center text-sm lg:min-w-[1250px] lg:border-spacing-x-6">
                   <thead>
                     <tr className="border-b border-line text-mute">
                       <th className="pb-3 font-medium">Name</th>
@@ -372,9 +374,9 @@ export function AdminAccounts({
                       const messengerUrl = getMessengerUrl(u.messengerLink);
                       return (
                         <tr key={u.id}>
-                          <td className="py-4 font-semibold">{u.name}</td>
+                          <td className="py-4 px-2 font-semibold">{u.name}</td>
                           <td className="py-4">{u.email}</td>
-                          <td className="max-w-48 truncate py-4">
+                          <td className="max-w-48 truncate px-2 py-4">
                             {messengerUrl ? (
                               <a
                                 href={messengerUrl}
@@ -390,27 +392,27 @@ export function AdminAccounts({
                             )}
                           </td>
                           {activeFilter !== "pending" && (
-                            <td className="py-4 capitalize">
+                            <td className="px-2 py-4 capitalize">
                               {activeFilter === "all" && u.status === "pending"
                                 ? "Pending"
                                 : u.role || "—"}
                             </td>
                           )}
-                          <td className="py-4">
+                          <td className="px-2 py-4">
                             {u.role === "teacher"
                               ? formatAccessUntil(
                                   u.accessUntil || accessDates[u.id],
                                 )
                               : "—"}
                           </td>
-                          <td className="py-4 capitalize">{u.status || "—"}</td>
-                          <td className="py-4">
+                          <td className="px-2 py-4 capitalize">{u.status || "—"}</td>
+                          <td className="px-2 py-4">
                             {u.dateRequested
                               ? new Date(u.dateRequested).toLocaleDateString()
                               : "—"}
                           </td>
                           {activeFilter === "pending" && (
-                            <td className="py-4">
+                            <td className="px-2 py-4">
                               {u.status === "pending" && (
                                 <select
                                   aria-label={`Role for ${u.name}`}
@@ -430,7 +432,7 @@ export function AdminAccounts({
                               )}
                             </td>
                           )}
-                          <td className="py-4 text-center">
+                          <td className="px-2 py-4 text-center">
                             <button
                               onClick={() => setSelectedUser(u)}
                               className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-200"
@@ -438,7 +440,7 @@ export function AdminAccounts({
                               View
                             </button>
                           </td>
-                          <td className="py-4">
+                          <td className="px-2 py-4">
                             <div className="flex justify-center gap-2">
                               {u.status === "pending" ? (
                                 <>
@@ -488,6 +490,7 @@ export function AdminAccounts({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
             <div className="mt-5 flex flex-col items-center gap-2">

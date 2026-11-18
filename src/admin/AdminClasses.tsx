@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { ApiError, apiGet, apiPost, apiPut, refreshApi } from "../api";
-import { Btn, Card, Title } from "../ui";
+import { Btn, Card, TableScrollHint, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
 import type { ClassFilter } from "./adminTypes";
 import { AdminClassContent } from "./AdminClassContent";
@@ -12,8 +12,12 @@ interface AdminClassesProps {
 
 export function AdminClasses({ accountTeachers }: AdminClassesProps) {
   const [managedClasses, setManagedClasses] = useState<ClassCatalogItem[]>([]);
-  const [contentClass, setContentClass] = useState<ClassCatalogItem | null>(null);
-  const [editingClass, setEditingClass] = useState<ClassCatalogItem | null>(null);
+  const [contentClass, setContentClass] = useState<ClassCatalogItem | null>(
+    null,
+  );
+  const [editingClass, setEditingClass] = useState<ClassCatalogItem | null>(
+    null,
+  );
   const [classFilter, setClassFilter] = useState<ClassFilter>("all");
   const [classSearch, setClassSearch] = useState("");
   const [classesLoading, setClassesLoading] = useState(false);
@@ -21,7 +25,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
   const [showCreateClass, setShowCreateClass] = useState(false);
   const [newClassName, setNewClassName] = useState("");
   const [newClassTeacher, setNewClassTeacher] = useState("Unassigned");
-  const [newClassAge, setNewClassAge] = useState<ClassCatalogItem["age"]>("all");
+  const [newClassAge, setNewClassAge] =
+    useState<ClassCatalogItem["age"]>("all");
   const [newClassDescription, setNewClassDescription] = useState("New class");
   const [newClassAvailable, setNewClassAvailable] = useState(false);
 
@@ -49,45 +54,56 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
   }, []);
 
   const updateEditingClass = (changes: Partial<ClassCatalogItem>) => {
-    setEditingClass((current) => (current ? { ...current, ...changes } : current));
+    setEditingClass((current) =>
+      current ? { ...current, ...changes } : current,
+    );
   };
 
-  const saveManagedClass = async (item: ClassCatalogItem, confirmOverload = false) => {
+  const saveManagedClass = async (
+    item: ClassCatalogItem,
+    confirmOverload = false,
+  ) => {
     setSavingClassId(item.id);
     try {
-      const { id, enrolledStudentIds: _enrolledStudentIds, ...classData } = item;
-      const existingClass = managedClasses.find((existing) => existing.id === id);
+      const {
+        id,
+        enrolledStudentIds: _enrolledStudentIds,
+        ...classData
+      } = item;
+      const existingClass = managedClasses.find(
+        (existing) => existing.id === id,
+      );
       if (
         existingClass &&
         existingClass.availableForEnrollment !== item.availableForEnrollment
       ) {
         classData.enrollmentUpdatedAt = new Date();
       }
-      const { class: saved } = await apiPut<{ class: ClassCatalogItem }>(`/classes/${id}`, {
-        ...classData,
-        ...(confirmOverload ? { confirmOverload: true } : {}),
-      });
+      const { class: saved } = await apiPut<{ class: ClassCatalogItem }>(
+        `/classes/${id}`,
+        {
+          ...classData,
+          ...(confirmOverload ? { confirmOverload: true } : {}),
+        },
+      );
       setManagedClasses((current) =>
-        current.map((existing) =>
-          existing.id === id ? saved : existing
-        )
+        current.map((existing) => (existing.id === id ? saved : existing)),
       );
       refreshApi("/classes");
       refreshApi("/dashboard");
       setEditingClass(null);
       toast.success(`${item.name} saved.`);
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.code === "class_load_warning"
-      ) {
+      if (error instanceof ApiError && error.code === "class_load_warning") {
         if (!confirmOverload && window.confirm(error.message)) {
           await saveManagedClass(item, true);
         }
         return;
       }
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Could not save this class.");
+      toast.error(
+        error instanceof Error ? error.message : "Could not save this class.",
+      );
     } finally {
       setSavingClassId(null);
     }
@@ -96,7 +112,7 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
   const deleteManagedClass = async (item: ClassCatalogItem) => {
     if (
       !window.confirm(
-        `Move "${item.name}" to deleted classes? You can restore it later.`
+        `Move "${item.name}" to deleted classes? You can restore it later.`,
       )
     )
       return;
@@ -104,8 +120,8 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       await apiPut(`/classes/${item.id}`, { deleted: true });
       setManagedClasses((current) =>
         current.map((existing) =>
-          existing.id === item.id ? { ...existing, deleted: true } : existing
-        )
+          existing.id === item.id ? { ...existing, deleted: true } : existing,
+        ),
       );
       refreshApi("/classes");
       refreshApi("/dashboard");
@@ -116,7 +132,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
     }
   };
 
-  const restoreManagedClass = async (item: ClassCatalogItem, confirmOverload = false) => {
+  const restoreManagedClass = async (
+    item: ClassCatalogItem,
+    confirmOverload = false,
+  ) => {
     try {
       await apiPut(`/classes/${item.id}`, {
         deleted: false,
@@ -124,27 +143,31 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       });
       setManagedClasses((current) =>
         current.map((existing) =>
-          existing.id === item.id ? { ...existing, deleted: false } : existing
-        )
+          existing.id === item.id ? { ...existing, deleted: false } : existing,
+        ),
       );
       refreshApi("/classes");
       refreshApi("/dashboard");
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.code === "class_load_warning"
-      ) {
+      if (error instanceof ApiError && error.code === "class_load_warning") {
         if (!confirmOverload && window.confirm(error.message)) {
           await restoreManagedClass(item, true);
         }
         return;
       }
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Could not restore this class.");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not restore this class.",
+      );
     }
   };
 
-  const createManagedClass = async (event: React.FormEvent, confirmOverload = false) => {
+  const createManagedClass = async (
+    event: React.FormEvent,
+    confirmOverload = false,
+  ) => {
     event.preventDefault();
     if (!newClassName.trim()) return;
     const newClass: Omit<ClassCatalogItem, "id"> = {
@@ -157,14 +180,14 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       createdAt: new Date(),
     };
     try {
-      const { class: created } = await apiPost<{ class: ClassCatalogItem }>("/classes", {
-        ...newClass,
-        ...(confirmOverload ? { confirmOverload: true } : {}),
-      });
-      setManagedClasses((current) => [
-        ...current,
-        created,
-      ]);
+      const { class: created } = await apiPost<{ class: ClassCatalogItem }>(
+        "/classes",
+        {
+          ...newClass,
+          ...(confirmOverload ? { confirmOverload: true } : {}),
+        },
+      );
+      setManagedClasses((current) => [...current, created]);
       refreshApi("/classes");
       refreshApi("/dashboard");
       setNewClassName("");
@@ -174,17 +197,16 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
       setNewClassAvailable(false);
       setShowCreateClass(false);
     } catch (error) {
-      if (
-        error instanceof ApiError &&
-        error.code === "class_load_warning"
-      ) {
+      if (error instanceof ApiError && error.code === "class_load_warning") {
         if (!confirmOverload && window.confirm(error.message)) {
           await createManagedClass(event, true);
         }
         return;
       }
       console.error(error);
-      toast.error(error instanceof Error ? error.message : "Could not create the class.");
+      toast.error(
+        error instanceof Error ? error.message : "Could not create the class.",
+      );
     }
   };
 
@@ -204,7 +226,9 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
           ? "open available enrollment"
           : "closed unavailable not available"
       }`.toLowerCase();
-    return matchesFilter && terms.every((term) => searchableText.includes(term));
+    return (
+      matchesFilter && terms.every((term) => searchableText.includes(term))
+    );
   });
 
   if (contentClass) {
@@ -265,86 +289,91 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
         {classesLoading ? (
           <p className="py-8 text-center text-mute">Loading classes…</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[48rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-mute">
-                  <th className="pb-3 font-medium">Class Name</th>
-                  <th className="pb-3 font-medium">Assigned Teacher</th>
-                  <th className="pb-3 font-medium">Age Group Allowed</th>
-                  <th className="pb-3 font-medium">Enrollment</th>
-                  <th className="pb-3 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {filteredClasses.map((c) => (
-                  <tr key={c.id}>
-                    <td className="py-4 pr-3 font-semibold">{c.name}</td>
-                    <td className="py-4">{c.teacher || "Unassigned"}</td>
-                    <td className="py-4 capitalize">
-                      {c.age === "all" ? "All ages" : c.age}
-                    </td>
-                    <td className="py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          c.availableForEnrollment
-                            ? "bg-emerald-100 text-emerald-800"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {c.availableForEnrollment ? "Open" : "Closed"}
-                      </span>
-                    </td>
-                    <td className="py-4">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setContentClass(c)}
-                          className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
+          <div className="px-2 sm:px-4">
+            <TableScrollHint />
+            <div className="overflow-x-auto">
+              <table className="w-max min-w-5xl text-center text-sm">
+                <thead>
+                  <tr className="border-b border-line text-mute">
+                    <th className="pb-3 font-medium text-left">Class Name</th>
+                    <th className="pb-3 font-medium">Assigned Teacher</th>
+                    <th className="pb-3 font-medium">Age Group Allowed</th>
+                    <th className="pb-3 font-medium">Enrollment</th>
+                    <th className="pb-3 font-medium text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {filteredClasses.map((c) => (
+                    <tr key={c.id}>
+                      <td className="px-3 py-4 font-semibold text-left">
+                        {c.name}
+                      </td>
+                      <td className="px-3 py-4">{c.teacher || "Unassigned"}</td>
+                      <td className="px-3 py-4 capitalize">
+                        {c.age === "all" ? "All ages" : c.age}
+                      </td>
+                      <td className="px-3 py-4">
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            c.availableForEnrollment
+                              ? "bg-emerald-100 text-emerald-800"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
                         >
-                          Manage content
-                        </button>
-                        {c.deleted ? (
+                          {c.availableForEnrollment ? "Open" : "Closed"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-4">
+                        <div className="flex justify-center gap-2">
                           <button
                             type="button"
-                            onClick={() => void restoreManagedClass(c)}
+                            onClick={() => setContentClass(c)}
                             className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
                           >
-                            Restore
+                            Manage content
                           </button>
-                        ) : (
-                          <>
+                          {c.deleted ? (
                             <button
                               type="button"
-                              onClick={() => setEditingClass({ ...c })}
+                              onClick={() => void restoreManagedClass(c)}
                               className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
                             >
-                              Edit
+                              Restore
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => void deleteManagedClass(c)}
-                              className="rounded-full border border-red-200 px-4 py-1.5 font-semibold text-red-500 hover:bg-red-50"
-                            >
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredClasses.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-mute">
-                      {managedClasses.length === 0
-                        ? "No classes have been created yet."
-                        : "No classes match this search or filter."}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setEditingClass({ ...c })}
+                                className="rounded-full bg-p1-soft px-4 py-1.5 font-semibold text-p1 hover:bg-[var(--p1)] hover:text-white"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteManagedClass(c)}
+                                className="rounded-full border border-red-200 px-4 py-1.5 font-semibold text-red-500 hover:bg-red-50"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredClasses.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-mute">
+                        {managedClasses.length === 0
+                          ? "No classes have been created yet."
+                          : "No classes match this search or filter."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </Card>
@@ -362,7 +391,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
             aria-labelledby="create-class-title"
             className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
           >
-            <h2 id="create-class-title" className="font-display text-2xl font-bold">
+            <h2
+              id="create-class-title"
+              className="font-display text-2xl font-bold"
+            >
               Create new class
             </h2>
             <form className="mt-5 grid gap-4" onSubmit={createManagedClass}>
@@ -396,7 +428,9 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
                 <select
                   value={newClassAge}
                   onChange={(event) =>
-                    setNewClassAge(event.target.value as ClassCatalogItem["age"])
+                    setNewClassAge(
+                      event.target.value as ClassCatalogItem["age"],
+                    )
                   }
                   className="w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
                 >
@@ -410,7 +444,9 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
                 Description
                 <textarea
                   value={newClassDescription}
-                  onChange={(event) => setNewClassDescription(event.target.value)}
+                  onChange={(event) =>
+                    setNewClassDescription(event.target.value)
+                  }
                   className="min-h-24 w-full rounded-lg border border-line bg-white px-3 py-2 font-normal"
                 />
               </label>
@@ -464,7 +500,10 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
             aria-labelledby="edit-class-title"
             className="w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
           >
-            <h2 id="edit-class-title" className="font-display text-2xl font-bold">
+            <h2
+              id="edit-class-title"
+              className="font-display text-2xl font-bold"
+            >
               Edit class
             </h2>
             <form
@@ -539,7 +578,9 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
               <label className="grid gap-1.5 text-sm font-semibold">
                 Enrollment
                 <select
-                  value={editingClass.availableForEnrollment ? "open" : "closed"}
+                  value={
+                    editingClass.availableForEnrollment ? "open" : "closed"
+                  }
                   onChange={(event) =>
                     updateEditingClass({
                       availableForEnrollment: event.target.value === "open",
@@ -568,7 +609,9 @@ export function AdminClasses({ accountTeachers }: AdminClassesProps) {
                   }
                   className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  {savingClassId === editingClass.id ? "Saving…" : "Save changes"}
+                  {savingClassId === editingClass.id
+                    ? "Saving…"
+                    : "Save changes"}
                 </button>
               </div>
             </form>

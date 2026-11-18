@@ -4,6 +4,15 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   return <section className={`rounded-2xl border border-line bg-white/85 backdrop-blur p-5 ${className}`}>{children}</section>
 }
 
+export function TableScrollHint() {
+  return (
+    <div className="mb-2 px-2 text-right text-xs font-semibold text-mute">
+      <span className="hidden sm:inline">Shift + Scroll to view actions</span>
+      <span className="sm:hidden">Swipe to view actions</span>
+    </div>
+  )
+}
+
 export function Label({ children }: { children: ReactNode }) {
   return <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-mute">{children}</p>
 }

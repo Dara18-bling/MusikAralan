@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { POLL_INTERVAL_HOUR, watchApi } from "../api";
-import { Card, Pill } from "../ui";
+import { Card, Pill, TableScrollHint } from "../ui";
 
 interface RosterStudent {
   id: string;
@@ -94,84 +94,88 @@ export function StudentList({ classId, studentIds = [] }: StudentListProps) {
   return (
     <>
       <Card>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-line text-mute">
-              <th className="pb-3 font-medium">Name</th>
-              <th className="pb-3 font-medium">Age Group</th>
-              <th className="pb-3 font-medium">Materials</th>
-              <th className="pb-3 font-medium">Assessment</th>
-              <th className="pb-3 font-medium text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {students.map((student) => {
-              const birthYear = Number(
-                student.birthYear || student.birthday?.slice(0, 4),
-              );
-              const age =
-                birthYear > 0 ? new Date().getFullYear() - birthYear : null;
-              const ageGroup =
-                age === null
-                  ? "Not provided"
-                  : age <= 12
-                    ? "Kids"
-                    : age <= 25
-                      ? "Youth"
-                      : "Adults";
-              const progress = student.classProgress || {};
-              const completedCount = Array.isArray(
-                progress.completedMaterialIds,
-              )
-                ? progress.completedMaterialIds.length
-                : 0;
+        <TableScrollHint />
+        <div className="overflow-x-auto px-2 sm:px-4">
+          <table className="w-max min-w-4xl text-center text-sm">
+            <thead>
+              <tr className="border-b border-line text-mute">
+                <th className="pb-3 font-medium text-left">Name</th>
+                <th className="pb-3 font-medium">Age Group</th>
+                <th className="pb-3 font-medium">Materials</th>
+                <th className="pb-3 font-medium">Assessment</th>
+                <th className="pb-3 font-medium text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {students.map((student) => {
+                const birthYear = Number(
+                  student.birthYear || student.birthday?.slice(0, 4),
+                );
+                const age =
+                  birthYear > 0 ? new Date().getFullYear() - birthYear : null;
+                const ageGroup =
+                  age === null
+                    ? "Not provided"
+                    : age <= 12
+                      ? "Kids"
+                      : age <= 25
+                        ? "Youth"
+                        : "Adults";
+                const progress = student.classProgress || {};
+                const completedCount = Array.isArray(
+                  progress.completedMaterialIds,
+                )
+                  ? progress.completedMaterialIds.length
+                  : 0;
 
-              return (
-                <tr key={student.id}>
-                  <td className="py-4 font-semibold">
-                    {student.name || student.email || "Student"}
-                  </td>
-                  <td className="py-4">{ageGroup}</td>
-                  <td className="py-4">
-                    <p>
-                      {completedCount} / {materialCount} completed
-                    </p>
-                    {Array.isArray(progress.deletedCompletedMaterials) &&
-                      progress.deletedCompletedMaterials.map((material) => (
-                        <p
-                          key={material.id}
-                          className="mt-1 text-xs text-mute"
-                        >
-                          {material.title}: This material has been deleted
-                        </p>
-                      ))}
-                  </td>
-                  <td className="py-4">
-                    {progress.assessmentScore == null
-                      ? "Not attempted"
-                      : `${progress.assessmentScore}%${progress.assessmentPassed ? " · Passed" : " · Retry needed"}`}
-                  </td>
-                  <td className="py-4 text-right">
-                    <Pill tone={student.status === "approved" ? "p1" : "p2"}>
-                      {student.status === "approved"
-                        ? "Active"
-                        : student.status || "Unknown"}
-                    </Pill>
+                return (
+                  <tr key={student.id}>
+                    <td className="px-3 py-4 font-semibold text-left">
+                      {student.name || student.email || "Student"}
+                    </td>
+                    <td className="px-3 py-4">{ageGroup}</td>
+                    <td className="px-3 py-4">
+                      <p>
+                        {completedCount} / {materialCount} completed
+                      </p>
+                      {Array.isArray(progress.deletedCompletedMaterials) &&
+                        progress.deletedCompletedMaterials.map((material) => (
+                          <p
+                            key={material.id}
+                            className="mt-1 text-xs text-mute"
+                          >
+                            {material.title}: This material has been deleted
+                          </p>
+                        ))}
+                    </td>
+                    <td className="px-3 py-4">
+                      {progress.assessmentScore == null
+                        ? "Not attempted"
+                        : `${progress.assessmentScore}%${progress.assessmentPassed ? " · Passed" : " · Retry needed"}`}
+                    </td>
+                    <td className="px-3 py-4">
+                      <Pill tone={student.status === "approved" ? "p1" : "p2"}>
+                        {student.status === "approved"
+                          ? "Active"
+                          : student.status || "Unknown"}
+                      </Pill>
+                    </td>
+                  </tr>
+                );
+              })}
+              {students.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-6 text-center text-mute">
+                    {loading
+                      ? "Loading students…"
+                      : loadError ||
+                        "No students are enrolled in this class yet."}
                   </td>
                 </tr>
-              );
-            })}
-            {students.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-6 text-center text-mute">
-                  {loading
-                    ? "Loading students…"
-                    : loadError || "No students are enrolled in this class yet."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </Card>
       <div className="mt-4 flex flex-col items-center gap-2">
         {lastPage > 1 && (
