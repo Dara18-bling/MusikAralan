@@ -605,6 +605,10 @@ class DashboardAndScheduleTest extends TestCase
         $submission = DB::table('assignment_submissions')->find($submissionId);
         $this->assertNotNull($submission->storage_path);
         Storage::disk('assignment-uploads')->assertExists($submission->storage_path);
+        $this->assertDatabaseHas('material_completions', [
+            'student_id' => $student->id,
+            'material_id' => $assignmentId,
+        ]);
 
         Auth::forgetGuards();
         $this->withToken($teacher->createToken('assignment-submissions')->plainTextToken)

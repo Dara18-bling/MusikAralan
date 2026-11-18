@@ -669,6 +669,10 @@ class LearningController extends Controller
         if ($oldPath && $oldPath !== $newPath) {
             $this->deleteAssignmentUpload($diskName, $oldPath, $material->id, $user->id);
         }
+        DB::table('material_completions')->updateOrInsert(
+            ['student_id' => $user->id, 'material_id' => $material->id],
+            ['completed_at' => now()],
+        );
 
         return response()->json(['submission' => $this->submissionPayload($submission)], 201);
     }
