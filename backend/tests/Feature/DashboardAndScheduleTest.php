@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -206,6 +207,16 @@ class DashboardAndScheduleTest extends TestCase
 
     public function test_gospel_verse_rotation_is_readable_by_approved_users_and_managed_by_admins(): void
     {
+        Http::fake([
+            'https://bible.helloao.org/api/tgl_bib/JHN/1.json' => Http::response([
+                'chapter' => [
+                    'content' => [
+                        ['type' => 'verse', 'number' => 1, 'content' => ['John 1:1']],
+                    ],
+                ],
+            ]),
+        ]);
+
         $admin = $this->createUser('gospel-admin@example.test', 'admin');
         $student = $this->createUser('gospel-student@example.test', 'student');
         $adminToken = $admin->createToken('gospel-admin')->plainTextToken;
@@ -252,6 +263,16 @@ class DashboardAndScheduleTest extends TestCase
                 'verse' => 2,
             ])
             ->assertUnprocessable();
+
+        Auth::forgetGuards();
+        $this->withToken($admin->createToken('gospel-admin-invalid-reference')->plainTextToken)
+            ->postJson('/api/gospel-verses', [
+                'book' => 'JHN',
+                'chapter' => 1,
+                'verse' => 2,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['verse']);
 
         Auth::forgetGuards();
         $this->withToken($student->createToken('gospel-student-list')->plainTextToken)

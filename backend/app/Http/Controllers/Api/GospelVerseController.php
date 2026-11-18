@@ -4,12 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\GospelVerse;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class GospelVerseController extends Controller
 {
+    private const BIBLE_API_BASE_URL = 'https://bible.helloao.org/api/tgl_bib';
+
     private const SUPPORTED_BOOK_IDS = [
         'GEN', 'EXO', 'LEV', 'NUM', 'DEU', 'JOS', 'JDG', 'RUT',
         '1SA', '2SA', '1KI', '2KI', '1CH', '2CH', 'EZR', 'NEH',
@@ -38,6 +43,46 @@ class GospelVerseController extends Controller
             'chapter' => ['required', 'integer', 'min:1', 'max:150'],
             'verse' => ['required', 'integer', 'min:1', 'max:176'],
         ]);
+
+        try {
+            $response = Http::acceptJson()
+                ->timeout(5)
+                ->get(sprintf(
+                    '%s/%s/%d.json',
+                    self::BIBLE_API_BASE_URL,
+                    $data['book'],
+                    $data['chapter'],
+                ));
+        } catch (ConnectionException) {
+            return response()->json([
+                'message' => 'The Bible reference service is unavailable. Please try again.',
+            ], 503);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'message' => 'The Bible reference could not be verified right now.',
+            ], 503);
+        }
+
+        $content = $response->json('chapter.content');
+        if (! is_array($content)) {
+            return response()->json([
+                'message' => 'The Bible reference could not be verified right now.',
+            ], 503);
+        }
+
+        $verseExists = is_array($content) && collect($content)->contains(
+            fn (mixed $item): bool => is_array($item)
+                && ($item['type'] ?? null) === 'verse'
+                && filter_var($item['number'] ?? null, FILTER_VALIDATE_INT) === $data['verse'],
+        );
+
+        if (! $verseExists) {
+            throw ValidationException::withMessages([
+                'verse' => 'That chapter and verse combination does not exist.',
+            ]);
+        }
 
         $verse = GospelVerse::query()->firstOrCreate($data);
         if (! $verse->wasRecentlyCreated) {

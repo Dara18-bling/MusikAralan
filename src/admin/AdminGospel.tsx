@@ -6,6 +6,7 @@ import {
   BIBLE_LICENSE_URL,
   BIBLE_TRANSLATION_NAME,
   fetchBibleBooks,
+  fetchBibleVerseNumbers,
   fetchBibleVerseText,
   type BibleBook,
 } from "../gospelVerse";
@@ -35,23 +36,28 @@ function VersePreview({
     setError("");
     setLoading(true);
 
-    void fetchBibleVerseText(
-      reference.book,
-      reference.chapter,
-      reference.verse,
-      controller.signal,
-    )
-      .then(setText)
-      .catch((requestError: unknown) => {
-        if (controller.signal.aborted) return;
-        console.error("Could not preview Bible verse:", requestError);
-        setError("Verse text could not be loaded right now.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
+    const timer = window.setTimeout(() => {
+      void fetchBibleVerseText(
+        reference.book,
+        reference.chapter,
+        reference.verse,
+        controller.signal,
+      )
+        .then(setText)
+        .catch((requestError: unknown) => {
+          if (controller.signal.aborted) return;
+          console.error("Could not preview Bible verse:", requestError);
+          setError("Verse text could not be loaded right now.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 3000);
 
-    return () => controller.abort();
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [reference.book, reference.chapter, reference.verse]);
 
   return (
@@ -83,6 +89,8 @@ export function AdminGospel() {
   const [book, setBook] = useState("");
   const [chapter, setChapter] = useState("");
   const [verse, setVerse] = useState("");
+  const [availableVerses, setAvailableVerses] = useState<number[]>([]);
+  const [verseCatalogLoading, setVerseCatalogLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [previewReference, setPreviewReference] =
     useState<GospelVerseReference | null>(null);
@@ -90,13 +98,16 @@ export function AdminGospel() {
   const chapterNumber = Number(chapter);
   const verseNumber = Number(verse);
   const selectedBook = books.find((item) => item.id === book);
-  const draftReference =
-    selectedBook &&
+  const chapterIsValid =
     Number.isInteger(chapterNumber) &&
     chapterNumber > 0 &&
-    chapterNumber <= selectedBook.numberOfChapters &&
+    selectedBook != null &&
+    chapterNumber <= selectedBook.numberOfChapters;
+  const draftReference =
+    selectedBook &&
+    chapterIsValid &&
     Number.isInteger(verseNumber) &&
-    verseNumber > 0
+    availableVerses.includes(verseNumber)
       ? { id: 0, book, chapter: chapterNumber, verse: verseNumber }
       : null;
 
@@ -118,6 +129,41 @@ export function AdminGospel() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (!selectedBook || !chapterIsValid) {
+      setAvailableVerses([]);
+      setVerseCatalogLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setAvailableVerses([]);
+    setVerseCatalogLoading(true);
+    const timer = window.setTimeout(() => {
+      void fetchBibleVerseNumbers(book, chapterNumber, controller.signal)
+        .then(setAvailableVerses)
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) return;
+          console.error("Could not load Bible chapter verses:", error);
+          setAvailableVerses([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setVerseCatalogLoading(false);
+        });
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [book, chapterNumber, chapterIsValid, selectedBook]);
+
+  useEffect(() => {
+    if (verse && !availableVerses.includes(verseNumber)) {
+      setVerse("");
+    }
+  }, [availableVerses, verse, verseNumber]);
+
   const bookName = (bookId: string) =>
     books.find((item) => item.id === bookId)?.name ?? bookId;
 
@@ -132,9 +178,9 @@ export function AdminGospel() {
       !Number.isInteger(verseNumber) ||
       chapterNumber < 1 ||
       chapterNumber > selectedBook.numberOfChapters ||
-      verseNumber < 1
+      !availableVerses.includes(verseNumber)
     ) {
-      toast.warning("Chapter and verse must be positive whole numbers.");
+      toast.warning("Choose an existing chapter and verse.");
       return;
     }
 
@@ -194,9 +240,11 @@ export function AdminGospel() {
               <select
                 value={book}
                 onChange={(event) => {
-                  setBook(event.target.value);
+                  const nextBook = event.target.value;
+                  setBook(nextBook);
                   setChapter("");
                   setVerse("");
+                  setAvailableVerses([]);
                 }}
                 disabled={!books.length}
                 required
@@ -223,7 +271,19 @@ export function AdminGospel() {
                   min="1"
                   max={selectedBook?.numberOfChapters}
                   value={chapter}
-                  onChange={(event) => setChapter(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const number = Number(value);
+                    if (
+                      value === "" ||
+                      (Number.isInteger(number) &&
+                        number >= 1 &&
+                        number <= (selectedBook?.numberOfChapters ?? 0))
+                    ) {
+                      setChapter(value);
+                      setVerse("");
+                    }
+                  }}
                   required
                 />
               </label>
@@ -232,13 +292,25 @@ export function AdminGospel() {
                 <Input
                   type="number"
                   min="1"
-                  max="176"
+                  max={availableVerses.at(-1)}
                   value={verse}
-                  onChange={(event) => setVerse(event.target.value)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    const number = Number(value);
+                    if (
+                      value === "" ||
+                      (Number.isInteger(number) && availableVerses.includes(number))
+                    ) {
+                      setVerse(value);
+                    }
+                  }}
                   required
                 />
               </label>
             </div>
+            {verseCatalogLoading && (
+              <p className="text-xs text-mute">Loading valid verses…</p>
+            )}
             <p className="text-xs text-mute">
               {BIBLE_TRANSLATION_NAME} · Text attribution: {BIBLE_ATTRIBUTION} (
               <a className="underline" href={BIBLE_LICENSE_URL} target="_blank" rel="noreferrer">

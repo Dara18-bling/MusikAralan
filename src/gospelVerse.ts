@@ -159,3 +159,38 @@ export async function fetchBibleVerseText(
   }
   return text;
 }
+
+export async function fetchBibleVerseNumbers(
+  book: string,
+  chapter: number,
+  signal: AbortSignal,
+): Promise<number[]> {
+  if (signal.aborted) {
+    throw new DOMException("The verse request was cancelled.", "AbortError");
+  }
+
+  const chapterRequest = loadChapter(book, chapter);
+  const verses = await new Promise<Map<number, string>>((resolve, reject) => {
+    const handleAbort = () => {
+      signal.removeEventListener("abort", handleAbort);
+      reject(new DOMException("The verse request was cancelled.", "AbortError"));
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+    chapterRequest.then(
+      (result) => {
+        signal.removeEventListener("abort", handleAbort);
+        resolve(result);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", handleAbort);
+        reject(error);
+      },
+    );
+  });
+
+  if (signal.aborted) {
+    throw new DOMException("The verse request was cancelled.", "AbortError");
+  }
+
+  return [...verses.keys()].sort((first, second) => first - second);
+}
