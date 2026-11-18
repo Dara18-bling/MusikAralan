@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Api\UserNotificationController;
 use App\Models\Classroom;
 use App\Models\Module;
 use App\Models\User;
@@ -188,6 +189,11 @@ class ClassController extends Controller
 
         $removed = $class->students()->detach($student->id);
         abort_unless($removed > 0, 404, 'You are not enrolled in this class.');
+        UserNotificationController::notifyClassTeacher(
+            $class,
+            'Student left your class',
+            sprintf('%s has left %s.', $student->name, $class->name),
+        );
 
         return response()->json([
             'left' => true,

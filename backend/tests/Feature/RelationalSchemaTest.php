@@ -196,6 +196,10 @@ class RelationalSchemaTest extends TestCase
             'class_id' => $class->id,
             'student_id' => $student->id,
         ]);
+        $teacherNotification = $teacher->fresh()->notifications()->firstOrFail();
+        $this->assertSame('Student left your class', $teacherNotification->data['title']);
+        $this->assertSame('Leave Class Student has left Leave Class.', $teacherNotification->data['content']);
+        $this->assertSame((string) $class->id, (string) $teacherNotification->data['classId']);
     }
 
     public function test_authenticated_user_can_update_contact_details_without_verification_status(): void
