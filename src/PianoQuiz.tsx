@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const PIANO_KEYS = [
   { note: "C4", label: "C4", solfege: "do", color: "white", freq: 261.63, kb: "A" },
@@ -16,47 +16,73 @@ const PIANO_KEYS = [
   { note: "C5", label: "C5", solfege: "do", color: "white", freq: 523.25, kb: "K" },
 ];
 
+type AudioWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 export default function PianoQuiz() {
   const [targetKey, setTargetKey] = useState(PIANO_KEYS[4]);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [score, setScore] = useState(0);
   const [activeNote, setActiveNote] = useState<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
-  const playGrandPianoSound = (frequency: number) => {
-    const audioCtx = new (
-      window.AudioContext || (window as any).webkitAudioContext
-    )();
+  const playGrandPianoSound = useCallback(async (frequency: number) => {
+    try {
+      const AudioContextConstructor =
+        window.AudioContext || (window as AudioWindow).webkitAudioContext;
+      if (!AudioContextConstructor) {
+        console.error("Web Audio API is not supported by this browser.");
+        return;
+      }
+      const audioCtx =
+        audioContextRef.current ||
+        (audioContextRef.current = new AudioContextConstructor());
+      if (audioCtx.state === "suspended") await audioCtx.resume();
 
-    const osc1 = audioCtx.createOscillator();
-    const osc2 = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
 
-    osc1.type = "sine";
-    osc2.type = "triangle";
-    osc1.frequency.value = frequency;
-    osc2.frequency.value = frequency;
+      osc1.type = "sine";
+      osc2.type = "triangle";
+      osc1.frequency.value = frequency;
+      osc2.frequency.value = frequency;
 
-    osc1.connect(gainNode);
-    osc2.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
+      osc1.connect(gainNode);
+      osc2.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
 
-    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(
-      0.001,
-      audioCtx.currentTime + 1.5,
-    );
+      gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioCtx.currentTime + 1.5,
+      );
 
-    osc1.start(audioCtx.currentTime);
-    osc2.start(audioCtx.currentTime);
-    osc1.stop(audioCtx.currentTime + 1.5);
-    osc2.stop(audioCtx.currentTime + 1.5);
-  };
+      osc1.start(audioCtx.currentTime);
+      osc2.start(audioCtx.currentTime);
+      osc1.stop(audioCtx.currentTime + 1.5);
+      osc2.stop(audioCtx.currentTime + 1.5);
+    } catch (error) {
+      console.error("Could not play piano sound:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const audioContext = audioContextRef.current;
+      audioContextRef.current = null;
+      if (audioContext && audioContext.state !== "closed") {
+        void audioContext.close();
+      }
+    };
+  }, []);
 
   const handleKeyClick = useCallback(
     (key: (typeof PIANO_KEYS)[0]) => {
       setActiveNote(key.note);
-      playGrandPianoSound(key.freq);
+      void playGrandPianoSound(key.freq);
       if (key.note === targetKey.note) {
         setFeedback("Correct! Galing! 🎵");
         setScore((prev) => prev + 1);
@@ -75,7 +101,7 @@ export default function PianoQuiz() {
         );
       }
     },
-    [targetKey],
+    [playGrandPianoSound, targetKey],
   );
 
   useEffect(() => {
@@ -95,7 +121,7 @@ export default function PianoQuiz() {
   }, [handleKeyClick]);
 
   return (
-    <div className="mx-auto max-w-2xl rounded-3xl border border-line bg-white p-8 shadow-xl">
+    <div className="piano-exercise mx-auto max-w-2xl rounded-3xl border border-line bg-white p-8 shadow-xl">
       <div className="text-center">
         <h2 className="font-display text-2xl font-bold text-ink">
           Solfeggio Exercise
@@ -118,30 +144,32 @@ export default function PianoQuiz() {
           </span>
         </div>
 
-        <div className="relative isolate z-0 mx-auto mt-6 mb-4 flex w-fit select-none justify-center">
-          {PIANO_KEYS.map((key) => {
-            const isBlack = key.color === "black";
-            return (
-              <button
-                key={key.note}
-                onClick={() => handleKeyClick(key)}
-                className={`relative transition-all active:translate-y-1 ${isBlack
-                  ? `piano-black-key ${activeNote === key.note ? "is-active ring-2 ring-p1/50" : "bg-gray-900 hover:bg-gray-800"} h-32 w-10 -mx-5 z-10 rounded-b-md text-white shadow-md`
-                  : `piano-white-key ${activeNote === key.note ? "is-active ring-2 ring-p1" : "bg-white hover:bg-slate-50"} h-48 w-14 z-0 rounded-b-lg border-2 border-slate-300 text-slate-700 shadow-sm`}`}
-              >
-                {!isBlack && (
-                  <span className={`piano-solfege-label absolute bottom-8 left-1/2 -translate-x-1/2 font-semibold text-xs ${activeNote === key.note ? "text-white" : "text-p2"}`}>
-                    {key.solfege}
-                  </span>
-                )}
-                <span
-                    className={`absolute bottom-2 left-1/2 -translate-x-1/2 font-bold text-xs ${activeNote === key.note ? "text-white" : isBlack ? "text-gray-400" : "text-slate-400"}`}
+        <div className="piano-keyboard-frame">
+          <div className="piano-keyboard relative isolate z-0 mx-auto mt-6 mb-4 flex w-fit select-none justify-center">
+            {PIANO_KEYS.map((key) => {
+              const isBlack = key.color === "black";
+              return (
+                <button
+                  key={key.note}
+                  onClick={() => handleKeyClick(key)}
+                  className={`relative touch-manipulation transition-all active:translate-y-1 ${isBlack
+                    ? `piano-black-key ${activeNote === key.note ? "is-active ring-2 ring-p1/50" : "bg-gray-900 hover:bg-gray-800"} h-32 w-10 -mx-5 z-10 rounded-b-md text-white shadow-md`
+                    : `piano-white-key ${activeNote === key.note ? "is-active ring-2 ring-p1" : "bg-white hover:bg-slate-50"} h-48 w-14 z-0 rounded-b-lg border-2 border-slate-300 text-slate-700 shadow-sm`}`}
                 >
-                  {key.label}
-                </span>
-              </button>
-            );
-          })}
+                  {!isBlack && (
+                    <span className={`piano-solfege-label absolute bottom-8 left-1/2 -translate-x-1/2 font-semibold text-xs ${activeNote === key.note ? "text-white" : "text-p2"}`}>
+                      {key.solfege}
+                    </span>
+                  )}
+                  <span
+                      className={`absolute bottom-2 left-1/2 -translate-x-1/2 font-bold text-xs ${activeNote === key.note ? "text-white" : isBlack ? "text-gray-400" : "text-slate-400"}`}
+                  >
+                    {key.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="min-h-[40px]">

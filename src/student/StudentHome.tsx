@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BookOpen, CalendarDays, Music, Trophy } from "lucide-react";
 import { Card, Label, Title } from "../ui";
 import { POLL_INTERVAL_HOUR, watchApi } from "../api";
+import type { ClassCatalogItem } from "../classCatalog";
 import type { StudentView } from "./studentTypes";
+import {
+  StudentCalendar,
+  type CalendarMaterial,
+  type CalendarSchedule,
+} from "./StudentCalendar";
 
 interface StudentDashboard {
   classes: number;
@@ -18,23 +25,20 @@ interface StudentDashboard {
   };
 }
 
-interface ScheduleItem {
-  id: string;
-  title: string;
-  className: string | null;
-  startsAt: string;
-  joinUrl: string | null;
-}
-
 interface StudentHomeProps {
   go: (v: StudentView) => void;
   age: string;
   userName: string;
+  userId: string;
 }
 
-export function StudentHome({ go, age, userName }: StudentHomeProps) {
+export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<StudentDashboard | null>(null);
-  const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+  const [schedules, setSchedules] = useState<CalendarSchedule[]>([]);
+  const [calendarMaterials, setCalendarMaterials] = useState<
+    CalendarMaterial[]
+  >([]);
   const [schedulesLoaded, setSchedulesLoaded] = useState(false);
   const [error, setError] = useState("");
   const firstName = userName.split(" ")[0];
@@ -52,15 +56,12 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
       },
       POLL_INTERVAL_HOUR,
     );
-    const stopSchedules = watchApi<{ data: ScheduleItem[] }>(
+    const stopSchedules = watchApi<{ data: CalendarSchedule[] }>(
       "/schedules",
       ({ data }) => {
         setSchedules(
-          data.filter(
-            (item) => new Date(item.startsAt).getTime() >= Date.now(),
-          ),
+          data,
         );
-        setSchedulesLoaded(true);
       },
       (listenerError) => {
         console.error("Could not load upcoming sessions:", listenerError);
@@ -73,6 +74,57 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
       stopSchedules();
     };
   }, []);
+
+  useEffect(() => {
+    let materialStops: (() => void)[] = [];
+    const stopClasses = watchApi<{ data: ClassCatalogItem[] }>(
+      "/classes",
+      ({ data }) => {
+        materialStops.forEach((stop) => stop());
+        materialStops = [];
+        setCalendarMaterials([]);
+        const enrolledClasses = data.filter(
+          (item) =>
+            !item.deleted && item.enrolledStudentIds?.includes(userId),
+        );
+        materialStops = enrolledClasses.map((classInfo) =>
+          watchApi<{ data: CalendarMaterial[] }>(
+            `/classes/${classInfo.id}/materials`,
+            ({ data: materials }) => {
+              setCalendarMaterials((current) => [
+                ...current.filter(
+                  (material) => material.classId !== classInfo.id,
+                ),
+                ...materials
+                  .filter((material) => material.isAssignment)
+                  .map((material) => ({
+                    ...material,
+                    classId: classInfo.id,
+                  })),
+              ]);
+            },
+            (listenerError) => {
+              console.error(
+                `Could not load calendar materials for ${classInfo.id}:`,
+                listenerError,
+              );
+              setError("Some calendar dates are unavailable right now.");
+            },
+            POLL_INTERVAL_HOUR,
+          ),
+        );
+      },
+      (listenerError) => {
+        console.error("Could not load classes for the student calendar:", listenerError);
+        setError("Some calendar dates are unavailable right now.");
+      },
+      POLL_INTERVAL_HOUR,
+    );
+    return () => {
+      stopClasses();
+      materialStops.forEach((stop) => stop());
+    };
+  }, [userId]);
 
   const kid = age === "kids";
   const stats = [
@@ -205,6 +257,13 @@ export function StudentHome({ go, age, userName }: StudentHomeProps) {
           </button>
         </Card>
       </div>
+      <StudentCalendar
+        schedules={schedules}
+        materials={calendarMaterials}
+        onOpenMaterial={(classId, materialId) =>
+          navigate(`/student/classes/${classId}/materials/${materialId}`)
+        }
+      />
     </>
   );
 }

@@ -30,5 +30,5 @@ export default function Student({
   }
   if (view === "help") return <StudentHelp />;
   if (view === "alerts") return <Notifications role="student" age={age} />;
-  return <StudentHome go={go} age={age} userName={userName} />;
+  return <StudentHome go={go} age={age} userName={userName} userId={userId} />;
 }

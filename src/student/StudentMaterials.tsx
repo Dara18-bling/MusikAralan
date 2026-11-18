@@ -21,7 +21,6 @@ interface StudentMaterialsProps {
 const WORKSPACE_TABS: WorkspaceTab[] = [
   "dashboard",
   "materials",
-  "calendar",
   "live",
   "assessments",
   "completion",
