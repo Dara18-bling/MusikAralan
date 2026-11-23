@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { apiGet, apiPost, apiPut, refreshApi } from "../api";
 import { Btn, Card, Input, Label } from "../ui";
+import { QuizScores } from "./QuizScores";
 
 export type Question = {
   q: string;
@@ -34,6 +35,8 @@ interface QuizProps {
   onAssessmentChange: (assessmentId: string) => void;
 }
 
+type QuizSubtab = "create" | "edit" | "scores";
+
 const emptyQuestion = (): Question => ({
   q: "",
   o: [],
@@ -42,6 +45,9 @@ const emptyQuestion = (): Question => ({
 });
 
 export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
+  const [activeSubtab, setActiveSubtab] = useState<QuizSubtab>(
+    assessmentId ? "edit" : "create",
+  );
   const [assessments, setAssessments] = useState<AssessmentSummary[]>([]);
   const [assessmentsLoaded, setAssessmentsLoaded] = useState(false);
   const [assessmentCode, setAssessmentCode] = useState("");
@@ -93,7 +99,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
         setAssessmentsLoaded(true);
         const nextAssessmentId = data.some((item) => item.id === assessmentId)
           ? assessmentId
-          : data[0]?.id || "";
+          : "";
         if (nextAssessmentId !== assessmentId) {
           onAssessmentChange(nextAssessmentId);
         }
@@ -152,8 +158,19 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
   }, [assessmentId, assessmentsLoaded]);
 
   const startNewAssessment = () => {
+    setActiveSubtab("create");
     onAssessmentChange("");
     resetAssessmentForm();
+  };
+
+  const selectSubtab = (subtab: QuizSubtab) => {
+    setActiveSubtab(subtab);
+    if (subtab === "create") {
+      onAssessmentChange("");
+      resetAssessmentForm();
+    } else if (subtab === "edit" && !assessmentId) {
+      onAssessmentChange(assessments[0]?.id || "");
+    }
   };
 
   const updateQuestion = (index: number, changes: Partial<Question>) => {
@@ -255,8 +272,41 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
 
   return (
     <>
+      <div
+        className="mb-5 overflow-x-auto border-b border-line"
+        role="tablist"
+        aria-label="Quiz tools"
+      >
+        <div className="flex min-w-max gap-1">
+          {(
+            [
+              ["create", "Create New Quiz"],
+              ["edit", "Edit Quiz"],
+              ["scores", "Quiz Scores"],
+            ] as const
+          ).map(([subtab, label]) => (
+            <button
+              key={subtab}
+              type="button"
+              role="tab"
+              aria-selected={activeSubtab === subtab}
+              onClick={() => selectSubtab(subtab)}
+              className={`-mb-px border-b-2 px-4 py-3 text-sm font-semibold transition ${
+                activeSubtab === subtab
+                  ? "border-[var(--p1)] text-p1"
+                  : "border-transparent text-mute hover:border-line hover:text-ink"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {activeSubtab === "scores" ? (
+        <QuizScores className={classId || "Class"} assessments={assessments} />
+      ) : (
       <div className="grid max-w-3xl gap-4">
-        <Card className="flex flex-wrap items-end gap-3">
+        {activeSubtab === "edit" && <Card className="flex flex-wrap items-end gap-3">
           <label className="grid min-w-56 flex-1 gap-1 text-sm font-semibold">
             Class quizzes
             <select
@@ -275,7 +325,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
           <Btn variant="soft" onClick={startNewAssessment}>
             + New assessment
           </Btn>
-        </Card>
+        </Card>}
 
         <fieldset
           disabled={editLocked}
@@ -451,6 +501,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
           </p>
         )}
       </div>
+      )}
     </>
   );
 }

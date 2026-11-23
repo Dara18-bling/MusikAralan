@@ -300,6 +300,45 @@ class LearningController extends Controller
         ]);
     }
 
+    public function assessmentScores(Request $request, Assessment $assessment): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $class = $assessment->classroom;
+        abort_unless(
+            $user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id),
+            403,
+        );
+
+        $scores = $assessment->attempts()
+            ->with('student')
+            ->latest('submitted_at')
+            ->latest('id')
+            ->get()
+            ->groupBy('student_id')
+            ->map(function ($attempts) use ($assessment): array {
+                /** @var QuizAttempt $bestAttempt */
+                $bestAttempt = $attempts
+                    ->sortByDesc(fn (QuizAttempt $attempt): array => [
+                        $attempt->score,
+                        $attempt->submitted_at?->timestamp ?? 0,
+                        $attempt->id,
+                    ])
+                    ->first();
+
+                return [
+                    'studentName' => $bestAttempt->student?->name ?? 'Unknown student',
+                    'score' => $bestAttempt->score,
+                    'passed' => $bestAttempt->passed,
+                    'retakes' => $assessment->allows_retakes
+                        ? max($attempts->count() - 1, 0)
+                        : 0,
+                ];
+            })
+            ->values();
+
+        return response()->json(['data' => $scores]);
+    }
+
     public function publishAssessment(Request $request, Classroom $class): JsonResponse
     {
         $user = $request->attributes->get('app_user');

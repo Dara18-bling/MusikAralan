@@ -513,6 +513,16 @@ class DashboardAndScheduleTest extends TestCase
             ->assertJsonCount(2, 'data.0.recentAttempts')
             ->assertJsonPath('data.0.latestAttempt.passed', false);
 
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->getJson("/api/assessments/{$firstAssessment}/scores")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.score', 100)
+            ->assertJsonPath('data.0.passed', true)
+            ->assertJsonPath('data.0.retakes', 1)
+            ->assertJsonPath('data.0.studentName', $student->name);
+
         $this->assertDatabaseHas('module_progress', [
             'user_id' => $student->id,
             'status' => 'completed',

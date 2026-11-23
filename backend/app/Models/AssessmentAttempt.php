@@ -27,6 +27,11 @@ class AssessmentAttempt extends Model
         return $this->belongsTo(Assessment::class);
     }
 
+    public function student(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'student_id');
+    }
+
     public function moduleProgress(): BelongsTo
     {
         return $this->belongsTo(ModuleProgress::class);
