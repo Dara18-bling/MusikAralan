@@ -222,7 +222,11 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
-        $assessment = $class->assessments()->with('questions')->orderBy('id')->first();
+        $assessment = $class->assessments()
+            ->when($user->role === 'student', fn ($query) => $query->where('is_published', true))
+            ->with('questions')
+            ->orderBy('id')
+            ->first();
 
         return response()->json([
             'assessment' => $assessment ? $this->assessmentPayload($assessment, $user->role !== 'student') : null,
@@ -234,7 +238,8 @@ class LearningController extends Controller
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $class);
         $assessments = $class->assessments()
-            ->withCount('questions')
+            ->when($user->role === 'student', fn ($query) => $query->where('is_published', true))
+            ->withCount(['questions', 'attempts'])
             ->when(
                 $user->role === 'student',
                 fn ($query) => $query->with([
@@ -262,6 +267,9 @@ class LearningController extends Controller
                     'passingPercent' => $assessment->passing_percent,
                     'questionCount' => $assessment->questions_count,
                     'allowsRetakes' => $assessment->allows_retakes,
+                    'isPublished' => $assessment->is_published,
+                    'attemptsCount' => $assessment->attempts_count,
+                    'editLocked' => $assessment->attempts_count > 0,
                     'latestAttempt' => $latestAttempt ? [
                         'score' => $latestAttempt->score,
                         'passed' => $latestAttempt->passed,
@@ -282,6 +290,7 @@ class LearningController extends Controller
     {
         $user = $request->attributes->get('app_user');
         $this->ensureClassAccess($user, $assessment->classroom);
+        abort_unless($user->role !== 'student' || $assessment->is_published, 404, 'This assessment is not published.');
 
         return response()->json([
             'assessment' => $this->assessmentPayload(
@@ -296,6 +305,7 @@ class LearningController extends Controller
         $user = $request->attributes->get('app_user');
         abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
         $assessment = $class->assessments()->orderBy('id')->first();
+        abort_if($assessment?->attempts()->exists(), 409, 'This assessment is locked because a student has already submitted an attempt.');
 
         return $this->saveAssessment($request, $class, $user, $assessment);
     }
@@ -313,6 +323,7 @@ class LearningController extends Controller
         $user = $request->attributes->get('app_user');
         $class = $assessment->classroom;
         abort_unless($user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id), 403);
+        abort_if($assessment?->attempts()->exists(), 409, 'This assessment is locked because a student has already submitted an attempt.');
 
         return $this->saveAssessment($request, $class, $user, $assessment);
     }
@@ -336,6 +347,7 @@ class LearningController extends Controller
             'passingPercent' => ['required', 'integer', 'between:0,100'],
             'allowsRetakes' => ['sometimes', 'boolean'],
             'shuffleOrder' => ['sometimes', 'boolean'],
+            'isPublished' => ['sometimes', 'boolean'],
             'questions' => ['required', 'array', 'min:1'],
             'questions.*.q' => ['required', 'string'],
             'questions.*.type' => ['required', Rule::in(['multiple', 'truefalse', 'identification'])],
@@ -354,7 +366,7 @@ class LearningController extends Controller
             }
         }
 
-        $assessment = DB::transaction(function () use ($class, $data, $user, $assessment): Assessment {
+        $assessment = DB::transaction(function () use ($class, $data, $user, $assessment, $isNew): Assessment {
             $module = $this->moduleForClass($class, $user->id);
             if ($assessment === null) {
                 $assessment = new Assessment([
@@ -369,6 +381,9 @@ class LearningController extends Controller
             $assessment->passing_percent = $data['passingPercent'];
             $assessment->allows_retakes = $data['allowsRetakes'] ?? true;
             $assessment->shuffle_order = $data['shuffleOrder'] ?? ($assessment->shuffle_order ?? false);
+            if ($isNew || array_key_exists('isPublished', $data)) {
+                $assessment->is_published = $data['isPublished'] ?? true;
+            }
             $assessment->save();
             $assessment->questions()->delete();
             foreach (array_values($data['questions']) as $position => $question) {
@@ -426,12 +441,14 @@ class LearningController extends Controller
             403,
             'Enroll in this class before submitting an assessment.',
         );
+        abort_unless($assessment->is_published, 403, 'This assessment is not published.');
 
         return $this->gradeAssessment($request, $assessment, $user);
     }
 
     private function gradeAssessment(Request $request, Assessment $assessment, $user): JsonResponse
     {
+        abort_unless($assessment->is_published, 403, 'This assessment is not published.');
         abort_if(
             ! $assessment->allows_retakes
                 && $assessment->attempts()->where('student_id', $user->id)->exists(),
@@ -780,6 +797,11 @@ class LearningController extends Controller
             'passingPercent' => $assessment->passing_percent,
             'allowsRetakes' => $assessment->allows_retakes,
             'shuffleOrder' => $assessment->shuffle_order,
+            'isPublished' => $assessment->is_published,
+            'attemptsCount' => $assessment->relationLoaded('attempts')
+                ? $assessment->attempts->count()
+                : $assessment->attempts()->count(),
+            'editLocked' => $assessment->attempts()->exists(),
             'questions' => $assessment->questions->map(function (AssessmentQuestion $question) use ($includeAnswers): array {
                 $payload = [
                     'id' => (string) $question->id,

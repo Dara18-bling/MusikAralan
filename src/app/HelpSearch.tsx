@@ -70,15 +70,22 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
           >
             <header className="flex items-start justify-between gap-4 border-b border-line bg-p1-soft/40 px-5 py-4 sm:px-6">
               <div className="flex items-start gap-3">
-                <span className="rounded-xl bg-white p-2 text-p1 shadow-sm" aria-hidden="true">
+                <span
+                  className="rounded-xl bg-white p-2 text-p1 shadow-sm"
+                  aria-hidden="true"
+                >
                   <BookOpen className="h-5 w-5" />
                 </span>
                 <div>
-                  <h2 id="help-search-title" className="font-display text-xl font-bold">
+                  <h2
+                    id="help-search-title"
+                    className="font-display text-xl font-bold"
+                  >
                     Search Guides
                   </h2>
                   <p className="mt-1 text-sm text-mute">
-                    Search guidance for classes, materials, assessments, and your account.
+                    Search guidance for classes, materials, quizzes, and your
+                    account.
                   </p>
                   {isAdmin && (
                     <button
@@ -104,8 +111,14 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
               </button>
             </header>
 
-            <form onSubmit={search} className="grid gap-3 border-b border-line p-5 sm:px-6">
-              <label htmlFor="help-search-query" className="text-sm font-semibold">
+            <form
+              onSubmit={search}
+              className="grid gap-3 border-b border-line p-5 sm:px-6"
+            >
+              <label
+                htmlFor="help-search-query"
+                className="text-sm font-semibold"
+              >
                 What are you looking for?
               </label>
               <div className="flex gap-2">
@@ -139,7 +152,10 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
                 </p>
               )}
               {searchError && (
-                <p role="alert" className="py-8 text-center text-sm text-red-600">
+                <p
+                  role="alert"
+                  className="py-8 text-center text-sm text-red-600"
+                >
                   Help search is unavailable. Please try again.
                 </p>
               )}
@@ -148,16 +164,25 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
                   Search by keyword or phrase to find relevant help.
                 </p>
               )}
-              {!isSearching && !searchError && hasSearched && results.length === 0 && (
-                <p className="py-8 text-center text-sm text-mute">
-                  No help entries matched. Try a different keyword or phrase.
-                </p>
-              )}
+              {!isSearching &&
+                !searchError &&
+                hasSearched &&
+                results.length === 0 && (
+                  <p className="py-8 text-center text-sm text-mute">
+                    No help entries matched. Try a different keyword or phrase.
+                  </p>
+                )}
               {!isSearching && !searchError && results.length > 0 && (
-                <section aria-live="polite" aria-label={`Help search results for ${searchedQuery}`}>
+                <section
+                  aria-live="polite"
+                  aria-label={`Help search results for ${searchedQuery}`}
+                >
                   <p className="mb-3 text-sm text-mute">
-                    {results.length} {results.length === 1 ? "match" : "matches"} for{" "}
-                    <span className="font-semibold text-ink">&ldquo;{searchedQuery}&rdquo;</span>
+                    {results.length}{" "}
+                    {results.length === 1 ? "match" : "matches"} for{" "}
+                    <span className="font-semibold text-ink">
+                      &ldquo;{searchedQuery}&rdquo;
+                    </span>
                   </p>
                   <ul className="space-y-3">
                     {results.map((result, index) => (
@@ -165,7 +190,9 @@ export function HelpSearch({ isAdmin }: HelpSearchProps) {
                         key={`${result.id}-${index}`}
                         className="rounded-2xl border border-line bg-white p-4 shadow-sm"
                       >
-                        <h3 className="font-semibold text-p1">{result.keywords}</h3>
+                        <h3 className="font-semibold text-p1">
+                          {result.keywords}
+                        </h3>
                         <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink">
                           {result.response}
                         </p>

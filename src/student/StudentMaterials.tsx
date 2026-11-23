@@ -11,7 +11,10 @@ import {
 } from "../api";
 import { Card, Title } from "../ui";
 import type { ClassCatalogItem } from "../classCatalog";
-import { StudentClassWorkspace, type WorkspaceTab } from "./StudentClassWorkspace";
+import {
+  StudentClassWorkspace,
+  type WorkspaceTab,
+} from "./StudentClassWorkspace";
 
 interface StudentMaterialsProps {
   userId: string;
@@ -42,8 +45,8 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   const activeTab = selectedMaterialId
     ? "materials"
     : WORKSPACE_TABS.includes(requestedTab || "dashboard")
-    ? requestedTab || "dashboard"
-    : "dashboard";
+      ? requestedTab || "dashboard"
+      : "dashboard";
 
   useEffect(
     () =>
@@ -167,9 +170,9 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
               classItem.id === selectedClass.id
                 ? {
                     ...classItem,
-                    enrolledStudentIds: (classItem.enrolledStudentIds || []).filter(
-                      (id) => id !== userId,
-                    ),
+                    enrolledStudentIds: (
+                      classItem.enrolledStudentIds || []
+                    ).filter((id) => id !== userId),
                   }
                 : classItem,
             ),
@@ -185,7 +188,9 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   if (classId && classesLoaded && !selectedClass) {
     return (
       <Card className="text-center">
-        <p className="text-mute">This class is not available in your enrolled classes.</p>
+        <p className="text-mute">
+          This class is not available in your enrolled classes.
+        </p>
         <button
           type="button"
           onClick={() => navigate("/student/materials")}
@@ -198,22 +203,29 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
   }
 
   if (classId) {
-    return <Card className="animate-pulse py-12 text-center text-mute">Loading class workspace…</Card>;
+    return (
+      <Card className="animate-pulse py-12 text-center text-mute">
+        Loading class workspace…
+      </Card>
+    );
   }
 
-  const visibleClasses = section === "enrolled" ? enrolledClasses : availableClasses;
+  const visibleClasses =
+    section === "enrolled" ? enrolledClasses : availableClasses;
   return (
     <>
       <Title
         kicker="Learning & Enrollment"
         title="Classes"
-        sub="Open a class to view its dashboard, materials, live sessions, assessments, and completion requirements."
+        sub="Open a class to view its dashboard, materials, live sessions, quizzes, and completion requirements."
         right={
           <div className="flex rounded-full border border-line bg-white p-1 text-sm">
-            {([
-              ["enrolled", "My Classes"],
-              ["available", "Available"],
-            ] as const).map(([key, label]) => (
+            {(
+              [
+                ["enrolled", "My Classes"],
+                ["available", "Available"],
+              ] as const
+            ).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
@@ -232,7 +244,9 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
         Enrolling in more than 3 requires confirmation.
       </p>
       {!classesLoaded ? (
-        <Card className="animate-pulse py-12 text-center text-mute">Loading classes…</Card>
+        <Card className="animate-pulse py-12 text-center text-mute">
+          Loading classes…
+        </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleClasses.map((item) => (
@@ -241,11 +255,22 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
                 <Music className="h-12 w-12" strokeWidth={1.4} />
               </div>
               <h2 className="mt-4 font-display text-xl">{item.name}</h2>
-              <p className="mt-2"><span className="font-semibold">Teacher:</span> {item.teacher}</p>
-              <p className="text-sm text-mute">
-                Age group: {item.age === "all" ? "All ages" : item.age === "adults" ? "Adults (26+)" : item.age === "kids" ? "Kids (5–12)" : "Youth (13–25)"}
+              <p className="mt-2">
+                <span className="font-semibold">Teacher:</span> {item.teacher}
               </p>
-              {item.description && <p className="mt-2 text-sm text-mute">{item.description}</p>}
+              <p className="text-sm text-mute">
+                Age group:{" "}
+                {item.age === "all"
+                  ? "All ages"
+                  : item.age === "adults"
+                    ? "Adults (26+)"
+                    : item.age === "kids"
+                      ? "Kids (5–12)"
+                      : "Youth (13–25)"}
+              </p>
+              {item.description && (
+                <p className="mt-2 text-sm text-mute">{item.description}</p>
+              )}
               <div className="mt-auto flex gap-2 pt-4">
                 {section === "available" ? (
                   <button
@@ -254,7 +279,9 @@ export function StudentMaterials({ userId, userName }: StudentMaterialsProps) {
                     disabled={!userId || enrolledClasses.length >= 5}
                     className="flex-1 rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                   >
-                    {enrolledClasses.length >= 5 ? "Class limit reached" : "Enroll"}
+                    {enrolledClasses.length >= 5
+                      ? "Class limit reached"
+                      : "Enroll"}
                   </button>
                 ) : (
                   <button

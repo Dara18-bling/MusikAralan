@@ -12,7 +12,7 @@ type ContentTab = "materials" | "upload" | "assessments" | "students";
 const TABS: { id: ContentTab; label: string }[] = [
   { id: "materials", label: "Materials & links" },
   { id: "upload", label: "Add material" },
-  { id: "assessments", label: "Assessments" },
+  { id: "assessments", label: "Quizzes" },
   { id: "students", label: "Student progress" },
 ];
 
@@ -40,7 +40,7 @@ export function AdminClassContent({
       <Title
         kicker="Class content"
         title={classInfo.name}
-        sub={`${classInfo.teacher || "Unassigned"} · Manage class materials, links, assessments, and student progress.`}
+        sub={`${classInfo.teacher || "Unassigned"} · Manage class materials, links, quizzes, and student progress.`}
       />
       <div
         className="mt-5 overflow-x-auto border-b border-line"

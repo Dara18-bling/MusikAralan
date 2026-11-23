@@ -348,6 +348,73 @@ class DashboardAndScheduleTest extends TestCase
             ->assertJsonPath('assessment.shuffleOrder', false);
     }
 
+    public function test_draft_assessments_are_hidden_and_attempted_assessments_cannot_be_edited(): void
+    {
+        $teacher = $this->createUser('assessment-policy-teacher@example.test', 'teacher');
+        $student = $this->createUser('assessment-policy-student@example.test', 'student');
+        $class = Classroom::query()->create([
+            'name' => 'Assessment policy class',
+            'teacher_id' => $teacher->id,
+        ]);
+        $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $teacherToken = $teacher->createToken('assessment-policy-teacher')->plainTextToken;
+        $studentToken = $student->createToken('assessment-policy-student')->plainTextToken;
+        $question = [[
+            'q' => 'Which clef is used for higher notes?',
+            'o' => ['Treble', 'Bass'],
+            'a' => 0,
+            'type' => 'multiple',
+        ]];
+
+        $assessmentId = $this->withToken($teacherToken)
+            ->postJson("/api/classes/{$class->id}/assessments", [
+                'title' => 'Draft assessment',
+                'passingPercent' => 70,
+                'isPublished' => false,
+                'questions' => $question,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('assessment.isPublished', false)
+            ->json('assessment.id');
+
+        Auth::forgetGuards();
+        $this->withToken($studentToken)
+            ->getJson("/api/classes/{$class->id}/assessments")
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        Auth::forgetGuards();
+        $this->withToken($studentToken)
+            ->getJson("/api/assessments/{$assessmentId}")
+            ->assertNotFound();
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->putJson("/api/assessments/{$assessmentId}", [
+                'title' => 'Published assessment',
+                'passingPercent' => 70,
+                'isPublished' => true,
+                'questions' => $question,
+            ])
+            ->assertOk()
+            ->assertJsonPath('assessment.isPublished', true);
+
+        Auth::forgetGuards();
+        $this->withToken($studentToken)
+            ->postJson("/api/assessments/{$assessmentId}/attempts", ['answers' => ['0']])
+            ->assertCreated();
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->putJson("/api/assessments/{$assessmentId}", [
+                'title' => 'Changed after attempt',
+                'passingPercent' => 70,
+                'questions' => $question,
+            ])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This assessment is locked because a student has already submitted an attempt.');
+    }
+
     public function test_class_can_have_multiple_assessments_with_isolated_questions_and_attempts(): void
     {
         $teacher = $this->createUser('multiple-assessments-teacher@example.test', 'teacher');

@@ -14,7 +14,7 @@ const TABS: { id: TeacherWorkspaceTab; label: string }[] = [
   { id: "live", label: "Live Sessions" },
   { id: "upload", label: "Upload Material" },
   { id: "materials", label: "View Material" },
-  { id: "assessments", label: "Assessment Builder" },
+  { id: "assessments", label: "Quiz Builder" },
   { id: "students", label: "My Students" },
   { id: "certifications", label: "Certifications" },
 ];

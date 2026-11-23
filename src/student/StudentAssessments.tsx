@@ -86,7 +86,9 @@ export function StudentAssessments({
   const [selectedAssessment, setSelectedAssessment] =
     useState<AssessmentDetails | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [displayQuestions, setDisplayQuestions] = useState<DisplayQuestion[]>([]);
+  const [displayQuestions, setDisplayQuestions] = useState<DisplayQuestion[]>(
+    [],
+  );
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedScores, setExpandedScores] = useState("");
@@ -100,8 +102,8 @@ export function StudentAssessments({
         setLoading(false);
       },
       (error) => {
-        console.error("Could not load class assessments:", error);
-        toast.error("Could not load assessments for this class.");
+        console.error("Could not load class quizzes:", error);
+        toast.error("Could not load quizzes for this class.");
         setLoading(false);
       },
       POLL_INTERVAL_HOUR,
@@ -118,7 +120,7 @@ export function StudentAssessments({
       setDisplayQuestions(getDisplayQuestions(assessment));
       setAnswers({});
     } catch (error) {
-      console.error("Could not load assessment questions:", error);
+      console.error("Could not load quiz questions:", error);
       toast.error("Could not open this assessment.");
     } finally {
       setLoading(false);
@@ -163,7 +165,9 @@ export function StudentAssessments({
                 latestAttempt,
                 recentAttempts: [
                   latestAttempt,
-                  ...(item.recentAttempts || []).filter((recent) => recent.id !== latestAttempt.id),
+                  ...(item.recentAttempts || []).filter(
+                    (recent) => recent.id !== latestAttempt.id,
+                  ),
                 ].slice(0, 10),
               }
             : item,
@@ -176,8 +180,8 @@ export function StudentAssessments({
       refreshApi("/dashboard");
       toast[attempt.passed ? "success" : "warning"](
         attempt.passed
-          ? `Assessment passed: ${attempt.score}%.`
-          : `Assessment score: ${attempt.score}%. Review the materials and try again.`,
+          ? `Quiz passed: ${attempt.score}%.`
+          : `Quiz score: ${attempt.score}%. Review the materials and try again.`,
       );
       setSelectedAssessment(null);
       setDisplayQuestions([]);
@@ -187,7 +191,7 @@ export function StudentAssessments({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Could not save your assessment result.",
+          : "Could not save your quiz result.",
       );
     } finally {
       setSubmitting(false);
@@ -203,7 +207,7 @@ export function StudentAssessments({
           className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-p1"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to assessments
+          Back to quizzes
         </button>
         <Title
           kicker={`${className} · ${selectedAssessment.assessmentCode}`}
@@ -279,8 +283,8 @@ export function StudentAssessments({
     <>
       <Title
         kicker={className}
-        title="Assessments"
-        sub="Take an assessment, review your recent scores, or retake an assessment when allowed."
+        title="Quizzes"
+        sub="Take an assessment, review your recent scores, or retake an quiz when allowed."
       />
       <div className="mt-5 grid gap-3">
         {assessments.map((assessment) => (
@@ -292,21 +296,23 @@ export function StudentAssessments({
                   aria-hidden="true"
                 />
                 <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-p1">
-                  {assessment.assessmentCode}
-                </p>
-                <h2 className="font-display text-xl font-bold">
-                  {assessment.title}
-                </h2>
-                <p className="mt-1 text-sm text-mute">
-                  {assessment.questionCount} questions · Pass at{" "}
-                  {assessment.passingPercent}%
-                  {assessment.latestAttempt &&
-                    ` · Latest score ${assessment.latestAttempt.score}% (${assessment.latestAttempt.passed ? "Passed" : "Not passed"})`}
-                </p>
-                <p className="mt-1 text-xs text-mute">
-                  {assessment.allowsRetakes ? "Retakes allowed" : "One attempt only"}
-                </p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-p1">
+                    {assessment.assessmentCode}
+                  </p>
+                  <h2 className="font-display text-xl font-bold">
+                    {assessment.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-mute">
+                    {assessment.questionCount} questions · Pass at{" "}
+                    {assessment.passingPercent}%
+                    {assessment.latestAttempt &&
+                      ` · Latest score ${assessment.latestAttempt.score}% (${assessment.latestAttempt.passed ? "Passed" : "Not passed"})`}
+                  </p>
+                  <p className="mt-1 text-xs text-mute">
+                    {assessment.allowsRetakes
+                      ? "Retakes allowed"
+                      : "One attempt only"}
+                  </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -316,7 +322,9 @@ export function StudentAssessments({
                     onClick={() => void openAssessment(assessment.id)}
                     className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
                   >
-                    {assessment.latestAttempt ? "Retake assessment" : "Take assessment"}
+                    {assessment.latestAttempt
+                      ? "Retake assessment"
+                      : "Take assessment"}
                   </button>
                 )}
                 {assessment.recentAttempts.length > 0 && (
@@ -329,7 +337,9 @@ export function StudentAssessments({
                     }
                     className="rounded-full border border-line px-4 py-2 text-sm font-semibold"
                   >
-                    {expandedScores === assessment.id ? "Hide recent scores" : "View recent scores"}
+                    {expandedScores === assessment.id
+                      ? "Hide recent scores"
+                      : "View recent scores"}
                   </button>
                 )}
               </div>
@@ -341,9 +351,12 @@ export function StudentAssessments({
                     key={attempt.id}
                     className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
                   >
-                    <span>{new Date(attempt.submittedAt).toLocaleString()}</span>
+                    <span>
+                      {new Date(attempt.submittedAt).toLocaleString()}
+                    </span>
                     <span className="font-semibold">
-                      {attempt.score}% · {attempt.passed ? "Passed" : "Not passed"}
+                      {attempt.score}% ·{" "}
+                      {attempt.passed ? "Passed" : "Not passed"}
                     </span>
                   </li>
                 ))}
@@ -353,7 +366,7 @@ export function StudentAssessments({
         ))}
         {!loading && assessments.length === 0 && (
           <Card className="text-sm text-mute">
-            No assessments have been published for this class yet.
+            No quizzes have been published for this class yet.
           </Card>
         )}
         {loading && <p className="text-sm text-mute">Loading assessments…</p>}

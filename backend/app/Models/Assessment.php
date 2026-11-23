@@ -16,6 +16,7 @@ class Assessment extends Model
         'passing_percent',
         'allows_retakes',
         'shuffle_order',
+        'is_published',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class Assessment extends Model
         return [
             'allows_retakes' => 'boolean',
             'shuffle_order' => 'boolean',
+            'is_published' => 'boolean',
         ];
     }
 

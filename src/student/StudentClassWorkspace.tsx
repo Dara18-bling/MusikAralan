@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  GraduationCap,
-  Users,
-  Video,
-} from "lucide-react";
+import { GraduationCap, Users, Video } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { toast } from "react-toastify";
 import { Breadcrumbs } from "../app/Breadcrumbs";
@@ -110,7 +106,7 @@ const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "materials", label: "Materials" },
   { id: "live", label: "Live Sessions" },
-  { id: "assessments", label: "Assessments" },
+  { id: "assessments", label: "Quizzes" },
   { id: "completion", label: "Completion Requirements" },
   { id: "leave", label: "Leave class" },
 ];
@@ -159,7 +155,7 @@ export function StudentClassWorkspace({
         setAssessments(data);
         setLoading(false);
       },
-      reportError("Could not load class assessments:"),
+      reportError("Could not load class quizzes:"),
       POLL_INTERVAL_HOUR,
     );
     const stopClassmates = watchApi<{ count: number }>(
@@ -480,7 +476,7 @@ export function StudentClassWorkspace({
                 </p>
               </Card>
               <Card>
-                <Label>Assessments</Label>
+                <Label>Quizzes</Label>
                 <p className="mt-2 font-display text-3xl">
                   {assessments.length}
                 </p>
@@ -727,12 +723,12 @@ export function StudentClassWorkspace({
                 </span>
                 <span className="flex items-center gap-2">
                   <i className="h-3 w-3 rounded-sm bg-p1" />
-                  To be graded: {unpassedAssessments.length} assessments
+                  To be graded: {unpassedAssessments.length} quizzes
                 </span>
               </div>
               <p className="mt-3 text-xs text-mute">
-                Assessment attempts are automatically graded when submitted.
-                This count includes assessments still needing a passing attempt.
+                Quiz attempts are automatically graded when submitted. This
+                count includes quizzes still needing a passing attempt.
               </p>
             </Card>
             <div className="grid gap-5 md:grid-cols-2">
@@ -790,7 +786,7 @@ export function StudentClassWorkspace({
                   </ul>
                 ) : (
                   <p className="mt-3 text-sm text-mute">
-                    All assessment requirements have been passed.
+                    All Quiz requirements have been passed.
                   </p>
                 )}
               </Card>
@@ -803,7 +799,7 @@ export function StudentClassWorkspace({
                     ? "Your teacher has locked certificates for this class."
                     : classFinished
                       ? "You have completed all class requirements."
-                      : "Complete all materials and pass all assessments to unlock your certificate."}
+                      : "Complete all materials and pass all quizzes to unlock your certificate."}
                 </p>
               </div>
               <button
@@ -826,7 +822,7 @@ export function StudentClassWorkspace({
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-red-700">
               Leaving removes your enrollment and access to this class&apos;s
-              materials, assessments, sessions, and completion progress.
+              materials, quizzes, sessions, and completion progress.
             </p>
             <button
               type="button"

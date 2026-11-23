@@ -59,9 +59,7 @@ export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
     const stopSchedules = watchApi<{ data: CalendarSchedule[] }>(
       "/schedules",
       ({ data }) => {
-        setSchedules(
-          data,
-        );
+        setSchedules(data);
       },
       (listenerError) => {
         console.error("Could not load upcoming sessions:", listenerError);
@@ -84,8 +82,7 @@ export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
         materialStops = [];
         setCalendarMaterials([]);
         const enrolledClasses = data.filter(
-          (item) =>
-            !item.deleted && item.enrolledStudentIds?.includes(userId),
+          (item) => !item.deleted && item.enrolledStudentIds?.includes(userId),
         );
         materialStops = enrolledClasses.map((classInfo) =>
           watchApi<{ data: CalendarMaterial[] }>(
@@ -115,7 +112,10 @@ export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
         );
       },
       (listenerError) => {
-        console.error("Could not load classes for the student calendar:", listenerError);
+        console.error(
+          "Could not load classes for the student calendar:",
+          listenerError,
+        );
         setError("Some calendar dates are unavailable right now.");
       },
       POLL_INTERVAL_HOUR,
@@ -157,7 +157,7 @@ export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
         title={
           kid ? `Hi ${firstName}! Ready to learn?` : `Welcome, ${firstName}`
         }
-        sub="Your classes, assessment results, and upcoming learning sessions."
+        sub="Your classes, quiz results, and upcoming learning sessions."
       />
       {error && (
         <p
