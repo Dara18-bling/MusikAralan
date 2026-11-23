@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch } from "../api";
+import { apiGet, apiPatch, refreshApi } from "../api";
 import { Card } from "../ui";
 
 type ProfileValue = string | null;
@@ -102,6 +102,7 @@ export function AdminProfileEditRequests({
           ? "Profile changes approved and applied."
           : "Profile edit request rejected.",
       );
+      refreshApi("/admin/users/summary");
       await fetchRequests();
     } catch (error) {
       console.error("Could not review profile edit request:", error);

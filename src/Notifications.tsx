@@ -9,6 +9,12 @@ import {
   refreshApi,
   watchApi,
 } from "./api";
+import {
+  decrementNotificationBadge,
+  getNotificationBadgeCounts,
+  subscribeToNotificationBadges,
+  type NotificationBadgeCounts,
+} from "./notificationBadges";
 
 type Notice = {
   id: string;
@@ -49,6 +55,13 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
   const [selectedNotice, setSelectedNotice] = useState<Notice | null>(null);
   const [collapsedClassIds, setCollapsedClassIds] = useState<Set<string>>(
     () => new Set(),
+  );
+  const [badgeCounts, setBadgeCounts] =
+    useState<NotificationBadgeCounts>(() => getNotificationBadgeCounts());
+
+  useEffect(
+    () => subscribeToNotificationBadges(setBadgeCounts),
+    [],
   );
 
   useEffect(() => {
@@ -176,6 +189,13 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
       setSavedNotifications((current) => current.map((item) =>
         item.notificationId === notice.notificationId ? { ...item, readAt: new Date().toISOString() } : item,
       ));
+      if (notice.source === "Admin announcement") {
+        decrementNotificationBadge("adminAnnouncements");
+      } else if (notice.source === "Class announcement") {
+        decrementNotificationBadge("classAnnouncements");
+      } else {
+        decrementNotificationBadge("notifications");
+      }
     } catch (markError) {
       console.error("Could not mark notification as read:", markError);
       setError("This notification could not be marked as read.");
@@ -275,7 +295,23 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
                     : "border-transparent text-mute hover:text-ink"
                 }`}
               >
-                {tab}
+                <span className="inline-flex items-center gap-2">
+                  {tab}
+                  {tab === "announcements"
+                    ? badgeCounts.adminAnnouncements +
+                        badgeCounts.classAnnouncements >
+                      0 && (
+                        <span className="grid min-w-5 h-5 place-items-center rounded-full bg-p1 px-1 text-[10px] text-white">
+                          {badgeCounts.adminAnnouncements +
+                            badgeCounts.classAnnouncements}
+                        </span>
+                      )
+                    : badgeCounts.notifications > 0 && (
+                        <span className="grid min-w-5 h-5 place-items-center rounded-full bg-p1 px-1 text-[10px] text-white">
+                          {badgeCounts.notifications}
+                        </span>
+                      )}
+                </span>
               </button>
             ))}
           </div>
@@ -301,7 +337,18 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
                       : "border-transparent text-mute hover:text-ink"
                   }`}
                 >
-                  {tab === "admin" ? "Admin Announcements" : "Class-specific"}
+                    <span className="inline-flex items-center gap-2">
+                      {tab === "admin" ? "Admin Announcements" : "Class-specific"}
+                      {(tab === "admin"
+                        ? badgeCounts.adminAnnouncements
+                        : badgeCounts.classAnnouncements) > 0 && (
+                        <span className="grid min-w-5 h-5 place-items-center rounded-full bg-p1 px-1 text-[10px] text-white">
+                          {tab === "admin"
+                            ? badgeCounts.adminAnnouncements
+                            : badgeCounts.classAnnouncements}
+                        </span>
+                      )}
+                    </span>
                 </button>
               ))}
             </div>

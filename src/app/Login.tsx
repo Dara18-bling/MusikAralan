@@ -6,6 +6,7 @@ import { CircleCheck, Eye, EyeOff, Moon, ShieldCheck, Sun } from "lucide-react";
 import logo from "../assets/logo.png";
 import church from "../assets/church.jpg";
 import { apiPost, setApiToken } from "../api";
+import { setNotificationBadgeCounts } from "../notificationBadges";
 import { Btn, Input, Label } from "../ui";
 import { Field } from "./Field";
 import { DASHBOARD_VIEW, type Role } from "./AppTypes";
@@ -63,7 +64,11 @@ export function Login() {
     }
     setLoading(true);
     try {
-      const { token, user: data } = await apiPost<{
+      const {
+        token,
+        user: data,
+        unreadNotifications,
+      } = await apiPost<{
         token: string;
         user: {
           id: string;
@@ -71,9 +76,13 @@ export function Login() {
           birthYear: number | null;
           role: Role;
         };
+        unreadNotifications?: Parameters<
+          typeof setNotificationBadgeCounts
+        >[0];
       }>("/auth/login", { email, password });
 
       setApiToken(token);
+      setNotificationBadgeCounts(unreadNotifications || {});
       localStorage.setItem("role", data.role);
       localStorage.setItem("uid", data.id);
       localStorage.setItem("name", data.name || "User");

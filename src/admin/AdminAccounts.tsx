@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch, POLL_INTERVAL_HOUR } from "../api";
+import { apiGet, apiPatch, POLL_INTERVAL_HOUR, refreshApi } from "../api";
 import { Btn, Card, Input, TableScrollHint, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
@@ -218,6 +218,7 @@ export function AdminAccounts({
         }
       }
       await apiPatch(`/admin/users/${encodeURIComponent(uid)}`, updateData);
+      refreshApi("/admin/users/summary");
       await fetchUsers();
       toast.success(`Account ${newStatus} successfully!`);
     } catch (err) {

@@ -50,6 +50,7 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token->plainTextToken,
             'user' => $this->userPayload($user),
+            'unreadNotifications' => $this->unreadNotificationSummary($user),
         ]);
     }
 
@@ -366,6 +367,47 @@ class AuthController extends Controller
             'accessUntil' => $user->access_until?->format('Y-m-d'),
             'dateRequested' => $user->date_requested?->toISOString(),
         ];
+    }
+
+    private function unreadNotificationSummary(User $user): array
+    {
+        $counts = [
+            'total' => 0,
+            'adminAnnouncements' => 0,
+            'classAnnouncements' => 0,
+            'notifications' => 0,
+            'pendingAccountRequests' => 0,
+            'pendingProfileEditRequests' => 0,
+        ];
+
+        if ($user->role === 'admin') {
+            $counts['pendingAccountRequests'] = User::query()
+                ->where('status', 'pending')
+                ->count();
+            $counts['pendingProfileEditRequests'] = ProfileEditRequest::query()
+                ->where('status', 'pending')
+                ->count();
+        } else {
+            foreach ($user->unreadNotifications()->get() as $notification) {
+                $kind = (string) ($notification->data['kind'] ?? 'message');
+                $counts['total']++;
+                if ($kind === 'announcement') {
+                    $counts['adminAnnouncements']++;
+                } elseif ($kind === 'class') {
+                    $counts['classAnnouncements']++;
+                } else {
+                    $counts['notifications']++;
+                }
+            }
+        }
+        $counts['total'] =
+            $counts['adminAnnouncements'] +
+            $counts['classAnnouncements'] +
+            $counts['notifications'] +
+            $counts['pendingAccountRequests'] +
+            $counts['pendingProfileEditRequests'];
+
+        return $counts;
     }
 
     private function sendPasswordResetCode(User $user): void

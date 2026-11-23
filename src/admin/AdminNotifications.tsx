@@ -87,6 +87,11 @@ export function AdminNotifications({
                 <p className="text-sm text-mute">
                   {pendingCount} pending approval{pendingCount === 1 ? "" : "s"}
                 </p>
+                {pendingCount > 0 && (
+                  <span className="mt-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-p1 px-1.5 text-xs font-bold text-white">
+                    {pendingCount > 99 ? "99+" : pendingCount}
+                  </span>
+                )}
               </div>
             </div>
             <Btn className="w-fit" onClick={() => navigate("/admin/accounts")}>
@@ -131,6 +136,11 @@ export function AdminNotifications({
                   {pendingEditCount} pending edit
                   {pendingEditCount === 1 ? "" : "s"}
                 </p>
+                {pendingEditCount > 0 && (
+                  <span className="mt-1 inline-flex min-w-5 h-5 items-center justify-center rounded-full bg-p1 px-1.5 text-xs font-bold text-white">
+                    {pendingEditCount > 99 ? "99+" : pendingEditCount}
+                  </span>
+                )}
               </div>
             </div>
             <Btn

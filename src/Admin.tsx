@@ -8,6 +8,7 @@ import { AdminClasses } from "./admin/AdminClasses";
 import { AdminChatbot } from "./admin/AdminChatbot";
 import { AdminGospel } from "./admin/AdminGospel";
 import { AdminNotifications } from "./admin/AdminNotifications";
+import { setPendingRequestBadgeCounts } from "./notificationBadges";
 
 export type { AdminView };
 
@@ -44,6 +45,10 @@ export default function Admin({ view }: { view: AdminView }) {
       "/admin/users/summary",
       (summary) => {
         setAdminUserSummary(summary);
+        setPendingRequestBadgeCounts(
+          summary.pendingCount,
+          summary.pendingProfileEditRequestCount,
+        );
         setAccountListenerError("");
         if (
           !initialSnapshot &&

@@ -18,6 +18,12 @@ import { useSystemAppearance } from "./useSystemAppearance";
 import { ProfileView } from "./ProfileView";
 import { HelpSearch } from "./HelpSearch";
 import { Gospel } from "../student/Gospel";
+import {
+  clearNotificationBadgeCounts,
+  getNotificationBadgeCounts,
+  subscribeToNotificationBadges,
+  type NotificationBadgeCounts,
+} from "../notificationBadges";
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -48,6 +54,8 @@ export function Dashboard() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
   const { primaryColor, secondaryColor, palettes, applySavedAppearance } = useSystemAppearance(darkMode);
   const [menu, setMenu] = useState(false);
+  const [notificationCounts, setNotificationCounts] =
+    useState<NotificationBadgeCounts>(() => getNotificationBadgeCounts());
   const [pageLoadState, setPageLoadState] = useState(() => ({
     pathname: location.pathname,
     loading: true,
@@ -82,6 +90,11 @@ export function Dashboard() {
   useEffect(() => {
     document.documentElement.style.fontSize = big ? "18px" : "";
   }, [big]);
+
+  useEffect(
+    () => subscribeToNotificationBadges(setNotificationCounts),
+    [],
+  );
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -124,6 +137,7 @@ export function Dashboard() {
     } catch (error) {
       console.error("Could not revoke the API token:", error);
     } finally {
+      clearNotificationBadgeCounts();
       clearApiToken();
       localStorage.removeItem("role");
       localStorage.removeItem("uid");
@@ -177,7 +191,18 @@ export function Dashboard() {
                     : "text-mute hover:bg-slate-50 hover:text-ink"
                 }`}
               >
-                <I className="h-5 w-5" strokeWidth={1.75} /> {n}
+                <I className="h-5 w-5" strokeWidth={1.75} />
+                <span className="flex-1">{n}</span>
+                {k === "alerts" && notificationCounts.total > 0 && (
+                  <span
+                    className="grid min-w-5 h-5 place-items-center rounded-full bg-p1 px-1 text-[10px] font-bold text-white"
+                    aria-label={`${notificationCounts.total} unread notifications`}
+                  >
+                    {notificationCounts.total > 99
+                      ? "99+"
+                      : notificationCounts.total}
+                  </span>
+                )}
               </button>
             ))}
           </nav>

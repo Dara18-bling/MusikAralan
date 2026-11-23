@@ -6,8 +6,10 @@ use App\Http\Controllers\Api\LearningController;
 use App\Models\Assessment;
 use App\Models\Classroom;
 use App\Models\Material;
+use App\Models\ProfileEditRequest;
 use App\Models\QuizAttempt;
 use App\Models\User;
+use App\Notifications\AppMessageNotification;
 use App\Notifications\PasswordResetCodeNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
@@ -361,14 +363,38 @@ class RelationalSchemaTest extends TestCase
             'name' => 'Sanctum Student',
             'email' => 'sanctum@example.test',
             'password' => Hash::make('Password123!'),
-            'role' => 'student',
+            'role' => 'admin',
             'status' => 'approved',
         ]);
+        $pendingUser = User::query()->create([
+            'firebase_uid' => 'pending-notification-user',
+            'name' => 'Pending Notification User',
+            'email' => 'pending-notification@example.test',
+            'password' => Hash::make('Password123!'),
+            'role' => 'student',
+            'status' => 'pending',
+        ]);
+        ProfileEditRequest::query()->create([
+            'user_id' => $pendingUser->id,
+            'changes' => ['phoneNumber' => '09123456789'],
+            'status' => 'pending',
+        ]);
+        $user->notify(new AppMessageNotification('announcement', 'Admin update', 'Details'));
+        $user->notify(new AppMessageNotification('class', 'Class update', 'Details'));
+        $user->notify(new AppMessageNotification('schedule', 'Session update', 'Details'));
 
         $response = $this->postJson('/api/auth/login', [
             'email' => $user->email,
             'password' => 'Password123!',
-        ])->assertOk()->assertJsonPath('user.id', (string) $user->id);
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.id', (string) $user->id)
+            ->assertJsonPath('unreadNotifications.total', 2)
+            ->assertJsonPath('unreadNotifications.adminAnnouncements', 0)
+            ->assertJsonPath('unreadNotifications.classAnnouncements', 0)
+            ->assertJsonPath('unreadNotifications.notifications', 0)
+            ->assertJsonPath('unreadNotifications.pendingAccountRequests', 1)
+            ->assertJsonPath('unreadNotifications.pendingProfileEditRequests', 1);
 
         $token = $response->json('token');
         $this->withToken($token)->getJson('/api/me')->assertOk();
