@@ -21,6 +21,8 @@ class AnnouncementController extends Controller
                 'id' => (string) $item->id,
                 'title' => $item->title,
                 'content' => $item->content,
+                'whereText' => $item->where_text,
+                'whenText' => $item->when_text,
                 'voiceGroupId' => $item->target_group_id === null ? null : (string) $item->target_group_id,
                 'createdAt' => $item->created_at,
             ]);
@@ -36,6 +38,8 @@ class AnnouncementController extends Controller
             'target_group_id' => $item['targetGroupId'] ?? null,
             'title' => $item['title'],
             'content' => $item['content'],
+            'where_text' => $item['whereText'] ?? null,
+            'when_text' => $item['whenText'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -44,6 +48,8 @@ class AnnouncementController extends Controller
             $item['content'],
             $id,
             $item['targetGroupId'] ?? null,
+            $item['whereText'] ?? null,
+            $item['whenText'] ?? null,
         );
 
         return response()->json(['announcement' => $this->find($id)], 201);
@@ -60,6 +66,8 @@ class AnnouncementController extends Controller
                 : $announcement->target_group_id,
             'title' => $item['title'],
             'content' => $item['content'],
+            'where_text' => $item['whereText'] ?? $announcement->where_text,
+            'when_text' => $item['whenText'] ?? $announcement->when_text,
             'updated_at' => now(),
         ]);
 
@@ -78,6 +86,8 @@ class AnnouncementController extends Controller
         return $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string'],
+            'whereText' => ['nullable', 'string', 'max:255'],
+            'whenText' => ['nullable', 'string', 'max:255'],
             'targetGroupId' => ['nullable', 'integer', 'exists:voice_groups,id'],
         ]);
     }
@@ -90,6 +100,8 @@ class AnnouncementController extends Controller
             'id' => (string) $item->id,
             'title' => $item->title,
             'content' => $item->content,
+            'whereText' => $item->where_text,
+            'whenText' => $item->when_text,
             'voiceGroupId' => $item->target_group_id === null ? null : (string) $item->target_group_id,
             'createdAt' => $item->created_at,
         ];

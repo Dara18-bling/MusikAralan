@@ -7,6 +7,8 @@ export function AdminNews() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [newsTitle, setNewsTitle] = useState("");
   const [newsContent, setNewsContent] = useState("");
+  const [newsWhere, setNewsWhere] = useState("");
+  const [newsWhen, setNewsWhen] = useState("");
   const [isPreview, setIsPreview] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewAnnouncement, setPreviewAnnouncement] = useState<any | null>(
@@ -36,6 +38,8 @@ export function AdminNews() {
       const newsData = {
         title: newsTitle,
         content: newsContent,
+        whereText: newsWhere,
+        whenText: newsWhen,
         createdAt: new Date(),
       };
       if (editingId) {
@@ -47,6 +51,8 @@ export function AdminNews() {
       }
       setNewsTitle("");
       setNewsContent("");
+      setNewsWhere("");
+      setNewsWhen("");
       setEditingId(null);
       setIsPreview(false);
       void fetchNews();
@@ -72,6 +78,8 @@ export function AdminNews() {
   const handleEditClick = (news: any) => {
     setNewsTitle(news.title);
     setNewsContent(news.content);
+    setNewsWhere(news.whereText || "");
+    setNewsWhen(news.whenText || "");
     setEditingId(news.id);
     setIsPreview(false);
   };
@@ -96,11 +104,30 @@ export function AdminNews() {
               value={newsTitle}
               onChange={(e) => setNewsTitle(e.target.value)}
             />
+            <label className="grid gap-1 text-sm font-semibold">
+              What
+            </label>
             <textarea
-              placeholder="Write your announcement here..."
+              placeholder="Write what the announcement is about..."
               className="w-full rounded-lg border border-line p-3 min-h-[150px] break-all"
               value={newsContent}
               onChange={(e) => setNewsContent(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Where (optional)"
+              className="w-full rounded-lg border border-line p-3"
+              value={newsWhere}
+              onChange={(e) => setNewsWhere(e.target.value)}
+              maxLength={255}
+            />
+            <input
+              type="text"
+              placeholder="When (optional)"
+              className="w-full rounded-lg border border-line p-3"
+              value={newsWhen}
+              onChange={(e) => setNewsWhen(e.target.value)}
+              maxLength={255}
             />
             <div className="flex gap-2">
               <button
@@ -121,6 +148,8 @@ export function AdminNews() {
                     setEditingId(null);
                     setNewsTitle("");
                     setNewsContent("");
+                    setNewsWhere("");
+                    setNewsWhen("");
                     setIsPreview(false);
                   }}
                   className="rounded-full border border-red-300 px-4 py-2 font-semibold text-red-600 hover:bg-red-50"
@@ -139,8 +168,10 @@ export function AdminNews() {
                 {newsTitle || "Untitled Announcement"}
               </h4>
               <p className="mt-2 break-all text-gray-700 whitespace-pre-wrap">
-                {newsContent || "No content written yet."}
+                {newsContent || "No what details written yet."}
               </p>
+              {newsWhere && <p className="mt-2 break-all text-sm text-gray-700"><span className="font-semibold">Where:</span> {newsWhere}</p>}
+              {newsWhen && <p className="mt-1 break-all text-sm text-gray-700"><span className="font-semibold">When:</span> {newsWhen}</p>}
             </div>
           )}
         </Card>
@@ -167,6 +198,16 @@ export function AdminNews() {
                     <p className="mt-1 break-all text-sm text-gray-600 line-clamp-2">
                       {a.content}
                     </p>
+                    {a.whereText && (
+                      <p className="mt-1 break-all text-xs text-gray-600">
+                        <span className="font-semibold">Where:</span> {a.whereText}
+                      </p>
+                    )}
+                    {a.whenText && (
+                      <p className="mt-1 break-all text-xs text-gray-600">
+                        <span className="font-semibold">When:</span> {a.whenText}
+                      </p>
+                    )}
                   </div>
                   <div className="ml-4 flex shrink-0 flex-col gap-2">
                     <button
@@ -217,8 +258,21 @@ export function AdminNews() {
             </h2>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <p className="mt-4 break-all whitespace-pre-wrap text-ink">
+                <span className="font-semibold">What:</span>{" "}
                 {previewAnnouncement.content}
               </p>
+              {previewAnnouncement.whereText && (
+                <p className="mt-3 break-all text-ink">
+                  <span className="font-semibold">Where:</span>{" "}
+                  {previewAnnouncement.whereText}
+                </p>
+              )}
+              {previewAnnouncement.whenText && (
+                <p className="mt-2 break-all text-ink">
+                  <span className="font-semibold">When:</span>{" "}
+                  {previewAnnouncement.whenText}
+                </p>
+              )}
             </div>
             <div className="mt-6 flex shrink-0 justify-end">
               <Btn variant="ghost" onClick={() => setPreviewAnnouncement(null)}>

@@ -27,6 +27,8 @@ type Notice = {
   announcementId?: string | null;
   classId?: string | null;
   className?: string | null;
+  whereText?: string | null;
+  whenText?: string | null;
 };
 
 type NotificationTab = "announcements" | "notifications";
@@ -47,6 +49,8 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
   const [selectedClassId, setSelectedClassId] = useState("");
   const [messageTitle, setMessageTitle] = useState("");
   const [messageContent, setMessageContent] = useState("");
+  const [messageWhere, setMessageWhere] = useState("");
+  const [messageWhen, setMessageWhen] = useState("");
   const [sending, setSending] = useState(false);
   const [sentMessage, setSentMessage] = useState("");
   const [activeTab, setActiveTab] = useState<NotificationTab>("announcements");
@@ -71,6 +75,8 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
           id: `announcement-${item.id}`,
           title: item.title || "New announcement",
           detail: item.content || "",
+          whereText: item.whereText || null,
+          whenText: item.whenText || null,
           source: "Admin announcement",
           createdAt: timestampMillis(item.createdAt),
         };
@@ -100,6 +106,8 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
         readAt: item.readAt,
         classId: item.classId == null ? null : String(item.classId),
         className: item.className || null,
+        whereText: item.whereText || null,
+        whenText: item.whenText || null,
       })));
     }, (listenerError) => {
       console.error("Could not load saved notifications:", listenerError);
@@ -225,7 +233,12 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
     try {
       const result = await apiPost<{ notified: number }>(
         `/classes/${encodeURIComponent(selectedClassId)}/notifications`,
-        { title: messageTitle, content: messageContent },
+        {
+          title: messageTitle,
+          content: messageContent,
+          whereText: messageWhere,
+          whenText: messageWhen,
+        },
       );
       refreshApi("/notifications");
       setSentMessage(
@@ -233,6 +246,8 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
       );
       setMessageTitle("");
       setMessageContent("");
+      setMessageWhere("");
+      setMessageWhen("");
     } catch (sendError) {
       console.error("Could not send class notification:", sendError);
       setError(sendError instanceof Error ? sendError.message : "The notification could not be sent.");
@@ -438,8 +453,16 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
                 <input value={messageTitle} onChange={(event) => setMessageTitle(event.target.value)} required maxLength={255} className="mt-1 w-full rounded-xl border border-line px-3 py-2" />
               </label>
               <label className="block text-sm font-semibold">
-                Message
+                What
                 <textarea value={messageContent} onChange={(event) => setMessageContent(event.target.value)} required maxLength={10000} rows={4} className="mt-1 w-full rounded-xl border border-line px-3 py-2" />
+              </label>
+              <label className="block text-sm font-semibold">
+                Where <span className="font-normal text-mute">(optional)</span>
+                <input value={messageWhere} onChange={(event) => setMessageWhere(event.target.value)} maxLength={255} placeholder="Location or venue" className="mt-1 w-full rounded-xl border border-line px-3 py-2" />
+              </label>
+              <label className="block text-sm font-semibold">
+                When <span className="font-normal text-mute">(optional)</span>
+                <input value={messageWhen} onChange={(event) => setMessageWhen(event.target.value)} maxLength={255} placeholder="Date and time" className="mt-1 w-full rounded-xl border border-line px-3 py-2" />
               </label>
               {sentMessage && <p role="status" className="text-sm text-green-700">{sentMessage}</p>}
               <button type="submit" disabled={sending || !selectedClassId} className="rounded-full bg-p1 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
@@ -461,7 +484,13 @@ export default function Notifications({ role, age = "all" }: { role: "student" |
                 {new Date(selectedNotice.createdAt).toLocaleString()}
               </time>
             )}
-            <p className="mt-4 break-all whitespace-pre-wrap text-ink">{selectedNotice.detail || "There is no additional message."}</p>
+            {selectedNotice.whereText && (
+              <p className="mt-4 break-all text-sm text-ink"><span className="font-semibold">Where:</span> {selectedNotice.whereText}</p>
+            )}
+            {selectedNotice.whenText && (
+              <p className="mt-2 break-all text-sm text-ink"><span className="font-semibold">When:</span> {selectedNotice.whenText}</p>
+            )}
+            <p className="mt-4 break-all whitespace-pre-wrap text-ink"><span className="font-semibold">What:</span> {selectedNotice.detail || "There is no additional description."}</p>
             <div className="mt-6 flex justify-end">
               <button type="button" onClick={() => setSelectedNotice(null)} className="rounded-full border border-line px-4 py-2 text-sm font-semibold hover:bg-p1-soft">Close</button>
             </div>

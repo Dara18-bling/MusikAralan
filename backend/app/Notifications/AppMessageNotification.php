@@ -15,6 +15,8 @@ class AppMessageNotification extends Notification
         public string $content,
         public ?int $announcementId = null,
         public ?int $classId = null,
+        public ?string $whereText = null,
+        public ?string $whenText = null,
     ) {}
 
     public function via(object $notifiable): array
@@ -30,6 +32,8 @@ class AppMessageNotification extends Notification
             'content' => $this->content,
             'announcementId' => $this->announcementId,
             'classId' => $this->classId,
+            'whereText' => $this->whereText,
+            'whenText' => $this->whenText,
         ];
     }
 }

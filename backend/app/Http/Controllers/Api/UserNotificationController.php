@@ -32,6 +32,8 @@ class UserNotificationController extends Controller
                 'content' => $notification->data['content'] ?? '',
                 'announcementId' => $notification->data['announcementId'] ?? null,
                 'classId' => $notification->data['classId'] ?? null,
+                'whereText' => $notification->data['whereText'] ?? null,
+                'whenText' => $notification->data['whenText'] ?? null,
                 'className' => isset($notification->data['classId'])
                     ? $classNames->get($notification->data['classId'])
                     : null,
@@ -62,19 +64,29 @@ class UserNotificationController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'content' => ['required', 'string', 'max:10000'],
+            'whereText' => ['nullable', 'string', 'max:255'],
+            'whenText' => ['nullable', 'string', 'max:255'],
         ]);
         $recipients = $class->students()->where('users.status', 'approved')->get();
         if ($recipients->isEmpty()) {
             return response()->json(['message' => 'This class has no approved students to notify.'], 422);
         }
 
-        self::notifyClassStudents($class, trim($data['title']), trim($data['content']));
+        self::notifyClassStudents(
+            $class,
+            trim($data['title']),
+            trim($data['content']),
+            trim($data['whereText'] ?? '') ?: null,
+            trim($data['whenText'] ?? '') ?: null,
+        );
 
         $sender->notify(new AppMessageNotification(
             'class',
             trim($data['title']),
             trim($data['content']),
             classId: $class->id,
+            whereText: trim($data['whereText'] ?? '') ?: null,
+            whenText: trim($data['whenText'] ?? '') ?: null,
         ));
 
         return response()->json(['notified' => $recipients->count()], 201);
@@ -84,11 +96,13 @@ class UserNotificationController extends Controller
         Classroom $class,
         string $title,
         string $content,
+        ?string $whereText = null,
+        ?string $whenText = null,
     ): int {
         $recipients = $class->students()->where('users.status', 'approved')->get();
 
         foreach ($recipients as $recipient) {
-            self::notifyStudent($recipient, $class, $title, $content);
+            self::notifyStudent($recipient, $class, $title, $content, $whereText, $whenText);
         }
 
         return $recipients->count();
@@ -99,16 +113,27 @@ class UserNotificationController extends Controller
         Classroom $class,
         string $title,
         string $content,
+        ?string $whereText = null,
+        ?string $whenText = null,
     ): void {
         $student->notify(new AppMessageNotification(
             'class',
             $title,
             $content,
             classId: $class->id,
+            whereText: $whereText,
+            whenText: $whenText,
         ));
     }
 
-    public static function notifyAnnouncement(string $title, string $content, int $announcementId, ?int $voiceGroupId = null): void
+    public static function notifyAnnouncement(
+        string $title,
+        string $content,
+        int $announcementId,
+        ?int $voiceGroupId = null,
+        ?string $whereText = null,
+        ?string $whenText = null,
+    ): void
     {
         $recipients = User::query()
             ->where('status', 'approved')
@@ -124,6 +149,8 @@ class UserNotificationController extends Controller
                 $title,
                 $content,
                 announcementId: $announcementId,
+                whereText: $whereText,
+                whenText: $whenText,
             ));
         }
     }
