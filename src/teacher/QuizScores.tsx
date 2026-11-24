@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
-import { apiGet } from "../api";
+import { apiGet, apiPost } from "../api";
 import { Btn, Card, Pill, TableScrollHint, Title } from "../ui";
 
 export interface QuizScoreAssessment {
@@ -10,10 +10,12 @@ export interface QuizScoreAssessment {
 }
 
 interface QuizScore {
+  studentId: string;
   studentName: string;
   score: number;
   passed: boolean;
   retakes: number;
+  reopens: number;
 }
 
 interface QuizScoresProps {
@@ -25,6 +27,7 @@ export function QuizScores({ className, assessments }: QuizScoresProps) {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
   const [scores, setScores] = useState<QuizScore[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reopeningStudentId, setReopeningStudentId] = useState("");
 
   const viewScores = async (assessment: QuizScoreAssessment) => {
     setSelectedAssessmentId(assessment.id);
@@ -40,6 +43,28 @@ export function QuizScores({ className, assessments }: QuizScoresProps) {
       setScores([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const reopenQuiz = async (score: QuizScore) => {
+    if (!selectedAssessment) return;
+    setReopeningStudentId(score.studentId);
+    try {
+      const { reopens } = await apiPost<{ reopens: number }>(
+        `/assessments/${selectedAssessment.id}/students/${score.studentId}/reopen`,
+        {},
+      );
+      setScores((current) =>
+        current.map((item) =>
+          item.studentId === score.studentId ? { ...item, reopens } : item,
+        ),
+      );
+      toast.success(`${score.studentName} can retake this quiz.`);
+    } catch (error) {
+      console.error("Could not reopen quiz:", error);
+      toast.error("Could not reopen this quiz for the student.");
+    } finally {
+      setReopeningStudentId("");
     }
   };
 
@@ -89,12 +114,13 @@ export function QuizScores({ className, assessments }: QuizScoresProps) {
                     <th className="px-3 py-3">Score</th>
                     <th className="px-3 py-3">Evaluation</th>
                     <th className="px-3 py-3">Retakes</th>
+                    <th className="px-3 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {scores.map((score) => (
                     <tr
-                      key={score.studentName}
+                      key={score.studentId}
                       className="border-b border-line last:border-0"
                     >
                       <td className="px-3 py-3 font-semibold">
@@ -107,6 +133,17 @@ export function QuizScores({ className, assessments }: QuizScoresProps) {
                         </Pill>
                       </td>
                       <td className="px-3 py-3">{score.retakes}</td>
+                      <td className="px-3 py-3 text-right">
+                        <Btn
+                          variant="soft"
+                          onClick={() => void reopenQuiz(score)}
+                          disabled={reopeningStudentId === score.studentId}
+                        >
+                          {reopeningStudentId === score.studentId
+                            ? "Reopening…"
+                            : "Reopen Quiz"}
+                        </Btn>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

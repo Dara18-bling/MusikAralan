@@ -398,6 +398,10 @@ class DashboardAndScheduleTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('assessment.isPublished', true);
+        $this->assertSame(
+            'New quiz available',
+            $student->fresh()->notifications()->latest()->firstOrFail()->data['title'],
+        );
 
         Auth::forgetGuards();
         $this->withToken($studentToken)
@@ -488,6 +492,29 @@ class DashboardAndScheduleTest extends TestCase
             ->postJson("/api/assessments/{$secondAssessment}/attempts", ['answers' => ['C']])
             ->assertForbidden()
             ->assertJsonPath('message', 'This assessment does not allow retakes.');
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->postJson("/api/assessments/{$secondAssessment}/students/{$student->id}/reopen", [])
+            ->assertOk()
+            ->assertJsonPath('reopens', 1);
+        $this->assertTrue(
+            $student->fresh()->notifications()->get()->contains(
+                fn ($notification): bool => ($notification->data['title'] ?? null) === 'Quiz reopened',
+            ),
+        );
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-reopened-list')->plainTextToken)
+            ->getJson("/api/classes/{$class->id}/assessments")
+            ->assertOk()
+            ->assertJsonPath('data.1.extraAttemptAvailable', true);
+
+        Auth::forgetGuards();
+        $this->withToken($student->createToken('assessments-student-reopened')->plainTextToken)
+            ->postJson("/api/assessments/{$secondAssessment}/attempts", ['answers' => ['C']])
+            ->assertCreated()
+            ->assertJsonPath('attempt.score', 100);
 
         $this->assertDatabaseHas('module_progress', [
             'user_id' => $student->id,

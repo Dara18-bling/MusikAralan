@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Assessment;
 use App\Models\AssessmentQuestion;
+use App\Models\AssessmentReopen;
 use App\Models\AssignmentSubmission;
 use App\Models\Classroom;
 use App\Models\Material;
@@ -248,6 +249,7 @@ class LearningController extends Controller
                         ->latest('submitted_at')
                         ->orderByDesc('id')
                         ->limit(10),
+                    'reopens' => fn ($reopens) => $reopens->where('student_id', $user->id),
                 ]),
             )
             ->orderBy('id')
@@ -259,6 +261,12 @@ class LearningController extends Controller
                     ? $assessment->attempts
                     : collect();
                 $latestAttempt = $attempts->first();
+                $reopenCount = $user->role === 'student'
+                    ? ($assessment->reopens->first()?->extra_attempts ?? 0)
+                    : 0;
+                $extraAttemptAvailable = $user->role === 'student'
+                    && ! $assessment->allows_retakes
+                    && $attempts->count() < 1 + $reopenCount;
 
                 return [
                     'id' => (string) $assessment->id,
@@ -270,6 +278,8 @@ class LearningController extends Controller
                     'isPublished' => $assessment->is_published,
                     'attemptsCount' => $assessment->attempts_count,
                     'editLocked' => $assessment->attempts_count > 0,
+                    'reopenCount' => $reopenCount,
+                    'extraAttemptAvailable' => $extraAttemptAvailable,
                     'latestAttempt' => $latestAttempt ? [
                         'score' => $latestAttempt->score,
                         'passed' => $latestAttempt->passed,
@@ -309,13 +319,14 @@ class LearningController extends Controller
             403,
         );
 
+        $reopens = $assessment->reopens()->get()->keyBy('student_id');
         $scores = $assessment->attempts()
             ->with('student')
             ->latest('submitted_at')
             ->latest('id')
             ->get()
             ->groupBy('student_id')
-            ->map(function ($attempts) use ($assessment): array {
+            ->map(function ($attempts) use ($assessment, $reopens): array {
                 /** @var QuizAttempt $bestAttempt */
                 $bestAttempt = $attempts
                     ->sortByDesc(fn (QuizAttempt $attempt): array => [
@@ -326,17 +337,67 @@ class LearningController extends Controller
                     ->first();
 
                 return [
+                    'studentId' => (string) $bestAttempt->student_id,
                     'studentName' => $bestAttempt->student?->name ?? 'Unknown student',
                     'score' => $bestAttempt->score,
                     'passed' => $bestAttempt->passed,
                     'retakes' => $assessment->allows_retakes
                         ? max($attempts->count() - 1, 0)
                         : 0,
+                    'reopens' => $reopens->get($bestAttempt->student_id)?->extra_attempts ?? 0,
                 ];
             })
             ->values();
 
         return response()->json(['data' => $scores]);
+    }
+
+    public function reopenAssessmentForStudent(Request $request, Assessment $assessment, User $student): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        $class = $assessment->classroom;
+        abort_unless(
+            $user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id),
+            403,
+        );
+        abort_unless(
+            $student->role === 'student'
+                && $class->students()->where('users.id', $student->id)->exists(),
+            422,
+            'The selected user is not enrolled in this class.',
+        );
+        abort_unless($assessment->is_published, 422, 'Publish this quiz before reopening it.');
+
+        $reopen = DB::transaction(function () use ($assessment, $student): AssessmentReopen {
+            $reopen = AssessmentReopen::query()
+                ->where('assessment_id', $assessment->id)
+                ->where('student_id', $student->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($reopen === null) {
+                return AssessmentReopen::create([
+                    'assessment_id' => $assessment->id,
+                    'student_id' => $student->id,
+                    'extra_attempts' => 1,
+                ]);
+            }
+
+            $reopen->increment('extra_attempts');
+
+            return $reopen->fresh();
+        });
+        UserNotificationController::notifyStudent(
+            $student,
+            $class,
+            'Quiz reopened',
+            sprintf('You can take "%s" again in %s.', $assessment->title, $class->name),
+        );
+
+        return response()->json([
+            'studentId' => (string) $student->id,
+            'reopens' => $reopen->extra_attempts,
+        ]);
     }
 
     public function publishAssessment(Request $request, Classroom $class): JsonResponse
@@ -370,6 +431,7 @@ class LearningController extends Controller
     private function saveAssessment(Request $request, Classroom $class, $user, ?Assessment $assessment = null): JsonResponse
     {
         $isNew = $assessment === null;
+        $wasPublished = ! $isNew && (bool) $assessment->is_published;
         $assessmentCodeRule = Rule::unique('assessments', 'assessment_code')
             ->where('class_id', $class->id);
         if ($assessment !== null) {
@@ -444,6 +506,13 @@ class LearningController extends Controller
             'Assessment updated',
             sprintf('The assessment for %s was updated.', $class->name),
         );
+        if ($assessment->is_published && ! $wasPublished) {
+            UserNotificationController::notifyClassStudents(
+                $class,
+                'New quiz available',
+                sprintf('"%s" is now available in %s.', $assessment->title, $class->name),
+            );
+        }
 
         return response()->json(
             ['assessment' => $this->assessmentPayload($assessment, true)],
@@ -488,12 +557,18 @@ class LearningController extends Controller
     private function gradeAssessment(Request $request, Assessment $assessment, $user): JsonResponse
     {
         abort_unless($assessment->is_published, 403, 'This assessment is not published.');
-        abort_if(
-            ! $assessment->allows_retakes
-                && $assessment->attempts()->where('student_id', $user->id)->exists(),
-            403,
-            'This assessment does not allow retakes.',
-        );
+        if (! $assessment->allows_retakes) {
+            $attemptCount = $assessment->attempts()->where('student_id', $user->id)->count();
+            $reopenedAttempts = AssessmentReopen::query()
+                ->where('assessment_id', $assessment->id)
+                ->where('student_id', $user->id)
+                ->value('extra_attempts') ?? 0;
+            abort_if(
+                $attemptCount >= 1 + $reopenedAttempts,
+                403,
+                'This assessment does not allow retakes.',
+            );
+        }
         $data = $request->validate(['answers' => ['required', 'array', 'min:1']]);
         $assessment->load('questions', 'classroom');
         $class = $assessment->classroom;

@@ -47,4 +47,9 @@ class Assessment extends Model
     {
         return $this->hasMany(QuizAttempt::class, 'assessment_id');
     }
+
+    public function reopens(): HasMany
+    {
+        return $this->hasMany(AssessmentReopen::class);
+    }
 }

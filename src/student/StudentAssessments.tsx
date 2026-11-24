@@ -17,6 +17,7 @@ interface AssessmentSummary {
   passingPercent: number;
   questionCount: number;
   allowsRetakes: boolean;
+  extraAttemptAvailable: boolean;
   latestAttempt: {
     id?: string;
     score: number;
@@ -316,15 +317,19 @@ export function StudentAssessments({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(!assessment.latestAttempt || assessment.allowsRetakes) && (
+                {(!assessment.latestAttempt ||
+                  assessment.allowsRetakes ||
+                  assessment.extraAttemptAvailable) && (
                   <button
                     type="button"
                     onClick={() => void openAssessment(assessment.id)}
                     className="rounded-full bg-p1-soft px-4 py-2 text-sm font-semibold text-p1"
                   >
-                    {assessment.latestAttempt
-                      ? "Retake assessment"
-                      : "Take assessment"}
+                    {assessment.extraAttemptAvailable
+                      ? "Take reopened quiz"
+                      : assessment.latestAttempt
+                        ? "Retake assessment"
+                        : "Take assessment"}
                   </button>
                 )}
                 {assessment.recentAttempts.length > 0 && (

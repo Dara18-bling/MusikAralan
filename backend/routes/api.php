@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
         Route::post('/classes/{class}/assessments', [LearningController::class, 'createAssessment']);
         Route::get('/assessments/{assessment}', [LearningController::class, 'showAssessment']);
         Route::get('/assessments/{assessment}/scores', [LearningController::class, 'assessmentScores']);
+        Route::post('/assessments/{assessment}/students/{student}/reopen', [LearningController::class, 'reopenAssessmentForStudent']);
         Route::put('/assessments/{assessment}', [LearningController::class, 'updateAssessment']);
         Route::post('/assessments/{assessment}/attempts', [LearningController::class, 'submitAssessmentAttempt']);
 

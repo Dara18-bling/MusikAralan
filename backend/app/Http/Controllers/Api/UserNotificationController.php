@@ -68,14 +68,7 @@ class UserNotificationController extends Controller
             return response()->json(['message' => 'This class has no approved students to notify.'], 422);
         }
 
-        foreach ($recipients as $recipient) {
-            $recipient->notify(new AppMessageNotification(
-                'class',
-                trim($data['title']),
-                trim($data['content']),
-                classId: $class->id,
-            ));
-        }
+        self::notifyClassStudents($class, trim($data['title']), trim($data['content']));
 
         $sender->notify(new AppMessageNotification(
             'class',
@@ -85,6 +78,34 @@ class UserNotificationController extends Controller
         ));
 
         return response()->json(['notified' => $recipients->count()], 201);
+    }
+
+    public static function notifyClassStudents(
+        Classroom $class,
+        string $title,
+        string $content,
+    ): int {
+        $recipients = $class->students()->where('users.status', 'approved')->get();
+
+        foreach ($recipients as $recipient) {
+            self::notifyStudent($recipient, $class, $title, $content);
+        }
+
+        return $recipients->count();
+    }
+
+    public static function notifyStudent(
+        User $student,
+        Classroom $class,
+        string $title,
+        string $content,
+    ): void {
+        $student->notify(new AppMessageNotification(
+            'class',
+            $title,
+            $content,
+            classId: $class->id,
+        ));
     }
 
     public static function notifyAnnouncement(string $title, string $content, int $announcementId, ?int $voiceGroupId = null): void
