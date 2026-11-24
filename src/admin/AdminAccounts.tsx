@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import { apiGet, apiPatch, POLL_INTERVAL_HOUR, refreshApi } from "../api";
+import { apiGet, apiPatch, apiPost, POLL_INTERVAL_HOUR, refreshApi } from "../api";
 import { Btn, Card, Input, TableScrollHint, Title } from "../ui";
 import type { AccountFilter, UserStatus } from "./adminTypes";
 import { AdminProfileEditRequests } from "./AdminProfileEditRequests";
@@ -72,6 +72,17 @@ export function AdminAccounts({
   const [editMessengerLink, setEditMessengerLink] = useState("");
   const [editAccessUntil, setEditAccessUntil] = useState("");
   const [savingUser, setSavingUser] = useState(false);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirmation, setNewPasswordConfirmation] = useState("");
+  const [newBirthday, setNewBirthday] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newMessengerLink, setNewMessengerLink] = useState("");
+  const [newRole, setNewRole] = useState<"student" | "teacher" | "admin">("student");
+  const [newAccessUntil, setNewAccessUntil] = useState("");
   const [statusConfirmation, setStatusConfirmation] = useState<{
     user: any;
     newStatus: "inactive" | "approved";
@@ -151,6 +162,68 @@ export function AdminAccounts({
     setEditPhone(user.phoneNumber || "");
     setEditMessengerLink(user.messengerLink || "");
     setEditAccessUntil(user.role === "teacher" ? user.accessUntil || "" : "");
+  };
+
+  const resetAddUser = () => {
+    setNewName("");
+    setNewEmail("");
+    setNewPassword("");
+    setNewPasswordConfirmation("");
+    setNewBirthday("");
+    setNewPhone("");
+    setNewMessengerLink("");
+    setNewRole("student");
+    setNewAccessUntil("");
+  };
+
+  const addUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!/^[\p{L}\p{M} .'-]+$/u.test(newName.trim())) {
+      toast.warning("Enter a complete name using letters, spaces, periods, apostrophes, or hyphens.");
+      return;
+    }
+    if (!/^\d{11}$/.test(newPhone)) {
+      toast.warning("Contact number must be exactly 11 digits.");
+      return;
+    }
+    if (!/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,}$/.test(newPassword)) {
+      toast.warning("Password must be at least 8 characters and include a letter, number, and special character.");
+      return;
+    }
+    if (newPassword !== newPasswordConfirmation) {
+      toast.warning("Passwords do not match.");
+      return;
+    }
+    if (newRole === "teacher" && !newAccessUntil) {
+      toast.warning("Set an access end date for the teacher account.");
+      return;
+    }
+
+    setAddingUser(true);
+    try {
+      const { user } = await apiPost<{ user: any }>("/admin/users", {
+        name: newName.trim(),
+        email: newEmail.trim(),
+        password: newPassword,
+        password_confirmation: newPasswordConfirmation,
+        birthday: newBirthday,
+        phoneNumber: newPhone,
+        messengerLink: newMessengerLink.trim(),
+        role: newRole,
+        accessUntil: newRole === "teacher" ? newAccessUntil : null,
+      });
+      setUsers((current) => [user, ...current]);
+      setShowAddUser(false);
+      resetAddUser();
+      toast.success("Approved account created.");
+      void fetchUsers();
+      refreshApi("/admin/users/summary");
+    } catch (error) {
+      console.error("Could not add account:", error);
+      toast.error(error instanceof Error ? error.message : "Could not add account.");
+    } finally {
+      setAddingUser(false);
+    }
   };
 
   const saveUserDetails = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -325,9 +398,17 @@ export function AdminAccounts({
                   </button>
                 ))}
               </div>
-              <Btn variant="ghost" onClick={() => void fetchUsers()}>
-                {loading ? "Refreshing..." : "Refresh List"}
-              </Btn>
+              <div className="flex flex-wrap gap-2">
+                <Btn
+                  variant="soft"
+                  onClick={() => setShowAddUser(true)}
+                >
+                  + Add User
+                </Btn>
+                <Btn variant="ghost" onClick={() => void fetchUsers()}>
+                  {loading ? "Refreshing..." : "Refresh List"}
+                </Btn>
+              </div>
             </div>
             {listError && (
               <p
@@ -525,6 +606,155 @@ export function AdminAccounts({
           </>
         )}
       </Card>
+
+      {showAddUser && (
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !addingUser) {
+              setShowAddUser(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-account-title"
+            className="my-auto w-full max-w-lg rounded-2xl border border-line bg-white p-6 shadow-2xl"
+          >
+            <h3 id="add-account-title" className="font-display text-2xl font-bold">
+              Add approved user
+            </h3>
+            <p className="mt-1 text-sm text-mute">
+              Create a system account that can access the platform immediately.
+            </p>
+            <form className="mt-5 grid gap-4" onSubmit={(event) => void addUser(event)}>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Full Name
+                <Input
+                  required
+                  maxLength={255}
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                  placeholder="First and last name"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Email Address
+                <Input
+                  required
+                  type="email"
+                  maxLength={255}
+                  value={newEmail}
+                  onChange={(event) => setNewEmail(event.target.value)}
+                  placeholder="name@example.com"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Birthday
+                <Input
+                  required
+                  type="date"
+                  min="1920-01-01"
+                  max="2021-12-31"
+                  value={newBirthday}
+                  onChange={(event) => setNewBirthday(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Contact Number
+                <Input
+                  required
+                  type="tel"
+                  inputMode="numeric"
+                  minLength={11}
+                  maxLength={11}
+                  value={newPhone}
+                  onChange={(event) =>
+                    setNewPhone(event.target.value.replace(/\D/g, "").slice(0, 11))
+                  }
+                  placeholder="09171234567"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Facebook Messenger Link <span className="font-normal text-mute">(optional)</span>
+                <Input
+                  type="url"
+                  value={newMessengerLink}
+                  onChange={(event) => setNewMessengerLink(event.target.value)}
+                  placeholder="https://m.me/yourname"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Role
+                <select
+                  required
+                  value={newRole}
+                  onChange={(event) =>
+                    setNewRole(event.target.value as "student" | "teacher" | "admin")
+                  }
+                  className="w-full rounded-xl border border-line bg-white px-3 py-2.5 text-sm"
+                >
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              {newRole === "teacher" && (
+                <label className="grid gap-1.5 text-sm font-semibold">
+                  Access End Date
+                  <Input
+                    required
+                    type="date"
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={newAccessUntil}
+                    onChange={(event) => setNewAccessUntil(event.target.value)}
+                  />
+                </label>
+              )}
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Password
+                <Input
+                  required
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="8+ characters, letter, number & symbol"
+                />
+              </label>
+              <label className="grid gap-1.5 text-sm font-semibold">
+                Confirm Password
+                <Input
+                  required
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPasswordConfirmation}
+                  onChange={(event) => setNewPasswordConfirmation(event.target.value)}
+                  placeholder="Re-enter password"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={addingUser}
+                  onClick={() => setShowAddUser(false)}
+                  className="rounded-full border border-line px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingUser}
+                  className="grad rounded-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {addingUser ? "Creating…" : "Create approved account"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {selectedUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

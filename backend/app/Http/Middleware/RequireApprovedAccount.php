@@ -25,6 +25,17 @@ class RequireApprovedAccount
             ], 403);
         }
 
+        if (
+            $user->role === 'teacher'
+            && $user->access_until
+            && $user->access_until->isBefore(now()->startOfDay())
+        ) {
+            return response()->json([
+                'message' => 'Your teacher account access has expired.',
+                'status' => 'expired',
+            ], 403);
+        }
+
         return $next($request);
     }
 }

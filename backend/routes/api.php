@@ -24,9 +24,8 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword'])->m
 
 Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
-    Route::get('/session', [AuthController::class, 'session']);
-
     Route::middleware('approved')->group(function (): void {
+        Route::get('/session', [AuthController::class, 'session']);
         Route::get('/me', [AuthController::class, 'me']);
         Route::patch('/me', [AuthController::class, 'updateProfile']);
         Route::get('/me/profile-edit-request', [ProfileEditRequestController::class, 'current']);
@@ -84,6 +83,7 @@ Route::middleware(['auth:sanctum', 'app.user'])->group(function (): void {
             Route::put('/admin/users/{userId}/voice-groups', [VoiceGroupController::class, 'assignUsers'])->whereNumber('userId');
             Route::get('/admin/users/summary', [AuthController::class, 'adminUserSummary']);
             Route::get('/admin/users', [AuthController::class, 'indexUsers']);
+            Route::post('/admin/users', [AuthController::class, 'createUser']);
             Route::patch('/admin/users/{userId}', [AuthController::class, 'updateUser'])->whereNumber('userId');
             Route::get('/admin/profile-edit-requests', [ProfileEditRequestController::class, 'index']);
             Route::patch('/admin/profile-edit-requests/{requestId}', [ProfileEditRequestController::class, 'review'])->whereNumber('requestId');

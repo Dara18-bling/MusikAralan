@@ -10,6 +10,32 @@ class AdminAccountsPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_expired_teacher_cannot_log_in_or_access_authenticated_routes(): void
+    {
+        $teacher = User::query()->create([
+            'name' => 'Expired Teacher',
+            'email' => 'expired-teacher@example.test',
+            'password' => bcrypt('Password123!'),
+            'role' => 'teacher',
+            'status' => 'approved',
+            'access_until' => now()->subDay()->toDateString(),
+        ]);
+
+        $this->postJson('/api/auth/login', [
+            'email' => 'expired-teacher@example.test',
+            'password' => 'Password123!',
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('status', 'expired')
+            ->assertJsonPath('message', 'Your teacher account access has expired.');
+
+        $token = $teacher->createToken('expired-teacher')->plainTextToken;
+        $this->withToken($token)
+            ->getJson('/api/session')
+            ->assertForbidden()
+            ->assertJsonPath('status', 'expired');
+    }
+
     public function test_admin_accounts_endpoint_returns_ten_filtered_accounts_per_page(): void
     {
         $admin = $this->createUser('accounts-admin@example.test', 'admin', 'approved');
@@ -44,6 +70,48 @@ class AdminAccountsPaginationTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data')
             ->assertJsonPath('total', 0);
+    }
+
+    public function test_admin_can_create_an_approved_account_for_a_selected_role(): void
+    {
+        $admin = $this->createUser('manual-admin@example.test', 'admin', 'approved');
+        $token = $admin->createToken('manual-account')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/admin/users', [
+                'name' => 'Manual Teacher',
+                'email' => 'manual-teacher@example.test',
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+                'birthday' => '1990-05-10',
+                'phoneNumber' => '09171234567',
+                'messengerLink' => 'https://m.me/manualteacher',
+                'role' => 'teacher',
+                'accessUntil' => now()->addYear()->toDateString(),
+            ])
+            ->assertCreated()
+            ->assertJsonPath('user.name', 'Manual Teacher')
+            ->assertJsonPath('user.role', 'teacher')
+            ->assertJsonPath('user.status', 'approved');
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'manual-teacher@example.test',
+            'role' => 'teacher',
+            'status' => 'approved',
+        ]);
+
+        $this->withToken($token)
+            ->postJson('/api/admin/users', [
+                'name' => 'Missing Expiry',
+                'email' => 'missing-expiry@example.test',
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+                'birthday' => '1990-05-10',
+                'phoneNumber' => '09171234568',
+                'role' => 'teacher',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'An access end date is required for a teacher account.');
     }
 
     public function test_admin_summary_returns_pending_count_and_active_teachers(): void

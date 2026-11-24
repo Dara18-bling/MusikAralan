@@ -44,6 +44,16 @@ class AuthController extends Controller
                 'status' => $user->status,
             ], 403);
         }
+        if (
+            $user->role === 'teacher'
+            && $user->access_until
+            && $user->access_until->isBefore(now()->startOfDay())
+        ) {
+            return response()->json([
+                'message' => 'Your teacher account access has expired.',
+                'status' => 'expired',
+            ], 403);
+        }
 
         $token = $user->createToken('frontend', ['*'], now()->addHours(12));
 
@@ -80,6 +90,49 @@ class AuthController extends Controller
             'role' => 'student',
             'status' => 'pending',
             'date_requested' => now(),
+        ]);
+
+        return response()->json(['user' => $this->userPayload($user)], 201);
+    }
+
+    public function createUser(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S+$/'],
+            'birthday' => ['required', 'date', 'before_or_equal:2021-12-31', 'after_or_equal:1920-01-01'],
+            'phoneNumber' => ['required', 'regex:/^\\d{11}$/'],
+            'messengerLink' => ['nullable', 'string', 'max:2048'],
+            'role' => ['required', Rule::in(['student', 'teacher', 'admin'])],
+            'accessUntil' => ['nullable', 'date', 'after_or_equal:today'],
+        ], [
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+            'password.regex' => 'Password must include at least one letter, one number, and one special character.',
+        ]);
+
+        if ($data['role'] === 'teacher' && empty($data['accessUntil'])) {
+            return response()->json([
+                'message' => 'An access end date is required for a teacher account.',
+            ], 422);
+        }
+
+        $admin = $request->attributes->get('app_user');
+        $user = User::query()->create([
+            'name' => trim($data['name']),
+            'email' => strtolower($data['email']),
+            'password' => Hash::make($data['password']),
+            'birthday' => $data['birthday'],
+            'birth_year' => (int) substr($data['birthday'], 0, 4),
+            'phone_number' => $data['phoneNumber'],
+            'messenger_link' => $data['messengerLink'] ?? null,
+            'role' => $data['role'],
+            'status' => 'approved',
+            'access_until' => $data['role'] === 'teacher' ? $data['accessUntil'] : null,
+            'date_requested' => now(),
+            'approved_by' => $admin->id,
+            'approved_at' => now(),
         ]);
 
         return response()->json(['user' => $this->userPayload($user)], 201);
