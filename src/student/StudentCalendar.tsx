@@ -4,6 +4,7 @@ import { Card, Label } from "../ui";
 
 export type CalendarSchedule = {
   id: string;
+  classId?: string | null;
   className: string | null;
   title: string;
   startsAt: string;
@@ -42,12 +43,14 @@ interface StudentCalendarProps {
   schedules: CalendarSchedule[];
   materials: CalendarMaterial[];
   onOpenMaterial?: (classId: string, materialId: string) => void;
+  onOpenSession?: (classId: string | null) => void;
 }
 
 export function StudentCalendar({
   schedules,
   materials,
   onOpenMaterial,
+  onOpenSession,
 }: StudentCalendarProps) {
   const [calendarMonth, setCalendarMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -60,6 +63,7 @@ export function StudentCalendar({
         date: dateKey(date),
         title: schedule.title,
         type: "session",
+        classId: schedule.classId || undefined,
         time: date.toLocaleTimeString([], {
           hour: "numeric",
           minute: "2-digit",
@@ -206,7 +210,7 @@ export function StudentCalendar({
               return (
                 <div
                   key={date ? dateKey(date) : `empty-${index}`}
-                  className="min-h-28 border-b border-r border-line p-2"
+                  className="h-32 min-w-0 overflow-hidden border-b border-r border-line p-2"
                 >
                   {date && (
                     <>
@@ -215,7 +219,7 @@ export function StudentCalendar({
                       >
                         {day}
                       </p>
-                      <div className="grid gap-1">
+                      <div className="grid max-h-20 gap-1 overflow-y-auto overflow-x-hidden">
                         {events.map((event) => {
                           const eventClass =
                             event.type === "deadline"
@@ -238,33 +242,39 @@ export function StudentCalendar({
                               </span>
                             </>
                           );
+                          const markerTitle = `${event.type === "deadline" ? "Due: " : event.type === "opening" ? "Opens: " : ""}${event.title} · ${event.time}`;
+                          const markerClass = `${eventClass} transition hover:brightness-95 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--p1)]`;
                           return event.materialId &&
                             event.classId &&
                             onOpenMaterial ? (
                             <button
                               key={event.id}
                               type="button"
+                              title={markerTitle}
+                              aria-label={markerTitle}
                               onClick={() =>
                                 onOpenMaterial(event.classId!, event.materialId!)
                               }
-                              className={`w-full rounded-md px-2 py-1 text-left text-xs ${eventClass}`}
+                              className={`w-full rounded-md px-2 py-1 text-left text-xs ${markerClass}`}
                             >
                               {content}
                             </button>
-                          ) : event.joinUrl ? (
-                            <a
+                          ) : event.type === "session" && onOpenSession ? (
+                            <button
                               key={event.id}
-                              href={event.joinUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={`block rounded-md px-2 py-1 text-xs ${eventClass}`}
+                              type="button"
+                              title={markerTitle}
+                              aria-label={markerTitle}
+                              onClick={() => onOpenSession(event.classId || null)}
+                              className={`w-full rounded-md px-2 py-1 text-left text-xs ${markerClass}`}
                             >
                               {content}
-                            </a>
+                            </button>
                           ) : (
                             <div
                               key={event.id}
-                              className={`rounded-md px-2 py-1 text-xs ${eventClass}`}
+                              title={markerTitle}
+                              className={`rounded-md px-2 py-1 text-xs ${markerClass}`}
                             >
                               {content}
                             </div>

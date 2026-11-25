@@ -263,7 +263,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
       console.error("Could not save class assessment:", error);
       const problem = error as { message?: string };
       toast.error(
-        `Could not save assessment: ${problem.message || "Please check your connection and try again."}`,
+        `Could not save quiz: ${problem.message || "Please check your connection and try again."}`,
       );
     } finally {
       setSaving(false);
@@ -305,202 +305,205 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
       {activeSubtab === "scores" ? (
         <QuizScores className={classId || "Class"} assessments={assessments} />
       ) : (
-      <div className="grid max-w-3xl gap-4">
-        {activeSubtab === "edit" && <Card className="flex flex-wrap items-end gap-3">
-          <label className="grid min-w-56 flex-1 gap-1 text-sm font-semibold">
-            Class quizzes
-            <select
-              value={assessmentId}
-              onChange={(event) => onAssessmentChange(event.target.value)}
-              className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
-            >
-              {!assessmentId && <option value="">New assessment</option>}
-              {assessments.map((assessment) => (
-                <option key={assessment.id} value={assessment.id}>
-                  {assessment.assessmentCode} · {assessment.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Btn variant="soft" onClick={startNewAssessment}>
-            + New assessment
-          </Btn>
-        </Card>}
+        <div className="grid max-w-3xl gap-4">
+          {activeSubtab === "edit" && (
+            <Card className="flex flex-wrap items-end gap-3">
+              <label className="grid min-w-56 flex-1 gap-1 text-sm font-semibold">
+                Class quizzes
+                <select
+                  value={assessmentId}
+                  onChange={(event) => onAssessmentChange(event.target.value)}
+                  className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
+                >
+                  {!assessmentId && <option value="">New assessment</option>}
+                  {assessments.map((assessment) => (
+                    <option key={assessment.id} value={assessment.id}>
+                      {assessment.assessmentCode} · {assessment.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Btn variant="soft" onClick={startNewAssessment}>
+                + New Quiz
+              </Btn>
+            </Card>
+          )}
 
-        <fieldset
-          disabled={editLocked}
-          className="grid gap-4 disabled:opacity-70"
-        >
-          <Card className="grid gap-3">
-            <Label>
-              Quiz details
-              {assessmentCode ? ` · ${assessmentCode}` : " · New assessment"}
-            </Label>
-            <Input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Quiz title"
-              maxLength={255}
-            />
-            <label className="grid gap-1 text-sm font-semibold">
-              Passing score: {passingPercent}%
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={passingPercent}
-                onChange={(event) =>
-                  setPassingPercent(Number(event.target.value))
-                }
+          <fieldset
+            disabled={editLocked}
+            className="grid gap-4 disabled:opacity-70"
+          >
+            <Card className="grid gap-3">
+              <Label>
+                Quiz details
+                {assessmentCode ? ` · ${assessmentCode}` : " · New assessment"}
+              </Label>
+              <Input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Quiz title"
+                maxLength={255}
               />
-            </label>
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={allowsRetakes}
-                onChange={(event) => setAllowsRetakes(event.target.checked)}
-              />
-              Allow students to retake this assessment
-            </label>
-            <div className="grid gap-1">
+              <label className="grid gap-1 text-sm font-semibold">
+                Passing score: {passingPercent}%
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={passingPercent}
+                  onChange={(event) =>
+                    setPassingPercent(Number(event.target.value))
+                  }
+                />
+              </label>
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input
                   type="checkbox"
-                  checked={shuffleOrder}
-                  disabled={saving || loading}
-                  onChange={(event) => setShuffleOrder(event.target.checked)}
+                  checked={allowsRetakes}
+                  onChange={(event) => setAllowsRetakes(event.target.checked)}
                 />
-                Shuffle questions and answers
+                Allow students to retake this assessment
               </label>
-            </div>
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input
-                type="checkbox"
-                checked={isPublished}
-                onChange={(event) => setIsPublished(event.target.checked)}
-              />
-              Publish quizzes for students
-            </label>
-          </Card>
-
-          {qs.map((question, index) => (
-            <Card key={index}>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="font-mono text-xs text-p2">Q{index + 1}</p>
-                <select
-                  value={question.type}
-                  onChange={(event) => {
-                    const type = event.target.value as Question["type"];
-                    updateQuestion(index, {
-                      type,
-                      o:
-                        type === "truefalse"
-                          ? ["True", "False"]
-                          : type === "identification"
-                            ? []
-                            : question.o,
-                    });
-                  }}
-                  className="rounded border border-line px-2 py-1 text-xs"
-                >
-                  <option value="multiple">Multiple Choice</option>
-                  <option value="truefalse">True/False</option>
-                  <option value="identification">Identification</option>
-                </select>
-              </div>
-              <Input
-                className="mt-2"
-                value={question.q}
-                onChange={(event) =>
-                  updateQuestion(index, { q: event.target.value })
-                }
-                placeholder="Question prompt"
-              />
-              {question.type === "identification" ? (
-                <div className="mt-3">
-                  <Input
-                    placeholder="Enter correct exact answer here"
-                    value={question.answer || ""}
-                    onChange={(event) =>
-                      updateQuestion(index, { answer: event.target.value })
-                    }
+              <div className="grid gap-1">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={shuffleOrder}
+                    disabled={saving || loading}
+                    onChange={(event) => setShuffleOrder(event.target.checked)}
                   />
+                  Shuffle questions and answers
+                </label>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={isPublished}
+                  onChange={(event) => setIsPublished(event.target.checked)}
+                />
+                Publish quizzes for students
+              </label>
+            </Card>
+
+            {qs.map((question, index) => (
+              <Card key={index}>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="font-mono text-xs text-p2">Q{index + 1}</p>
+                  <select
+                    value={question.type}
+                    onChange={(event) => {
+                      const type = event.target.value as Question["type"];
+                      updateQuestion(index, {
+                        type,
+                        o:
+                          type === "truefalse"
+                            ? ["True", "False"]
+                            : type === "identification"
+                              ? []
+                              : question.o,
+                      });
+                    }}
+                    className="rounded border border-line px-2 py-1 text-xs"
+                  >
+                    <option value="multiple">Multiple Choice</option>
+                    <option value="truefalse">True/False</option>
+                    <option value="identification">Identification</option>
+                  </select>
                 </div>
-              ) : (
-                <div className="mt-3 grid gap-2">
-                  {question.o.map((option, optionIndex) => (
-                    <div key={optionIndex} className="flex items-center gap-2">
+                <Input
+                  className="mt-2"
+                  value={question.q}
+                  onChange={(event) =>
+                    updateQuestion(index, { q: event.target.value })
+                  }
+                  placeholder="Question prompt"
+                />
+                {question.type === "identification" ? (
+                  <div className="mt-3">
+                    <Input
+                      placeholder="Enter correct exact answer here"
+                      value={question.answer || ""}
+                      onChange={(event) =>
+                        updateQuestion(index, { answer: event.target.value })
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-3 grid gap-2">
+                    {question.o.map((option, optionIndex) => (
+                      <div
+                        key={optionIndex}
+                        className="flex items-center gap-2"
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateQuestion(index, { a: optionIndex })
+                          }
+                          aria-label="Mark correct"
+                          aria-pressed={question.a === optionIndex}
+                          className={`h-5 w-5 shrink-0 rounded-full border-2 ${
+                            question.a === optionIndex
+                              ? "border-[var(--p1)] grad"
+                              : "border-line"
+                          }`}
+                        />
+                        <Input
+                          value={option}
+                          disabled={question.type === "truefalse"}
+                          onChange={(event) =>
+                            updateQuestion(index, {
+                              o: question.o.map((current, position) =>
+                                position === optionIndex
+                                  ? event.target.value
+                                  : current,
+                              ),
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
+                    {question.type === "multiple" && (
                       <button
                         type="button"
                         onClick={() =>
-                          updateQuestion(index, { a: optionIndex })
-                        }
-                        aria-label="Mark correct"
-                        aria-pressed={question.a === optionIndex}
-                        className={`h-5 w-5 shrink-0 rounded-full border-2 ${
-                          question.a === optionIndex
-                            ? "border-[var(--p1)] grad"
-                            : "border-line"
-                        }`}
-                      />
-                      <Input
-                        value={option}
-                        disabled={question.type === "truefalse"}
-                        onChange={(event) =>
                           updateQuestion(index, {
-                            o: question.o.map((current, position) =>
-                              position === optionIndex
-                                ? event.target.value
-                                : current,
-                            ),
+                            o: [...question.o, ""],
                           })
                         }
-                      />
-                    </div>
-                  ))}
-                  {question.type === "multiple" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateQuestion(index, {
-                          o: [...question.o, ""],
-                        })
-                      }
-                      className="mt-2 text-left text-sm font-semibold text-p1"
-                    >
-                      + Option
-                    </button>
-                  )}
-                </div>
-              )}
-            </Card>
-          ))}
-          <div className="flex gap-2">
-            <Btn
-              variant="soft"
-              onClick={() => setQs((current) => [...current, emptyQuestion()])}
-            >
-              + Add question
-            </Btn>
-            <Btn
-              onClick={() => void publishAssessment()}
-              disabled={saving || loading || !classId || editLocked}
-            >
-              {saving
-                ? "Saving…"
-                : isPublished
-                  ? "Save assessment"
-                  : "Save draft"}
-            </Btn>
-          </div>
-        </fieldset>
-        {editLocked && (
-          <p className="text-sm font-medium text-mute">
-            This quiz is locked because a student has already submitted an
-            attempt.
-          </p>
-        )}
-      </div>
+                        className="mt-2 text-left text-sm font-semibold text-p1"
+                      >
+                        + Option
+                      </button>
+                    )}
+                  </div>
+                )}
+              </Card>
+            ))}
+            <div className="flex gap-2">
+              <Btn
+                variant="soft"
+                onClick={() =>
+                  setQs((current) => [...current, emptyQuestion()])
+                }
+              >
+                + Add question
+              </Btn>
+              <Btn
+                onClick={() => void publishAssessment()}
+                disabled={saving || loading || !classId || editLocked}
+              >
+                {saving ? "Saving…" : isPublished ? "Save quiz" : "Save draft"}
+              </Btn>
+            </div>
+          </fieldset>
+          {editLocked && (
+            <p className="text-sm font-medium text-mute">
+              This quiz is locked because a student has already submitted an
+              attempt.
+            </p>
+          )}
+        </div>
       )}
     </>
   );

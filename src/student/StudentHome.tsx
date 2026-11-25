@@ -263,6 +263,11 @@ export function StudentHome({ go, age, userName, userId }: StudentHomeProps) {
         onOpenMaterial={(classId, materialId) =>
           navigate(`/student/classes/${classId}/materials/${materialId}`)
         }
+        onOpenSession={(classId) =>
+          classId
+            ? navigate(`/student/classes/${classId}/live`)
+            : go("materials")
+        }
       />
     </>
   );
