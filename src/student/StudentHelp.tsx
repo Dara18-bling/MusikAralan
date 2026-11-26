@@ -100,7 +100,7 @@ export function StudentHelp() {
     <>
       <Title
         kicker="Tulong · Help"
-        title="Help Guides & Tutorials"
+        title="Tutorials"
         sub="Choose a topic to see step-by-step instructions."
       />
       <div className="grid gap-5">

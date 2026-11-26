@@ -32,7 +32,7 @@ export const NAV: Record<Role, [string, LucideIcon, string][]> = {
     ["materials", BookOpen, "Classes"],
     ["notes", Music, "Exercise Tool"],
     ["alerts", Bell, "Notifications"],
-    ["help", LifeBuoy, "Help Guides"],
+    ["help", LifeBuoy, "Tutorials"],
     ["profile", User, "My Profile"],
   ],
   teacher: [
