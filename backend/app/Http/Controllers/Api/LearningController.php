@@ -319,37 +319,123 @@ class LearningController extends Controller
             403,
         );
 
-        $reopens = $assessment->reopens()->get()->keyBy('student_id');
-        $scores = $assessment->attempts()
-            ->with('student')
-            ->latest('submitted_at')
-            ->latest('id')
-            ->get()
-            ->groupBy('student_id')
-            ->map(function ($attempts) use ($assessment, $reopens): array {
-                /** @var QuizAttempt $bestAttempt */
-                $bestAttempt = $attempts
-                    ->sortByDesc(fn (QuizAttempt $attempt): array => [
-                        $attempt->score,
-                        $attempt->submitted_at?->timestamp ?? 0,
-                        $attempt->id,
-                    ])
-                    ->first();
-
-                return [
-                    'studentId' => (string) $bestAttempt->student_id,
-                    'studentName' => $bestAttempt->student?->name ?? 'Unknown student',
-                    'score' => $bestAttempt->score,
-                    'passed' => $bestAttempt->passed,
-                    'retakes' => $assessment->allows_retakes
-                        ? max($attempts->count() - 1, 0)
-                        : 0,
-                    'reopens' => $reopens->get($bestAttempt->student_id)?->extra_attempts ?? 0,
-                ];
+        $scores = DB::table('assessment_attempts as attempts')
+            ->join('users as students', 'students.id', '=', 'attempts.student_id')
+            ->leftJoin('assessment_reopens as reopens', function ($join): void {
+                $join->on('reopens.student_id', '=', 'attempts.student_id')
+                    ->on('reopens.assessment_id', '=', 'attempts.assessment_id');
             })
+            ->where('attempts.assessment_id', $assessment->id)
+            ->groupBy('attempts.student_id', 'students.name', 'reopens.extra_attempts')
+            ->orderByDesc('score')
+            ->orderBy('students.name')
+            ->select('attempts.student_id', 'students.name')
+            ->selectRaw('MAX(attempts.score) as score')
+            ->selectRaw('COUNT(*) as attempts_count')
+            ->selectRaw('COALESCE(reopens.extra_attempts, 0) as reopens')
+            ->get()
+            ->map(fn (object $row): array => [
+                'studentId' => (string) $row->student_id,
+                'studentName' => $row->name,
+                'score' => (int) $row->score,
+                'passed' => (int) $row->score >= $assessment->passing_percent,
+                'retakes' => $assessment->allows_retakes ? max((int) $row->attempts_count - 1, 0) : 0,
+                'reopens' => (int) $row->reopens,
+            ])
             ->values();
 
-        return response()->json(['data' => $scores]);
+        $scoresByStudent = $scores->keyBy('studentId');
+        $enrolledStudents = $assessment->classroom
+            ->students()
+            ->where('users.role', 'student')
+            ->where('users.status', 'approved')
+            ->orderBy('users.id')
+            ->get(['users.id', 'users.name']);
+        $classScores = $enrolledStudents
+            ->map(function (User $student) use ($scoresByStudent): array {
+                $score = $scoresByStudent->get((string) $student->id);
+
+                return [
+                    'score' => $score['score'] ?? 0,
+                    'studentName' => $student->name,
+                    'hasScore' => $score !== null,
+                ];
+            })
+            ->sortByDesc('score')
+            ->values();
+        $topTenCutoffIndex = max(min(9, $classScores->count() - 1), 0);
+        $topTenCutoffScore = $classScores->isEmpty()
+            ? null
+            : $classScores->get($topTenCutoffIndex)['score'];
+        $scoreDistribution = $topTenCutoffScore === null
+            ? collect()
+            : $classScores
+                ->filter(fn (array $score): bool => $score['score'] >= $topTenCutoffScore)
+                ->groupBy('score')
+                ->map(function ($group, $score): array {
+                    $scoredStudents = $group->where('hasScore', true);
+                    $unscoredStudents = $group->where('hasScore', false);
+
+                    return [
+                        'score' => (int) $score,
+                        'studentCount' => $scoredStudents->count(),
+                        'students' => $scoredStudents->pluck('studentName')->values(),
+                        'noAttemptCount' => $unscoredStudents->count(),
+                        'noAttemptStudents' => $unscoredStudents->pluck('studentName')->values(),
+                    ];
+                })
+                ->sortKeys()
+                ->values();
+
+        return response()->json([
+            'data' => $scores,
+            'scoreDistribution' => $scoreDistribution,
+        ]);
+    }
+
+    public function classAssessmentScoreSummary(Request $request, Classroom $class): JsonResponse
+    {
+        $user = $request->attributes->get('app_user');
+        abort_unless(
+            $user->role === 'admin' || ($user->role === 'teacher' && $class->teacher_id === $user->id),
+            403,
+        );
+
+        $bestScores = DB::table('assessment_attempts')
+            ->whereIn('assessment_id', DB::table('assessments')
+                ->select('id')
+                ->where('class_id', $class->id)
+                ->where('is_published', true))
+            ->select('assessment_id', 'student_id')
+            ->selectRaw('MAX(score) as best_score')
+            ->groupBy('assessment_id', 'student_id');
+        $data = DB::table('assessments')
+            ->leftJoinSub($bestScores, 'student_best_scores', function ($join): void {
+                $join->on('student_best_scores.assessment_id', '=', 'assessments.id');
+            })
+            ->where('assessments.class_id', $class->id)
+            ->where('assessments.is_published', true)
+            ->groupBy('assessments.id', 'assessments.assessment_code', 'assessments.title')
+            ->orderBy('assessments.id')
+            ->select(
+                'assessments.id',
+                'assessments.assessment_code',
+                'assessments.title',
+            )
+            ->selectRaw('AVG(student_best_scores.best_score) as average_score')
+            ->selectRaw('COUNT(student_best_scores.student_id) as student_count')
+            ->get()
+            ->map(fn (object $row): array => [
+                'assessmentId' => (string) $row->id,
+                'assessmentCode' => $row->assessment_code,
+                'title' => $row->title,
+                'averageScore' => $row->average_score === null
+                    ? null
+                    : round((float) $row->average_score, 1),
+                'studentCount' => (int) $row->student_count,
+            ]);
+
+        return response()->json(['data' => $data]);
     }
 
     public function reopenAssessmentForStudent(Request $request, Assessment $assessment, User $student): JsonResponse
@@ -522,12 +608,20 @@ class LearningController extends Controller
 
     private function nextAssessmentCode(Classroom $class): string
     {
+        $initials = collect(preg_split('/[^\p{L}\p{N}]+/u', trim($class->name), -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
+            ->implode('');
+        $prefix = $initials !== '' ? $initials : 'C';
         $nextNumber = (int) $class->assessments()
-            ->get()
-            ->map(fn (Assessment $assessment) => (int) preg_replace('/\D+/', '', $assessment->assessment_code))
+            ->pluck('assessment_code')
+            ->map(function (string $assessmentCode) use ($prefix): int {
+                return preg_match('/^'.preg_quote($prefix, '/').'(\d+)$/i', $assessmentCode, $matches)
+                    ? (int) $matches[1]
+                    : 0;
+            })
             ->max() + 1;
 
-        return 'A'.$nextNumber;
+        return $prefix.$nextNumber;
     }
 
     public function submitAssessment(Request $request, Classroom $class): JsonResponse

@@ -144,6 +144,7 @@ export function TeacherClassWorkspace({
         {activeTab === "assessments" && (
           <Quiz
             classId={classInfo.id}
+            className={classInfo.name}
             assessmentId={assessmentId}
             onAssessmentChange={onAssessmentChange}
           />

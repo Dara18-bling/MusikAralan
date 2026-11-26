@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Classroom;
 use App\Models\Material;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +17,37 @@ use Tests\TestCase;
 class DashboardAndScheduleTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_keyboard_demo_quizzes_seed_twenty_questions_and_scores_for_both_charts(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $class = Classroom::query()->where('name', 'Basic Keyboard Lessons')->firstOrFail();
+        $quizzes = $class->assessments()->whereIn('assessment_code', ['BKL3', 'BKL4'])->get()->keyBy('assessment_code');
+        $this->assertCount(2, $quizzes);
+        foreach ($quizzes as $quiz) {
+            $this->assertSame(20, $quiz->questions()->count());
+            $this->assertSame(22, $quiz->attempts()->count());
+        }
+
+        $teacherToken = $class->teacher->createToken('keyboard-score-charts')->plainTextToken;
+        $summary = $this->withToken($teacherToken)
+            ->getJson("/api/classes/{$class->id}/assessment-score-summary")
+            ->assertOk()
+            ->json('data');
+        $summaryByCode = collect($summary)->keyBy('assessmentCode');
+        $this->assertSame(22, $summaryByCode['BKL3']['studentCount']);
+        $this->assertSame(22, $summaryByCode['BKL4']['studentCount']);
+        $this->assertGreaterThan($summaryByCode['BKL3']['averageScore'], $summaryByCode['BKL4']['averageScore']);
+
+        $this->withToken($teacherToken)
+            ->getJson("/api/assessments/{$quizzes['BKL4']->id}/scores")
+            ->assertOk()
+            ->assertJsonCount(22, 'data')
+            ->assertJsonCount(10, 'scoreDistribution')
+            ->assertJsonPath('scoreDistribution.0.score', 55)
+            ->assertJsonPath('scoreDistribution.0.studentCount', 2);
+    }
 
     public function test_assigned_teacher_can_lock_and_unlock_class_certificates(): void
     {
@@ -423,11 +455,16 @@ class DashboardAndScheduleTest extends TestCase
     {
         $teacher = $this->createUser('multiple-assessments-teacher@example.test', 'teacher');
         $student = $this->createUser('multiple-assessments-student@example.test', 'student');
+        $tieStudent = $this->createUser('multiple-assessments-tie@example.test', 'student');
+        $unattemptedStudent = $this->createUser('multiple-assessments-unattempted@example.test', 'student');
+        $tieStudent->update(['name' => 'Zoe Tie']);
         $class = Classroom::query()->create([
             'name' => 'Music class',
             'teacher_id' => $teacher->id,
         ]);
         $class->students()->attach($student->id, ['enrolled_at' => now()]);
+        $class->students()->attach($tieStudent->id, ['enrolled_at' => now()]);
+        $class->students()->attach($unattemptedStudent->id, ['enrolled_at' => now()]);
         $teacherToken = $teacher->createToken('assessments-teacher')->plainTextToken;
 
         $firstAssessment = $this->withToken($teacherToken)
@@ -442,7 +479,7 @@ class DashboardAndScheduleTest extends TestCase
                 ]],
             ])
             ->assertCreated()
-            ->assertJsonPath('assessment.assessmentCode', 'A1')
+            ->assertJsonPath('assessment.assessmentCode', 'MC1')
             ->assertJsonPath('assessment.title', 'Music Theory')
             ->json('assessment.id');
 
@@ -459,7 +496,7 @@ class DashboardAndScheduleTest extends TestCase
                 ]],
             ])
             ->assertCreated()
-            ->assertJsonPath('assessment.assessmentCode', 'A2')
+            ->assertJsonPath('assessment.assessmentCode', 'MC2')
             ->assertJsonPath('assessment.questions.0.q', 'Name the first note of the C major scale.')
             ->json('assessment.id');
 
@@ -469,7 +506,7 @@ class DashboardAndScheduleTest extends TestCase
             ->assertOk()
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.allowsRetakes', true)
-            ->assertJsonPath('data.1.assessmentCode', 'A2')
+            ->assertJsonPath('data.1.assessmentCode', 'MC2')
             ->assertJsonPath('data.1.allowsRetakes', false)
             ->assertJsonCount(0, 'data.1.recentAttempts');
 
@@ -528,6 +565,12 @@ class DashboardAndScheduleTest extends TestCase
             ->assertJsonPath('attempt.passed', true);
 
         Auth::forgetGuards();
+        $this->withToken($tieStudent->createToken('assessments-student-tied-score')->plainTextToken)
+            ->postJson("/api/assessments/{$firstAssessment}/attempts", ['answers' => ['0']])
+            ->assertCreated()
+            ->assertJsonPath('attempt.score', 100);
+
+        Auth::forgetGuards();
         $this->withToken($student->createToken('assessments-student-retake-allowed')->plainTextToken)
             ->postJson("/api/assessments/{$firstAssessment}/attempts", ['answers' => ['1']])
             ->assertCreated()
@@ -544,11 +587,34 @@ class DashboardAndScheduleTest extends TestCase
         $this->withToken($teacherToken)
             ->getJson("/api/assessments/{$firstAssessment}/scores")
             ->assertOk()
-            ->assertJsonCount(1, 'data')
+            ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.score', 100)
             ->assertJsonPath('data.0.passed', true)
             ->assertJsonPath('data.0.retakes', 1)
             ->assertJsonPath('data.0.studentName', $student->name);
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->getJson("/api/assessments/{$firstAssessment}/scores")
+            ->assertOk()
+            ->assertJsonPath('scoreDistribution.0.score', 0)
+            ->assertJsonPath('scoreDistribution.0.studentCount', 0)
+            ->assertJsonPath('scoreDistribution.0.noAttemptCount', 1)
+            ->assertJsonPath('scoreDistribution.0.noAttemptStudents.0', $unattemptedStudent->name)
+            ->assertJsonPath('scoreDistribution.1.score', 100)
+            ->assertJsonPath('scoreDistribution.1.studentCount', 2)
+            ->assertJsonPath('scoreDistribution.1.students.0', $student->name)
+            ->assertJsonPath('scoreDistribution.1.students.1', $tieStudent->name);
+
+        Auth::forgetGuards();
+        $this->withToken($teacherToken)
+            ->getJson("/api/classes/{$class->id}/assessment-score-summary")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.averageScore', 100)
+            ->assertJsonPath('data.0.studentCount', 2)
+            ->assertJsonPath('data.1.averageScore', 100)
+            ->assertJsonPath('data.1.studentCount', 1);
 
         $this->assertDatabaseHas('module_progress', [
             'user_id' => $student->id,

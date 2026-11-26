@@ -82,6 +82,7 @@ export function AdminClassContent({
           <Quiz
             key={classInfo.id}
             classId={classInfo.id}
+            className={classInfo.name}
             assessmentId={assessmentId}
             onAssessmentChange={setAssessmentId}
           />

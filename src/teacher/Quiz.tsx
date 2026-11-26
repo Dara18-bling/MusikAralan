@@ -31,6 +31,7 @@ interface AssessmentDetails extends AssessmentSummary {
 
 interface QuizProps {
   classId?: string;
+  className: string;
   assessmentId: string;
   onAssessmentChange: (assessmentId: string) => void;
 }
@@ -44,7 +45,12 @@ const emptyQuestion = (): Question => ({
   type: "multiple",
 });
 
-export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
+export function Quiz({
+  classId,
+  className,
+  assessmentId,
+  onAssessmentChange,
+}: QuizProps) {
   const [activeSubtab, setActiveSubtab] = useState<QuizSubtab>(
     assessmentId ? "edit" : "create",
   );
@@ -303,7 +309,11 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
         </div>
       </div>
       {activeSubtab === "scores" ? (
-        <QuizScores className={classId || "Class"} assessments={assessments} />
+        <QuizScores
+          classId={classId || ""}
+          className={className}
+          assessments={assessments}
+        />
       ) : (
         <div className="grid max-w-3xl gap-4">
           {activeSubtab === "edit" && (
@@ -315,7 +325,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
                   onChange={(event) => onAssessmentChange(event.target.value)}
                   className="rounded-lg border border-line bg-white px-3 py-2 text-sm"
                 >
-                  {!assessmentId && <option value="">New assessment</option>}
+                  {!assessmentId && <option value="">New quiz</option>}
                   {assessments.map((assessment) => (
                     <option key={assessment.id} value={assessment.id}>
                       {assessment.assessmentCode} · {assessment.title}
@@ -336,7 +346,7 @@ export function Quiz({ classId, assessmentId, onAssessmentChange }: QuizProps) {
             <Card className="grid gap-3">
               <Label>
                 Quiz details
-                {assessmentCode ? ` · ${assessmentCode}` : " · New assessment"}
+                {assessmentCode ? ` · ${assessmentCode}` : " · New quiz"}
               </Label>
               <Input
                 value={title}

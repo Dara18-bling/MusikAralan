@@ -122,7 +122,7 @@ class LmsIntegrationTest extends TestCase
 
         $this->withToken($adminToken)
             ->postJson("/api/classes/{$class->id}/assessments", [
-                'title' => 'New assessment',
+                'title' => 'New quiz',
                 'passingPercent' => 70,
                 'questions' => [[
                     'q' => 'Which note is this?',

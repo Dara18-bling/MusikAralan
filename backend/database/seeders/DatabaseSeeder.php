@@ -103,10 +103,95 @@ class DatabaseSeeder extends Seeder
             }
         });
 
+        $scoreChartClass = $classes->first();
+        $students->where('status', 'approved')->each(
+            fn (User $student) => $scoreChartClass->students()->syncWithoutDetaching([
+                $student->id => ['enrolled_at' => now()->subDays(30)],
+            ]),
+        );
+
         $modulesByClass = collect();
         $materialsByClass = collect();
         $assessmentsByClass = collect();
+        $scoreChartAssessmentsByClass = collect();
+        $classPrefixesByClass = collect();
+        $scoreChartScores = [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 55, 50, 45, 40, 35, 30, 25, 20];
+        $keyboardQuizQuestions = [
+            3 => [
+                ['Which clef is commonly used for higher-pitched notes?', 'Treble clef', 'Bass clef', 'Alto clef', 'Tenor clef'],
+                ['How many lines are on a standard musical staff?', 'Five', 'Four', 'Six', 'Seven'],
+                ['Which note follows B in the C major scale?', 'C', 'A', 'D', 'E'],
+                ['How many quarter-note beats does a half note usually receive?', 'Two', 'One', 'Three', 'Four'],
+                ['Which note commonly receives one beat in 4/4 time?', 'Quarter note', 'Whole note', 'Half note', 'Eighth note'],
+                ['What does the top number in 4/4 time indicate?', 'Four beats per measure', 'Four measures per beat', 'Four notes per staff', 'Four half notes per measure'],
+                ['How many quarter notes equal one whole note?', 'Four', 'Two', 'Three', 'Eight'],
+                ['What does a rest sign indicate?', 'Silence for a duration', 'A louder note', 'A repeated section', 'A change of key'],
+                ['What does a sharp do to a note?', 'Raises it by a half step', 'Lowers it by a half step', 'Doubles its duration', 'Makes it silent'],
+                ['What does a flat do to a note?', 'Lowers it by a half step', 'Raises it by a half step', 'Doubles its duration', 'Repeats the measure'],
+                ['What does a natural sign do?', 'Cancels a sharp or flat', 'Raises a note by a whole step', 'Shortens a note', 'Marks the end of a piece'],
+                ['Which key signature has no sharps or flats?', 'C major', 'G major', 'F major', 'D major'],
+                ['Where are the lowest pitches found on a piano?', 'On the left', 'In the center', 'On the right', 'Above the keys'],
+                ['Where are the highest pitches found on a piano?', 'On the right', 'In the center', 'On the left', 'Below the keys'],
+                ['What does forte (f) mean?', 'Loud', 'Soft', 'Fast', 'Smooth'],
+                ['What does piano (p) mean in a dynamic marking?', 'Soft', 'Loud', 'Short', 'Accented'],
+                ['What does legato ask a player to do?', 'Play smoothly connected notes', 'Play very loudly', 'Pause after each note', 'Speed up gradually'],
+                ['What does staccato mean?', 'Play notes short and detached', 'Hold notes as long as possible', 'Play quietly', 'Connect every note smoothly'],
+                ['What does a barline separate?', 'Measures', 'Staves', 'Clefs', 'Octaves'],
+                ['What is a metronome used to help maintain?', 'A steady tempo', 'A key signature', 'A note name', 'A chord shape'],
+            ],
+            4 => [
+                ['Which symbol is placed at the beginning of a staff to identify note names?', 'Clef', 'Barline', 'Rest', 'Tie'],
+                ['Which clef is commonly used for lower-pitched notes?', 'Bass clef', 'Treble clef', 'Alto clef', 'Soprano clef'],
+                ['How many spaces are on a standard five-line staff?', 'Four', 'Three', 'Five', 'Six'],
+                ['Which pair of notes has the same letter name one octave apart?', 'C and the next higher C', 'C and D', 'E and F', 'G and A'],
+                ['How many eighth notes usually equal one quarter note?', 'Two', 'One', 'Three', 'Four'],
+                ['What does the bottom number in a time signature identify?', 'The note value counted as one beat', 'The number of measures', 'The number of clefs', 'The tempo marking'],
+                ['Which time signature commonly has three quarter-note beats per measure?', '3/4', '2/4', '4/4', '6/8'],
+                ['What is a tie used to do?', 'Join the duration of two notes of the same pitch', 'Separate two measures', 'Raise a note', 'Mark a quiet section'],
+                ['What is a slur commonly used to show?', 'A group of notes played smoothly', 'A note played loudly', 'A repeated measure', 'A change in tempo'],
+                ['What does a double barline often mark?', 'The end of a section or piece', 'The start of every beat', 'A sharp note', 'A short rest'],
+                ['Which accidental lowers a note by a half step?', 'Flat', 'Sharp', 'Natural', 'Double sharp'],
+                ['Which accidental raises a note by a half step?', 'Sharp', 'Flat', 'Natural', 'Double flat'],
+                ['What is the first note of a C major scale?', 'C', 'D', 'E', 'G'],
+                ['Which set contains only the white keys around one octave?', 'C, D, E, F, G, A, B', 'C, D, F-sharp, G-sharp', 'A, C-sharp, D-sharp, F', 'B-flat, E-flat, F-sharp, A'],
+                ['What does crescendo mean?', 'Gradually get louder', 'Gradually get softer', 'Play detached', 'Return to the beginning'],
+                ['What does diminuendo mean?', 'Gradually get softer', 'Gradually get louder', 'Play faster', 'Hold the note longer'],
+                ['What does accelerando mean?', 'Gradually get faster', 'Gradually get slower', 'Play more softly', 'Repeat the phrase'],
+                ['What does ritardando mean?', 'Gradually get slower', 'Gradually get faster', 'Play loudly', 'Play detached'],
+                ['What is an interval?', 'The distance between two pitches', 'A type of rest', 'A group of measures', 'The speed of a song'],
+                ['What does a chord contain?', 'Multiple pitches sounded together', 'One note played repeatedly', 'A single rest', 'A tempo change'],
+            ],
+        ];
+        $keyboardQuizScores = [
+            3 => [80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 35, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            4 => [100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0],
+        ];
+        $keyboardQuizzesByClass = collect();
         foreach ($classes as $classIndex => $class) {
+            $classPrefix = collect(preg_split('/[^\p{L}\p{N}]+/u', trim($class->name), -1, PREG_SPLIT_NO_EMPTY))
+                ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
+                ->implode('');
+            $classPrefix = $classPrefix !== '' ? $classPrefix : 'C';
+            $classPrefixesByClass->put($class->id, $classPrefix);
+            $legacyDemoCodes = [
+                'A1' => [$class->name.' Knowledge Check', $classPrefix.'1'],
+            ];
+            if ($classIndex === 0) {
+                $legacyDemoCodes += [
+                    'A2' => ['Score Distribution Demo', $classPrefix.'2'],
+                    'A3' => ['Keyboard Fundamentals', $classPrefix.'3'],
+                    'A4' => ['Keyboard Theory and Rhythm', $classPrefix.'4'],
+                ];
+            }
+            foreach ($legacyDemoCodes as $legacyCode => [$demoTitle, $currentCode]) {
+                $legacyAssessment = $class->assessments()
+                    ->where('assessment_code', $legacyCode)
+                    ->where('title', $demoTitle)
+                    ->first();
+                if ($legacyAssessment !== null && ! $class->assessments()->where('assessment_code', $currentCode)->exists()) {
+                    $legacyAssessment->update(['assessment_code' => $currentCode]);
+                }
+            }
             $module = $class->modules()->first() ?? Module::query()->create([
                 'class_id' => $class->id,
                 'title' => $class->name,
@@ -145,7 +230,7 @@ class DatabaseSeeder extends Seeder
             }
 
             $assessment = Assessment::query()->updateOrCreate(
-                ['class_id' => $class->id, 'assessment_code' => 'A1'],
+                ['class_id' => $class->id, 'assessment_code' => $classPrefix.'1'],
                 ['module_id' => $module->id, 'title' => $class->name.' Knowledge Check', 'passing_percent' => 70],
             );
             $assessmentsByClass->put($class->id, $assessment);
@@ -157,6 +242,49 @@ class DatabaseSeeder extends Seeder
             ];
             foreach ($questions as $position => $question) {
                 $assessment->questions()->updateOrCreate(['position' => $position], $question);
+            }
+            if ($classIndex === 0) {
+                $scoreChartAssessment = Assessment::query()->updateOrCreate(
+                    ['class_id' => $class->id, 'assessment_code' => $classPrefix.'2'],
+                    [
+                        'module_id' => $module->id,
+                        'title' => 'Score Distribution Demo',
+                        'passing_percent' => 70,
+                    ],
+                );
+                foreach ($questions as $position => $question) {
+                    $scoreChartAssessment->questions()->updateOrCreate(['position' => $position], $question);
+                }
+                $scoreChartAssessmentsByClass->put($class->id, $scoreChartAssessment);
+
+                $keyboardQuizzes = collect();
+                foreach ($keyboardQuizQuestions as $assessmentNumber => $quizQuestions) {
+                    $assessmentCode = $classPrefix.$assessmentNumber;
+                    $keyboardQuiz = Assessment::query()->updateOrCreate(
+                        ['class_id' => $class->id, 'assessment_code' => $assessmentCode],
+                        [
+                            'module_id' => $module->id,
+                            'title' => $assessmentNumber === 3
+                                ? 'Keyboard Fundamentals'
+                                : 'Keyboard Theory and Rhythm',
+                            'passing_percent' => 70,
+                        ],
+                    );
+                    foreach ($quizQuestions as $position => [$prompt, $correctOption, $distractorOne, $distractorTwo, $distractorThree]) {
+                        $keyboardQuiz->questions()->updateOrCreate(
+                            ['position' => $position],
+                            [
+                                'prompt' => $prompt,
+                                'type' => 'multiple',
+                                'options' => [$correctOption, $distractorOne, $distractorTwo, $distractorThree],
+                                'correct_option_index' => 0,
+                                'correct_answer' => null,
+                            ],
+                        );
+                    }
+                    $keyboardQuizzes->put($assessmentCode, $keyboardQuiz);
+                }
+                $keyboardQuizzesByClass->put($class->id, $keyboardQuizzes);
             }
 
             if ($class->teacher_id !== null) {
@@ -173,6 +301,7 @@ class DatabaseSeeder extends Seeder
         }
 
         foreach ($classes as $classIndex => $class) {
+            $classPrefix = $classPrefixesByClass[$class->id];
             $classStudents = $class->students()->where('users.status', 'approved')->orderBy('users.id')->get();
             foreach ($classStudents as $studentIndex => $student) {
                 $module = $modulesByClass[$class->id];
@@ -234,6 +363,53 @@ class DatabaseSeeder extends Seeder
                     'status' => $completed ? 'completed' : 'in_progress',
                     'completed_at' => $completed ? now()->subDays(($studentIndex % 10) + 1) : null,
                 ]);
+
+                if ($classIndex === 0 && $studentIndex < count($scoreChartScores)) {
+                    $score = $scoreChartScores[$studentIndex];
+                    $scoreChartAssessment = $scoreChartAssessmentsByClass[$class->id];
+                    AssessmentAttempt::query()->updateOrCreate(
+                        ['legacy_key' => "demo-score-chart-attempt-{$student->id}"],
+                        [
+                            'assessment_id' => $scoreChartAssessment->id,
+                            'student_id' => $student->id,
+                            'module_progress_id' => $progress->id,
+                            'score' => $score,
+                            'passed' => $score >= $scoreChartAssessment->passing_percent,
+                            'status' => $score >= $scoreChartAssessment->passing_percent ? 'passed' : 'failed',
+                            'submitted_at' => now()->subDays(($studentIndex % 12) + 1),
+                        ],
+                    );
+                }
+
+                if ($classIndex === 0) {
+                    foreach ($keyboardQuizScores as $assessmentNumber => $quizScores) {
+                        $score = $quizScores[$studentIndex];
+                        $assessmentCode = $classPrefix.$assessmentNumber;
+                        $keyboardQuiz = $keyboardQuizzesByClass[$class->id][$assessmentCode];
+                        $attempt = AssessmentAttempt::query()->updateOrCreate(
+                            ['legacy_key' => "demo-A{$assessmentNumber}-attempt-{$student->id}"],
+                            [
+                                'assessment_id' => $keyboardQuiz->id,
+                                'student_id' => $student->id,
+                                'module_progress_id' => $progress->id,
+                                'score' => $score,
+                                'passed' => $score >= $keyboardQuiz->passing_percent,
+                                'status' => $score >= $keyboardQuiz->passing_percent ? 'passed' : 'failed',
+                                'submitted_at' => now()->subDays(($studentIndex % 12) + 1),
+                            ],
+                        );
+                        foreach ($keyboardQuiz->questions as $question) {
+                            $correct = $question->position < (int) ($score / 5);
+                            $answer = (string) ($correct
+                                ? $question->correct_option_index
+                                : (($question->correct_option_index + 1) % count($question->options)));
+                            $attempt->answers()->updateOrCreate(
+                                ['question_id' => $question->id],
+                                ['answer' => $answer, 'correct' => $correct],
+                            );
+                        }
+                    }
+                }
             }
         }
 
